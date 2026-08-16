@@ -99,6 +99,15 @@ Runtime configuration is read through Dart compile-time defines.
 - Common loading, empty, error, retry, and success states use `lib/widgets/app_state_view.dart`.
 - Route-level screens should use tokens and theme values instead of ad hoc colors, spacing, or radii.
 
+## Data & State Foundation
+
+- API DTOs live in `lib/models` and keep `productId` and `skuId` separate.
+- Cart save requests use `customerId`, `productId`, `color`, and `size`; the backend resolves `skuId`.
+- Inventory UI models expose only API booleans. Reliability fields such as `confirmed` and `checked_at` stay backend decision-engine inputs.
+- Repository contracts live in `lib/repositories`; `MockSegueRepository` supports screen work before final API integration.
+- `RepositoryScope` switches between mock and real repositories with `--dart-define=USE_MOCK_DATA=false`.
+- Session state lives in `lib/providers`, so screens consume controllers instead of HTTP details.
+
 ## Folder Structure
 
 - `android`: Android runner project
