@@ -8,8 +8,8 @@ void main() {
   ) async {
     await tester.pumpWidget(const SegueApp());
 
-    expect(find.text('고객 모바일'), findsOneWidget);
-    expect(find.text('MCM Last Intent'), findsOneWidget);
+    expect(find.text('앱 로그인 화면'), findsOneWidget);
+    expect(find.text('로그인'), findsWidgets);
   });
 
   testWidgets('opens the staff web route group', (WidgetTester tester) async {
@@ -20,9 +20,7 @@ void main() {
 
     await tester.pumpWidget(const SegueApp());
 
-    final Finder staffWebButton = find.widgetWithText(FilledButton, '직원 웹');
-    await tester.ensureVisible(staffWebButton);
-    await tester.tap(staffWebButton);
+    Navigator.of(tester.element(find.text('앱 로그인 화면'))).pushNamed('/staff');
     await tester.pumpAndSettle();
 
     expect(find.text('직원 웹'), findsWidgets);
