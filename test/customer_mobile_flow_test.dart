@@ -98,4 +98,55 @@ void main() {
     expect(find.text('코냑 · 라지'), findsOneWidget);
     expect(find.text('2026. 08. 16 추가'), findsOneWidget);
   });
+
+  testWidgets('consultation result opens online and store visit guidance', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const SegueApp());
+    await tester.tap(find.text('앱으로 계속하기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('상담 결과').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('앱 상담 결과 확인'), findsOneWidget);
+    expect(find.text('MCM 백팩 미디움'), findsOneWidget);
+    expect(find.text('정확한 제품 확인'), findsOneWidget);
+    expect(find.text('온라인 구매하기'), findsOneWidget);
+
+    await tester.tap(find.text('온라인 구매하기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('온라인 구매 화면'), findsOneWidget);
+    expect(find.text('온라인 구매 안내'), findsOneWidget);
+    await tester.ensureVisible(find.text('온라인 스토어에서 구매하기'));
+    expect(find.text('온라인 스토어에서 구매하기'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('뒤로'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('매장 재방문 안내 보기'),
+      80,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.drag(find.byType(ListView).last, const Offset(0, -180));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('매장 재방문 안내 보기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('매장 재방문 안내'), findsWidgets);
+    expect(find.text('방문 전 준비 사항'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('요청 접수 안내'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('요청 접수 안내'), findsOneWidget);
+  });
 }

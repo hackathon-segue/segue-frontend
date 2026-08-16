@@ -163,4 +163,24 @@ abstract final class MobileProductCatalog {
       orElse: () => products.first,
     );
   }
+
+  static MobileProduct productBySkuId(int skuId) {
+    return products.firstWhere(
+      (MobileProduct product) => product.options.any(
+        (MobileSkuOption option) => option.skuId == skuId,
+      ),
+      orElse: () => products.first,
+    );
+  }
+
+  static MobileSkuOption? skuById(int skuId) {
+    for (final MobileProduct product in products) {
+      for (final MobileSkuOption option in product.options) {
+        if (option.skuId == skuId) {
+          return option;
+        }
+      }
+    }
+    return null;
+  }
 }
