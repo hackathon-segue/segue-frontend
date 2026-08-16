@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_design_tokens.dart';
+
 class RouteCard extends StatelessWidget {
   const RouteCard({
     required this.icon,
@@ -21,36 +23,18 @@ class RouteCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     return Card(
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, color: const Color(0xFF111827), size: 28),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: const Color(0xFF111827),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              description,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF475569),
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
+            Icon(icon, color: AppColors.ink, size: AppSizes.iconMedium),
+            const SizedBox(height: AppSpacing.md),
+            Text(title, style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.xs),
+            Text(description, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: AppSpacing.lg),
             SizedBox(
               width: double.infinity,
               child: FilledButton(

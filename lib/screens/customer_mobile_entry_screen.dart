@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/app_config.dart';
+import '../utils/app_design_tokens.dart';
 import '../widgets/app_stage_shell.dart';
 import '../widgets/route_card.dart';
 
@@ -12,7 +13,7 @@ class CustomerMobileEntryScreen extends StatelessWidget {
     return AppStageShell(
       audience: '고객 모바일',
       title: 'MCM Last Intent',
-      maxWidth: 430,
+      maxWidth: AppSizes.mobileContentMaxWidth,
       child: ListView(
         children: const <Widget>[
           RouteCard(
@@ -22,7 +23,7 @@ class CustomerMobileEntryScreen extends StatelessWidget {
             actionLabel: '모바일 화면',
             routeName: AppRoutes.customerMobile,
           ),
-          SizedBox(height: 12),
+          SizedBox(height: AppSpacing.sm),
           RouteCard(
             icon: Icons.desktop_windows_outlined,
             title: '직원 웹 화면',

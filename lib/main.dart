@@ -4,6 +4,7 @@ import 'screens/customer_mobile_entry_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'screens/staff_web_entry_screen.dart';
 import 'utils/app_config.dart';
+import 'utils/app_theme.dart';
 
 void main() {
   runApp(const SegueApp());
@@ -17,11 +18,7 @@ class SegueApp extends StatelessWidget {
     return MaterialApp(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF111827)),
-        fontFamily: 'Arial',
-        useMaterial3: true,
-      ),
+      theme: SegueTheme.light(),
       initialRoute: AppRoutes.root,
       routes: <String, WidgetBuilder>{
         AppRoutes.root: (_) => const CustomerMobileEntryScreen(),

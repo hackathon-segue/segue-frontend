@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/app_config.dart';
+import '../utils/app_design_tokens.dart';
 import '../widgets/app_stage_shell.dart';
 import '../widgets/route_card.dart';
 
@@ -13,9 +14,12 @@ class StaffWebEntryScreen extends StatelessWidget {
       audience: '직원 웹',
       title: 'Last Intent 상담',
       child: GridView.count(
-        crossAxisCount: MediaQuery.sizeOf(context).width >= 720 ? 2 : 1,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
+        crossAxisCount:
+            MediaQuery.sizeOf(context).width >= AppSizes.staffGridBreakpoint
+            ? 2
+            : 1,
+        mainAxisSpacing: AppSpacing.sm,
+        crossAxisSpacing: AppSpacing.sm,
         childAspectRatio: 1.35,
         children: const <Widget>[
           RouteCard(
