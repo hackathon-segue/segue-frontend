@@ -92,6 +92,13 @@ Runtime configuration is read through Dart compile-time defines.
 | 김세계 | `010-1234-5678` | Consent already completed, main happy-path demo |
 | 이수현 | `010-9876-5432` | No consent record, 403 consent-required demo |
 
+## UI Foundation
+
+- Design tokens live in `lib/utils/app_design_tokens.dart`.
+- The shared Material theme lives in `lib/utils/app_theme.dart`.
+- Common loading, empty, error, retry, and success states use `lib/widgets/app_state_view.dart`.
+- Route-level screens should use tokens and theme values instead of ad hoc colors, spacing, or radii.
+
 ## Folder Structure
 
 - `android`: Android runner project

@@ -1,0 +1,136 @@
+import 'package:flutter/material.dart';
+
+import 'app_design_tokens.dart';
+
+abstract final class SegueTheme {
+  static ThemeData light() {
+    final ThemeData base = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppColors.brand,
+        brightness: Brightness.light,
+      ),
+      fontFamily: 'Arial',
+      useMaterial3: true,
+    );
+
+    return base.copyWith(
+      scaffoldBackgroundColor: AppColors.canvas,
+      textTheme: _textTheme(base.textTheme),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.brand,
+          foregroundColor: AppColors.surface,
+          minimumSize: const Size.fromHeight(AppSizes.minTapTarget),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.ink,
+          minimumSize: const Size.fromHeight(AppSizes.minTapTarget),
+          side: AppBorders.subtle,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: AppBorders.subtle,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: AppBorders.subtle,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: AppBorders.focused,
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderSide: AppBorders.danger,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.surface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          side: AppBorders.subtle,
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
+        iconColor: AppColors.ink,
+        textColor: AppColors.ink,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.border,
+        thickness: 1,
+        space: 1,
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.brand,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.ink,
+        contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+          color: AppColors.surface,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+        ),
+      ),
+    );
+  }
+
+  static TextTheme _textTheme(TextTheme base) {
+    return base.copyWith(
+      headlineMedium: base.headlineMedium?.copyWith(
+        color: AppColors.ink,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0,
+      ),
+      titleLarge: base.titleLarge?.copyWith(
+        color: AppColors.ink,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0,
+      ),
+      titleMedium: base.titleMedium?.copyWith(
+        color: AppColors.ink,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+      ),
+      bodyMedium: base.bodyMedium?.copyWith(
+        color: AppColors.mutedInk,
+        height: 1.4,
+        letterSpacing: 0,
+      ),
+      bodySmall: base.bodySmall?.copyWith(
+        color: AppColors.subtleInk,
+        letterSpacing: 0,
+      ),
+      labelLarge: base.labelLarge?.copyWith(
+        color: AppColors.subtleInk,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
