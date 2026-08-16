@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../exceptions/app_exception.dart';
 import '../models/models.dart';
+import '../providers/providers.dart';
 import '../repositories/repositories.dart';
 import '../utils/app_design_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/mobile_product_visual.dart';
 import '../widgets/mobile_screen_scaffold.dart';
 
-enum _MobileScreen { login, home, products, detail, cart, results }
+enum _MobileScreen { login, home, products, detail, cartAdded, cart, results }
 
 class CustomerMobileEntryScreen extends StatefulWidget {
   const CustomerMobileEntryScreen({super.key});
@@ -27,6 +29,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   String? _selectedCategory;
   String? _selectedColor;
   String? _selectedSize;
+  CartItem? _lastSavedCartItem;
+  final List<CartItem> _cartItems = <CartItem>[];
+  bool _isSavingCart = false;
+  String? _cartSaveError;
 
   @override
   void dispose() {
@@ -76,12 +82,19 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
           });
         },
         onSizeSelected: (String size) => setState(() => _selectedSize = size),
+        onAddToCart: _saveSelectedCartItem,
+        isSavingCart: _isSavingCart,
+        cartSaveError: _cartSaveError,
       ),
-      _MobileScreen.cart => _MobilePlaceholderScreen(
-        title: '앱 장바구니 목록',
-        tab: CustomerMobileTab.cart,
-        icon: Icons.shopping_cart_outlined,
-        headline: '담긴 제품이 없습니다',
+      _MobileScreen.cartAdded => _CartAddedScreen(
+        cartItem: _lastSavedCartItem,
+        onBack: _openDetailFromCartAdded,
+        onOpenCart: _openCart,
+        onContinueShopping: _openProducts,
+      ),
+      _MobileScreen.cart => _CartListScreen(
+        cartItems: _cartItems,
+        onBackToProducts: _openProducts,
         onTabSelected: _openTab,
       ),
       _MobileScreen.results => _MobilePlaceholderScreen(
@@ -133,6 +146,58 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         CustomerMobileTab.results => _MobileScreen.results,
       };
     });
+  }
+
+  void _openCart() {
+    setState(() => _screen = _MobileScreen.cart);
+  }
+
+  void _openDetailFromCartAdded() {
+    setState(() => _screen = _MobileScreen.detail);
+  }
+
+  Future<void> _saveSelectedCartItem() async {
+    final MobileSkuOption? selectedSku = _selectedProduct.skuFor(
+      color: _selectedColor,
+      size: _selectedSize,
+    );
+    if (selectedSku == null || _isSavingCart) {
+      return;
+    }
+
+    setState(() {
+      _isSavingCart = true;
+      _cartSaveError = null;
+    });
+
+    try {
+      final CartItem cartItem = await RepositoryScope.of(context).saveCartItem(
+        CartSaveRequest(
+          customerId: 1,
+          productId: _selectedProduct.id,
+          color: selectedSku.color,
+          size: selectedSku.size,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSavingCart = false;
+        _lastSavedCartItem = cartItem;
+        _cartItems.removeWhere((CartItem item) => item.skuId == cartItem.skuId);
+        _cartItems.insert(0, cartItem);
+        _screen = _MobileScreen.cartAdded;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSavingCart = false;
+        _cartSaveError = _errorMessage(error);
+      });
+    }
   }
 }
 
@@ -445,6 +510,9 @@ class _ProductDetailScreen extends StatelessWidget {
     required this.onBack,
     required this.onColorSelected,
     required this.onSizeSelected,
+    required this.onAddToCart,
+    required this.isSavingCart,
+    required this.cartSaveError,
   });
 
   final MobileProduct product;
@@ -454,6 +522,9 @@ class _ProductDetailScreen extends StatelessWidget {
   final VoidCallback onBack;
   final ValueChanged<String> onColorSelected;
   final ValueChanged<String> onSizeSelected;
+  final VoidCallback onAddToCart;
+  final bool isSavingCart;
+  final String? cartSaveError;
 
   @override
   Widget build(BuildContext context) {
@@ -559,17 +630,38 @@ class _ProductDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              FilledButton(
-                onPressed: selectedSku == null
-                    ? null
-                    : () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('선택한 SKU ${selectedSku!.skuId}'),
+              if (cartSaveError != null) ...<Widget>[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.error_outline,
+                          color: AppColors.danger,
+                          size: 20,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            cartSaveError!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.danger,
+                            ),
                           ),
-                        );
-                      },
-                child: const Text('장바구니 담기'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              FilledButton(
+                onPressed: selectedSku == null || isSavingCart
+                    ? null
+                    : onAddToCart,
+                child: Text(isSavingCart ? '저장 중' : '장바구니 담기'),
               ),
             ],
           ),
@@ -639,6 +731,248 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+class _CartAddedScreen extends StatelessWidget {
+  const _CartAddedScreen({
+    required this.cartItem,
+    required this.onBack,
+    required this.onOpenCart,
+    required this.onContinueShopping,
+  });
+
+  final CartItem? cartItem;
+  final VoidCallback onBack;
+  final VoidCallback onOpenCart;
+  final VoidCallback onContinueShopping;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return MobileScreenScaffold(
+      title: '장바구니 추가 완료',
+      showBackButton: true,
+      onBack: onBack,
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        children: <Widget>[
+          Text(
+            '장바구니에 추가되었습니다',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '선택한 제품이 안전하게 저장되었어요',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          if (cartItem == null)
+            const AppStateView.empty(title: '저장된 항목이 없습니다')
+          else
+            _SavedCartItemCard(cartItem: cartItem!),
+          const SizedBox(height: AppSpacing.lg),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton(
+              onPressed: onOpenCart,
+              child: const Text('장바구니 보기'),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: onContinueShopping,
+              child: const Text('계속 쇼핑하기'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SavedCartItemCard extends StatelessWidget {
+  const _SavedCartItemCard({required this.cartItem});
+
+  final CartItem cartItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final MobileProduct product = MobileProductCatalog.productById(
+      cartItem.productId,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('저장된 항목', style: theme.textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SizedBox(
+                  width: 132,
+                  height: 92,
+                  child: MobileProductVisual(product: product, compact: true),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        cartItem.productName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        '선택 컬러 ${cartItem.color}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        '선택 사이즈 ${cartItem.size}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(AppSpacing.sm),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('수량: 1개'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CartListScreen extends StatelessWidget {
+  const _CartListScreen({
+    required this.cartItems,
+    required this.onBackToProducts,
+    required this.onTabSelected,
+  });
+
+  final List<CartItem> cartItems;
+  final VoidCallback onBackToProducts;
+  final ValueChanged<CustomerMobileTab> onTabSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return MobileScreenScaffold(
+      title: '앱 장바구니 목록',
+      currentTab: CustomerMobileTab.cart,
+      onTabSelected: onTabSelected,
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        children: <Widget>[
+          Text('장바구니', style: theme.textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Text('최근 담은 순서', style: theme.textTheme.bodySmall),
+          const SizedBox(height: AppSpacing.md),
+          if (cartItems.isEmpty)
+            const AppStateView.empty(
+              title: '장바구니가 비어 있습니다',
+              message: '마음에 드는 제품을 담아두면 매장 상담 시 함께 확인할 수 있습니다.',
+            )
+          else
+            for (final CartItem cartItem in cartItems) ...<Widget>[
+              _CartListItemCard(cartItem: cartItem),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '저장한 제품은 매장 상담 시 Client Advisor가 함께 확인합니다.',
+            style: theme.textTheme.bodySmall,
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onBackToProducts,
+              child: const Text('이전 화면으로'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CartListItemCard extends StatelessWidget {
+  const _CartListItemCard({required this.cartItem});
+
+  final CartItem cartItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final MobileProduct product = MobileProductCatalog.productById(
+      cartItem.productId,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 132,
+              height: 92,
+              child: MobileProductVisual(product: product, compact: true),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    cartItem.productName,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    '${cartItem.color} · ${cartItem.size}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    _formatCartDate(cartItem.savedAt),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MobilePlaceholderScreen extends StatelessWidget {
   const _MobilePlaceholderScreen({
     required this.title,
@@ -668,6 +1002,20 @@ class _MobilePlaceholderScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+String _errorMessage(Object error) {
+  if (error is AppException) {
+    return error.message;
+  }
+  return '장바구니 저장에 실패했습니다. 다시 시도해 주세요.';
+}
+
+String _formatCartDate(DateTime date) {
+  final String year = date.year.toString().padLeft(4, '0');
+  final String month = date.month.toString().padLeft(2, '0');
+  final String day = date.day.toString().padLeft(2, '0');
+  return '$year. $month. $day 추가';
 }
 
 String _formatWon(int price) {

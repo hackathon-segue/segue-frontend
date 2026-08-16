@@ -1,11 +1,14 @@
 import '../exceptions/app_exception.dart';
 import '../models/models.dart';
+import 'mobile_product_catalog.dart';
 import 'segue_repository.dart';
 
 class MockSegueRepository implements SegueRepository {
   MockSegueRepository();
 
   final Map<int, bool> _consents = <int, bool>{1: true, 2: false};
+  final Map<int, List<CartItem>> _savedCartItems = <int, List<CartItem>>{};
+  int _nextCartItemId = 20;
 
   static final DateTime _demoNow = DateTime(2026, 8, 16, 17, 30);
 
@@ -61,13 +64,27 @@ class MockSegueRepository implements SegueRepository {
 
   @override
   Future<CartItem> saveCartItem(CartSaveRequest request) async {
-    return CartItem.fromJson(<String, Object?>{
-      'cartItemId': 10,
-      'productId': request.productId,
-      'productName': 'MCM 백팩 미디움',
-      'imageUrl': 'https://example.com/mcm-backpack.png',
-      'category': '백팩',
-      'skuId': 1,
+    final MobileProduct product = MobileProductCatalog.productById(
+      request.productId,
+    );
+    final MobileSkuOption? sku = product.skuFor(
+      color: request.color,
+      size: request.size,
+    );
+    if (sku == null) {
+      throw const AppException(
+        '선택한 옵션의 SKU를 찾을 수 없습니다.',
+        code: 'SKU_NOT_FOUND',
+      );
+    }
+
+    final CartItem cartItem = CartItem.fromJson(<String, Object?>{
+      'cartItemId': _nextCartItemId,
+      'productId': product.id,
+      'productName': product.name,
+      'imageUrl': 'https://example.com/mcm-product-${product.id}.png',
+      'category': product.category,
+      'skuId': sku.skuId,
       'color': request.color,
       'size': request.size,
       'currentStoreInStock': false,
@@ -76,6 +93,16 @@ class MockSegueRepository implements SegueRepository {
       'actionButtonLabel': 'Last Intent 시작',
       'savedAt': _demoNow.toIso8601String(),
     });
+    _nextCartItemId += 1;
+
+    final List<CartItem> savedItems = _savedCartItems.putIfAbsent(
+      request.customerId,
+      () => <CartItem>[],
+    );
+    savedItems.removeWhere((CartItem item) => item.skuId == cartItem.skuId);
+    savedItems.insert(0, cartItem);
+
+    return cartItem;
   }
 
   @override
@@ -91,7 +118,9 @@ class MockSegueRepository implements SegueRepository {
       );
     }
 
-    return <CartItem>[
+    final List<CartItem> savedItems =
+        _savedCartItems[customerId] ?? <CartItem>[];
+    final List<CartItem> seededItems = <CartItem>[
       CartItem.fromJson(<String, Object?>{
         'cartItemId': 1,
         'productId': 1,
@@ -122,6 +151,15 @@ class MockSegueRepository implements SegueRepository {
         'actionButtonLabel': '제품 확인하기',
         'savedAt': DateTime(2026, 8, 16, 16, 19, 29).toIso8601String(),
       }),
+    ];
+    final Set<int> savedSkuIds = <int>{
+      for (final CartItem item in savedItems) item.skuId,
+    };
+
+    return <CartItem>[
+      ...savedItems,
+      for (final CartItem item in seededItems)
+        if (!savedSkuIds.contains(item.skuId)) item,
     ];
   }
 
