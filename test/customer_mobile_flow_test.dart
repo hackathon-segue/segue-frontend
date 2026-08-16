@@ -61,4 +61,41 @@ void main() {
     button = tester.widget<FilledButton>(cartButton);
     expect(button.onPressed, isNotNull);
   });
+
+  testWidgets('selected SKU is saved and shown in the mobile cart', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const SegueApp());
+    await tester.tap(find.text('앱으로 계속하기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('제품 전체 보기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Himmel Large Backpack').first);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('라지'));
+    await tester.tap(find.text('라지'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('장바구니 담기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('장바구니 추가 완료'), findsOneWidget);
+    expect(find.text('장바구니에 추가되었습니다'), findsOneWidget);
+    expect(find.text('선택 컬러 코냑'), findsOneWidget);
+    expect(find.text('선택 사이즈 라지'), findsOneWidget);
+
+    await tester.tap(find.text('장바구니 보기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('앱 장바구니 목록'), findsOneWidget);
+    expect(find.text('최근 담은 순서'), findsOneWidget);
+    expect(find.text('코냑 · 라지'), findsOneWidget);
+    expect(find.text('2026. 08. 16 추가'), findsOneWidget);
+  });
 }
