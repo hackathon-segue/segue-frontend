@@ -56,8 +56,20 @@ class StaffWebSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clears any looked-up customer/cart/consent state, keeping only the
+  /// current store context. Used when the CA starts a fresh customer lookup.
+  void reset() {
+    _state = StaffWebSessionState(storeId: _state.storeId);
+    notifyListeners();
+  }
+
   Future<void> lookupCustomer(String phoneNumber) async {
-    _state = _state.copyWith(lookupState: const AsyncValue<Customer>.loading());
+    // Reset to a fresh state (keeping only storeId) so a new customer lookup
+    // never carries over a previous customer's cart/consent state.
+    _state = StaffWebSessionState(
+      storeId: _state.storeId,
+      lookupState: const AsyncValue<Customer>.loading(),
+    );
     notifyListeners();
 
     try {

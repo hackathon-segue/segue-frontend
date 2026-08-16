@@ -20,7 +20,11 @@ abstract final class SegueTheme {
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.brand,
           foregroundColor: AppColors.surface,
-          minimumSize: const Size.fromHeight(AppSizes.minTapTarget),
+          // A finite minimum width (not Size.fromHeight's implicit infinite
+          // width) so buttons placed in unbounded-width contexts (Align,
+          // Wrap, a header row) still lay out; screens that want a
+          // full-width button opt in explicitly via SizedBox(width: double.infinity).
+          minimumSize: const Size(AppSizes.minTapTarget, AppSizes.minTapTarget),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
           ),
@@ -30,7 +34,7 @@ abstract final class SegueTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.ink,
-          minimumSize: const Size.fromHeight(AppSizes.minTapTarget),
+          minimumSize: const Size(AppSizes.minTapTarget, AppSizes.minTapTarget),
           side: AppBorders.subtle,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
