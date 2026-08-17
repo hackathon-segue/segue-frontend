@@ -222,9 +222,16 @@ class MockSegueRepository implements SegueRepository {
       );
     }
 
-    return const ExecuteConsultationResponse(
+    return ExecuteConsultationResponse(
       consultationResultId: 5,
-      completionMessage: '요청이 접수되었습니다. CA가 실제 재고를 확인합니다',
+      // Issue #14: completionMessage varies by actionType per the real API
+      // contract, not one canned string regardless of what was requested.
+      completionMessage: switch (request.actionType) {
+        DecisionActionType.otherStoreCheckRequest => '요청이 접수되었습니다. CA가 실제 재고를 확인합니다',
+        DecisionActionType.restockCheckRequest => '확인 신청이 접수되었습니다',
+        DecisionActionType.productCheckRequest => 'CA에게 제품 확인을 요청했습니다',
+        DecisionActionType.reconsult => '고객의 조건을 다시 확인합니다',
+      },
     );
   }
 
