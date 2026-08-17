@@ -117,6 +117,18 @@ class RealSegueRepository implements SegueRepository {
   }
 
   @override
+  Future<void> recordConsultationResult({
+    required int customerId,
+    required ConsultationResult result,
+  }) async {
+    // Issue #15: no real endpoint for this — the backend persists the
+    // ConsultationResult itself as a side effect of `/execute` succeeding,
+    // so there's nothing for a real client to explicitly save here. This
+    // only does work in MockSegueRepository, which has no backend to do
+    // that for it.
+  }
+
+  @override
   Future<List<ConsultationResult>> fetchConsultationResults(
     int customerId,
   ) async {

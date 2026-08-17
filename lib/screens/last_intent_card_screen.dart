@@ -46,13 +46,27 @@ class _LastIntentCardScreenState extends State<LastIntentCardScreen> {
 
   static const double _twoColumnBreakpoint = 900;
 
-  Future<void> _handleExecute(LastIntentSessionController session) async {
+  Future<void> _handleExecute(LastIntentSessionController session) {
+    return _runAndMaybeNavigate(session, session.execute);
+  }
+
+  // Issue #15: retries ONLY the local/mock save (not execute() again) when
+  // execute() already succeeded but recordConsultationResult() failed —
+  // re-running execute() here would risk a duplicate real-world request.
+  Future<void> _handleRetrySave(LastIntentSessionController session) {
+    return _runAndMaybeNavigate(session, session.retrySaveConsultationResult);
+  }
+
+  Future<void> _runAndMaybeNavigate(
+    LastIntentSessionController session,
+    Future<void> Function() action,
+  ) async {
     if (_executing) {
-      return; // AC: CTA 중복 클릭/중복 요청 금지.
+      return; // AC: CTA/재시도 중복 클릭·중복 요청 금지.
     }
     setState(() => _executing = true);
     final Stopwatch stopwatch = Stopwatch()..start();
-    await session.execute();
+    await action();
     final Duration remaining = _minExecutingDuration - stopwatch.elapsed;
     if (remaining > Duration.zero) {
       await Future<void>.delayed(remaining);
@@ -61,7 +75,10 @@ class _LastIntentCardScreenState extends State<LastIntentCardScreen> {
       return;
     }
     setState(() => _executing = false);
-    if (session.state.executionResponse != null) {
+    // AC: 요청 접수(execute)와 결과 저장(local store) 둘 다 성공해야 완료
+    // 화면으로 이동한다 — 저장이 아직 실패/미완료면 Card 화면에 남아 해당 에러를
+    // 보여준다 (완료된 척 다음 단계로 넘어가지 않는다).
+    if (session.state.executionResponse != null && session.state.resultSaveState.hasData) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => LastIntentCompletionScreen(
@@ -85,13 +102,27 @@ class _LastIntentCardScreenState extends State<LastIntentCardScreen> {
         listenable: session,
         builder: (BuildContext context, Widget? _) {
           if (_executing || session.state.executionState.isLoading) {
-            return const AppStateView.loading(title: '요청을 접수하고 있습니다');
+            // Issue #15: two chained mock calls, distinguishable copy for
+            // each so the CA sees WHAT is actually in flight.
+            final String title = session.state.executionState.isLoading
+                ? '요청을 접수하고 있습니다'
+                : '상담 결과를 저장하고 있습니다';
+            return AppStateView.loading(title: title);
           }
 
           if (session.state.executionState.hasError) {
             return AppStateView.error(
               message: '요청 접수에 실패했습니다. 다시 시도해 주세요.',
               onAction: () => _handleExecute(session),
+            );
+          }
+
+          if (session.state.resultSaveState.hasError) {
+            // AC: 저장 실패 시 완료된 척 넘어가지 않고, Card/실행 결과는 유지한 채
+            // 저장만 재시도한다.
+            return AppStateView.error(
+              message: '상담 결과 저장에 실패했습니다. 다시 시도해 주세요.',
+              onAction: () => _handleRetrySave(session),
             );
           }
 

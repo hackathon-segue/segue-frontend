@@ -22,6 +22,7 @@ class LastIntentSessionState {
     this.followUpState = const AsyncValue<FollowUpQuestion>.idle(),
     this.decisionState = const AsyncValue<DecisionResult>.idle(),
     this.executionState = const AsyncValue<ExecuteConsultationResponse>.idle(),
+    this.resultSaveState = const AsyncValue<ConsultationResult>.idle(),
   });
 
   final int storeId;
@@ -45,6 +46,12 @@ class LastIntentSessionState {
   final AsyncValue<FollowUpQuestion> followUpState;
   final AsyncValue<DecisionResult> decisionState;
   final AsyncValue<ExecuteConsultationResponse> executionState;
+  // Issue #15: separate from executionState on purpose — execute() itself
+  // can succeed while the (mock/local) ConsultationResult save afterward
+  // still fails, and the UI needs to tell those two failure modes apart
+  // (and retry only the save, not re-execute) rather than treating "saved"
+  // as implied by "executed".
+  final AsyncValue<ConsultationResult> resultSaveState;
 
   LastIntentSessionState copyWith({
     int? storeId,
@@ -62,6 +69,7 @@ class LastIntentSessionState {
     AsyncValue<FollowUpQuestion>? followUpState,
     AsyncValue<DecisionResult>? decisionState,
     AsyncValue<ExecuteConsultationResponse>? executionState,
+    AsyncValue<ConsultationResult>? resultSaveState,
   }) {
     return LastIntentSessionState(
       storeId: storeId ?? this.storeId,
@@ -79,6 +87,7 @@ class LastIntentSessionState {
       followUpState: followUpState ?? this.followUpState,
       decisionState: decisionState ?? this.decisionState,
       executionState: executionState ?? this.executionState,
+      resultSaveState: resultSaveState ?? this.resultSaveState,
     );
   }
 }
@@ -276,12 +285,74 @@ class LastIntentSessionController extends ChangeNotifier {
         executionStatus: ExecutionStatus.requested,
         executionState: AsyncValue<ExecuteConsultationResponse>.data(response),
       );
+      notifyListeners();
+      // Issue #15: local/mock save only starts once execute() has actually
+      // succeeded (REQUESTED reached) — never on a failed execute().
+      await _saveConsultationResult(response);
+      return;
     } catch (error, stackTrace) {
       _state = _state.copyWith(
         executionState: AsyncValue<ExecuteConsultationResponse>.error(
           error,
           stackTrace,
         ),
+      );
+    }
+    notifyListeners();
+  }
+
+  /// Retries ONLY the local/mock ConsultationResult save — used when
+  /// execute() already succeeded but the save itself failed. Never
+  /// re-executes (that would risk a duplicate real-world execute request)
+  /// and never regenerates the Card/decide() result — it reuses exactly
+  /// what's already in session state.
+  Future<void> retrySaveConsultationResult() async {
+    final ExecuteConsultationResponse? response = _state.executionResponse;
+    if (response == null) {
+      return;
+    }
+    await _saveConsultationResult(response);
+  }
+
+  Future<void> _saveConsultationResult(ExecuteConsultationResponse response) async {
+    final Customer? customer = _state.customer;
+    final CartItem? selectedCartItem = _state.selectedCartItem;
+    final DecisionResult? decisionResult = _state.decisionResult;
+    final ExecutionStatus? executionStatus = _state.executionStatus;
+    if (customer == null || selectedCartItem == null || decisionResult == null || executionStatus == null) {
+      return;
+    }
+
+    _state = _state.copyWith(
+      resultSaveState: const AsyncValue<ConsultationResult>.loading(),
+    );
+    notifyListeners();
+
+    final ProductSkuSummary? recommended = decisionResult.recommendedProduct;
+    final ConsultationResult result = ConsultationResult(
+      id: response.consultationResultId,
+      skuId: selectedCartItem.skuId,
+      productName: selectedCartItem.productName,
+      imageUrl: selectedCartItem.imageUrl,
+      resultType: decisionResult.resultType,
+      // AC: Last Intent Card와 저장 결과가 일치 — Card가 보여준 것과 같은 규칙
+      // (recommendedProduct 있으면 제품, 없으면 확보 경로)으로 저장한다.
+      recommendedPath: recommended != null
+          ? '${recommended.productName} (${recommended.color})'
+          : decisionResult.pathDescription,
+      coreConditions: decisionResult.coreConditions,
+      consultedAt: DateTime.now(),
+      executionStatus: executionStatus,
+      executionNote: _state.executionNote,
+      executionUpdatedAt: DateTime.now(),
+    );
+
+    try {
+      await _repository.recordConsultationResult(customerId: customer.id, result: result);
+      _state = _state.copyWith(resultSaveState: AsyncValue<ConsultationResult>.data(result));
+    } catch (error, stackTrace) {
+      _state = _state.copyWith(
+        resultSaveState: AsyncValue<ConsultationResult>.error(error, stackTrace),
       );
     }
     notifyListeners();

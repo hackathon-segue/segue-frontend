@@ -242,8 +242,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('요청 접수 완료'), findsOneWidget);
-      expect(find.text('요청이 접수되었습니다. CA가 실제 재고를 확인합니다'), findsOneWidget);
-      expect(find.text('요청 접수 · 확인 중'), findsOneWidget); // REQUESTED status chip
+      expect(find.text('접수됨'), findsOneWidget); // REQUESTED status label
+      // Figma node 14:2301 "접수 내용" — the actual request type, sourced from
+      // the same actionButtonLabel the Card's single CTA showed.
+      expect(find.text('타 매장 확인 요청'), findsOneWidget);
       // AC: never implies the real-world action itself is done.
       expect(find.textContaining('완료'), findsWidgets); // only in "요청 접수 완료"/disclaimer, not "구매 완료" etc.
       expect(find.textContaining('구매 완료'), findsNothing);

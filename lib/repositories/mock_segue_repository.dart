@@ -7,6 +7,14 @@ class MockSegueRepository implements SegueRepository {
 
   final Map<int, bool> _consents = <int, bool>{1: true, 2: false};
 
+  // Issue #15: mock/local ConsultationResult store — customerId -> (result
+  // id -> result). Keyed by id (not a plain list) so recordConsultationResult
+  // is idempotent: retrying a save after a failure overwrites the same
+  // entry instead of creating a duplicate.
+  final Map<int, Map<int, ConsultationResult>> _consultationResultsByCustomer =
+      <int, Map<int, ConsultationResult>>{};
+  int _nextConsultationResultId = 100;
+
   static final DateTime _demoNow = DateTime(2026, 8, 16, 17, 30);
 
   @override
@@ -223,7 +231,10 @@ class MockSegueRepository implements SegueRepository {
     }
 
     return ExecuteConsultationResponse(
-      consultationResultId: 5,
+      // Issue #15: unique per call (not a fixed "5") so multiple executed
+      // consultations for the same customer get distinct ConsultationResult
+      // ids instead of colliding when recorded into the local store.
+      consultationResultId: _nextConsultationResultId++,
       // Issue #14: completionMessage varies by actionType per the real API
       // contract, not one canned string regardless of what was requested.
       completionMessage: switch (request.actionType) {
@@ -233,6 +244,18 @@ class MockSegueRepository implements SegueRepository {
         DecisionActionType.reconsult => '고객의 조건을 다시 확인합니다',
       },
     );
+  }
+
+  @override
+  Future<void> recordConsultationResult({
+    required int customerId,
+    required ConsultationResult result,
+  }) async {
+    final Map<int, ConsultationResult> forCustomer = _consultationResultsByCustomer
+        .putIfAbsent(customerId, () => <int, ConsultationResult>{});
+    // Keyed by result.id: retrying the same save (same id) overwrites in
+    // place instead of appending a duplicate entry.
+    forCustomer[result.id] = result;
   }
 
   @override
@@ -246,7 +269,11 @@ class MockSegueRepository implements SegueRepository {
         code: 'CONSENT_REQUIRED',
       );
     }
-    return <ConsultationResult>[_consultationResult()];
+    final List<ConsultationResult> results =
+        _consultationResultsByCustomer[customerId]?.values.toList() ?? <ConsultationResult>[];
+    // AC: 최신 상담 결과가 먼저 표시된다.
+    results.sort((ConsultationResult a, ConsultationResult b) => b.consultedAt.compareTo(a.consultedAt));
+    return results;
   }
 
   @override
