@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
+import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/providers/providers.dart';
 import 'package:segue_frontend/widgets/staff_check_row.dart';
 
-/// Issue #8: CartInventoryScreen's per-SKU status/action wiring.
+/// Issue #8/#9: CartInventoryScreen's per-SKU status/action wiring, and
+/// (Issue #9) each row's independent Last Intent session.
 void main() {
   Future<BuildContext> reachCartInventoryScreen(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -84,27 +86,48 @@ void main() {
   });
 
   testWidgets(
-    'each out-of-stock row has an independent Last Intent 시작 button that sets session context',
+    'each out-of-stock row navigates to its own independent Last Intent session',
     (WidgetTester tester) async {
       final BuildContext context = await reachCartInventoryScreen(tester);
-      final LastIntentSessionController lastIntentController = LastIntentSessionScope.of(
-        context,
-      );
+      final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
+      final Customer customer = StaffSessionScope.of(context).state.customer!;
+      final List<CartItem> items = StaffSessionScope.of(context).state.cartState.data!;
+      final CartItem sku1Item = items.firstWhere((CartItem i) => i.skuId == 1);
+      final CartItem sku5Item = items.firstWhere((CartItem i) => i.skuId == 5);
 
       expect(find.text('Last Intent 시작'), findsNWidgets(2));
 
       await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pump();
-      expect(lastIntentController.state.selectedCartItem?.skuId, 1);
+      await tester.pumpAndSettle();
+      expect(find.text('Last Intent 상담 시작'), findsOneWidget);
+      final LastIntentSessionController sku1Session = manager.sessionFor(
+        customer: customer,
+        cartItem: sku1Item,
+      );
+      expect(sku1Session.state.selectedCartItem?.skuId, 1);
+
+      // StaffAppShell screens have no AppBar/back button (custom shell
+      // chrome), so pop directly via Navigator instead of tester.pageBack().
+      Navigator.of(context).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
 
       await tester.tap(find.text('Last Intent 시작').last);
-      await tester.pump();
-      expect(lastIntentController.state.selectedCartItem?.skuId, 5);
+      await tester.pumpAndSettle();
+      expect(find.text('Last Intent 상담 시작'), findsOneWidget);
+      final LastIntentSessionController sku5Session = manager.sessionFor(
+        customer: customer,
+        cartItem: sku5Item,
+      );
+      expect(sku5Session.state.selectedCartItem?.skuId, 5);
 
-      // Tapping the second button did not navigate away or otherwise
-      // disturb the first item's row — both remain independently visible.
-      expect(find.text('MCM 백팩 미디움'), findsOneWidget);
-      expect(find.text('MCM 벨트백'), findsOneWidget);
+      // Starting SKU 5's session did not overwrite or replace SKU 1's — same
+      // controller instance, still pointed at SKU 1.
+      expect(
+        identical(sku1Session, manager.sessionFor(customer: customer, cartItem: sku1Item)),
+        isTrue,
+      );
+      expect(sku1Session.state.selectedCartItem?.skuId, 1);
     },
   );
 }
