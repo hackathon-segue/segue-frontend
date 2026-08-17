@@ -11,12 +11,14 @@ import '../widgets/staff_app_shell.dart';
 import '../widgets/staff_button.dart';
 import '../widgets/staff_image_placeholder.dart';
 
-/// Figma node 14:1051 "장바구니·재고 확인 화면".
+/// Figma node 14:1051 "장바구니·재고 확인 화면" — Issue #8's main screen.
 ///
-/// Not part of Issue #7's original scope (that only required the cart
-/// *preview* inside [CustomerLookupScreen]) — added because the user
-/// explicitly provided this Figma node and asked for an exact match.
-/// Reuses the already-loaded customer/cart/consent state from
+/// The shell/consent plumbing was built ahead of schedule in Issue #7
+/// (this screen was already reachable from [ConsentScreen]); Issue #8 adds
+/// the actual SKU-status action wiring: "제품 확인하기" navigates to
+/// [GeneralProductCheckScreen], "Last Intent 시작" hands the selected
+/// cart item/SKU off to [LastIntentSessionController]. Reuses the
+/// already-loaded customer/cart/consent state from
 /// [StaffWebSessionController] rather than re-fetching, since the CA
 /// reaches this screen right after consenting on [ConsentScreen].
 class CartInventoryScreen extends StatelessWidget {
@@ -98,7 +100,7 @@ class _CustomerSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final CustomerConsent? consent = state.consentState.data;
-    final String consentDate = consent != null ? _formatDateTime(consent.consentedAt) : '-';
+    final String consentDate = consent != null ? formatDateTime(consent.consentedAt) : '-';
     final int itemCount = state.cartState.data?.length ?? 0;
 
     // Figma (14:1051 metadata) lays this out as 6 EQUAL-width flex columns
@@ -143,10 +145,11 @@ class _CustomerSummaryCard extends StatelessWidget {
     );
   }
 
-  String _formatDateTime(DateTime dt) {
-    return '${dt.year}년 ${dt.month}월 ${dt.day}일 '
-        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
+}
+
+String formatDateTime(DateTime dt) {
+  return '${dt.year}년 ${dt.month}월 ${dt.day}일 '
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
 class _InfoColumn extends StatelessWidget {
@@ -204,14 +207,17 @@ class _CartList extends StatelessWidget {
 
     return Column(
       spacing: 16,
-      children: <Widget>[for (final CartItem item in items) _CartInventoryRow(item: item)],
+      children: <Widget>[
+        for (final CartItem item in items) _CartInventoryRow(customer: customer, item: item),
+      ],
     );
   }
 }
 
 class _CartInventoryRow extends StatelessWidget {
-  const _CartInventoryRow({required this.item});
+  const _CartInventoryRow({required this.customer, required this.item});
 
+  final Customer customer;
   final CartItem item;
 
   // Same reasoning as CustomerLookupScreen's cart row: image + status
@@ -225,7 +231,12 @@ class _CartInventoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool inStock = item.inventory.currentStoreInStock;
-    final String statusLabel = inStock ? '현재 매장 보유' : '선택 컬러 미보유';
+    // API.md/SCHEMA.md only expose a per-SKU currentStoreInStock boolean —
+    // there is no field distinguishing "this color/size unavailable" from
+    // "the whole product unavailable" (CLAUDE.md F2's two non-stock
+    // sub-cases), so this label intentionally stays generic rather than
+    // guessing which sub-case applies.
+    final String statusLabel = inStock ? '현재 매장 보유' : '현재 매장 미보유';
     final String chipLabel = inStock ? '재고 확인됨' : '재고 없음';
     final String actionLabel = inStock ? '제품 확인하기' : item.actionButtonLabel;
 
@@ -241,7 +252,12 @@ class _CartInventoryRow extends StatelessWidget {
             children: <Widget>[
               Text(item.productName, style: StaffText.body12, overflow: TextOverflow.ellipsis),
               Text(
-                '컬러: ${item.color} · SKU: ${item.skuId}',
+                '컬러: ${item.color} · 사이즈: ${item.size}',
+                style: StaffText.meta11,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                'SKU: ${item.skuId} · 담은 시각: ${formatDateTime(item.savedAt)}',
                 style: StaffText.meta11,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -264,7 +280,24 @@ class _CartInventoryRow extends StatelessWidget {
             StaffButton(label: chipLabel, variant: StaffButtonVariant.chip, onPressed: null),
           ],
         ),
-        StaffButton(label: actionLabel, variant: StaffButtonVariant.primary, onPressed: () {}),
+        StaffButton(
+          label: actionLabel,
+          variant: StaffButtonVariant.primary,
+          onPressed: () {
+            if (inStock) {
+              Navigator.of(context).pushNamed(AppRoutes.generalProductCheck);
+            } else {
+              // AC: "선택된 cart item/SKU context가 상담 플로우로 전달된다" —
+              // hands the SKU/customer context to LastIntentSessionController.
+              // The screen that continues the Last Intent flow from here
+              // (F3 intent input) is a future issue, out of #8's scope, so
+              // this intentionally does not navigate anywhere yet.
+              LastIntentSessionScope.of(
+                context,
+              ).start(customer: customer, cartItem: item);
+            }
+          },
+        ),
       ],
     );
 

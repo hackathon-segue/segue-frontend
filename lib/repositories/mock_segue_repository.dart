@@ -122,6 +122,25 @@ class MockSegueRepository implements SegueRepository {
         'actionButtonLabel': '제품 확인하기',
         'savedAt': DateTime(2026, 8, 16, 16, 19, 29).toIso8601String(),
       }),
+      // Second simultaneously out-of-stock item (S5 per SCHEMA.md's demo
+      // scenario table: 청담 본점 없음, 입고 예정만) so Issue #8's AC
+      // "미보유 제품마다 독립적인 Last Intent 시작 버튼이 있다" is actually
+      // exercised by two non-stock rows at once, not just one.
+      CartItem.fromJson(<String, Object?>{
+        'cartItemId': 6,
+        'productId': 5,
+        'productName': 'MCM 벨트백',
+        'imageUrl': 'https://example.com/mcm-beltbag.png',
+        'category': '벨트백',
+        'skuId': 5,
+        'color': '브라운',
+        'size': '스몰',
+        'currentStoreInStock': false,
+        'otherStoreInStock': false,
+        'restockPlanned': true,
+        'actionButtonLabel': 'Last Intent 시작',
+        'savedAt': DateTime(2026, 8, 16, 15, 40, 0).toIso8601String(),
+      }),
     ];
   }
 
