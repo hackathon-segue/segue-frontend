@@ -108,7 +108,12 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
     setState(() => _analyzing = false);
     final StructureIntentResponse? data = session.state.intentState.data;
     if (data != null) {
-      _goToNextStep(needsFollowUp: data.needsFollowUp);
+      // Issue #11 AC: "보충 질문은 최대 1회만 표시된다" — once this SKU's
+      // session has already completed one follow-up round, never route
+      // back into it again even if a fresh structureIntent() call reports
+      // needsFollowUp: true (e.g. after revising the utterance).
+      final bool alreadyFollowedUp = session.state.followUpAnswer.isNotEmpty;
+      _goToNextStep(needsFollowUp: data.needsFollowUp && !alreadyFollowedUp);
     }
     // On error, intentState.hasError is now true and _analyzing is false,
     // so build() falls into the error/retry branch below.
