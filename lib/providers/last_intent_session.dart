@@ -16,6 +16,8 @@ class LastIntentSessionState {
     this.followUpAnswer = '',
     this.decisionResult,
     this.executionResponse,
+    this.executionStatus,
+    this.executionNote,
     this.intentState = const AsyncValue<StructureIntentResponse>.idle(),
     this.followUpState = const AsyncValue<FollowUpQuestion>.idle(),
     this.decisionState = const AsyncValue<DecisionResult>.idle(),
@@ -31,6 +33,14 @@ class LastIntentSessionState {
   final String followUpAnswer;
   final DecisionResult? decisionResult;
   final ExecuteConsultationResponse? executionResponse;
+  // Issue #14: ExecuteConsultationResponse itself carries no status field —
+  // a successful execute() call means REQUESTED by definition. UNABLE/
+  // FOLLOW_UP_NEEDED are only reachable via the PATCH
+  // updateExecutionStatus() flow, which is a later issue's scope; these
+  // fields exist now so the completion screen's UI can already render all
+  // three without rework once that flow lands.
+  final ExecutionStatus? executionStatus;
+  final String? executionNote;
   final AsyncValue<StructureIntentResponse> intentState;
   final AsyncValue<FollowUpQuestion> followUpState;
   final AsyncValue<DecisionResult> decisionState;
@@ -46,6 +56,8 @@ class LastIntentSessionState {
     String? followUpAnswer,
     DecisionResult? decisionResult,
     ExecuteConsultationResponse? executionResponse,
+    ExecutionStatus? executionStatus,
+    String? executionNote,
     AsyncValue<StructureIntentResponse>? intentState,
     AsyncValue<FollowUpQuestion>? followUpState,
     AsyncValue<DecisionResult>? decisionState,
@@ -61,6 +73,8 @@ class LastIntentSessionState {
       followUpAnswer: followUpAnswer ?? this.followUpAnswer,
       decisionResult: decisionResult ?? this.decisionResult,
       executionResponse: executionResponse ?? this.executionResponse,
+      executionStatus: executionStatus ?? this.executionStatus,
+      executionNote: executionNote ?? this.executionNote,
       intentState: intentState ?? this.intentState,
       followUpState: followUpState ?? this.followUpState,
       decisionState: decisionState ?? this.decisionState,
@@ -258,6 +272,8 @@ class LastIntentSessionController extends ChangeNotifier {
           );
       _state = _state.copyWith(
         executionResponse: response,
+        // AC: execute 성공 후 executionStatus는 REQUESTED로 시작한다.
+        executionStatus: ExecutionStatus.requested,
         executionState: AsyncValue<ExecuteConsultationResponse>.data(response),
       );
     } catch (error, stackTrace) {

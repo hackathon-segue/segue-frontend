@@ -5,6 +5,26 @@ import 'package:segue_frontend/providers/providers.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/screens/last_intent_card_screen.dart';
 
+/// Issue #14: a decide() response containing forbidden language must never
+/// render as-is — MockSegueRepository's real decide() never produces this,
+/// so this spy fakes a "bad AI response" to prove the fallback fires.
+class _ForbiddenLanguageRepository extends MockSegueRepository {
+  @override
+  Future<DecisionResult> decide(DecisionRequest request) async {
+    return const DecisionResult(
+      resultType: DecisionResultType.exactProduct,
+      coreConditions: '적합도 95%로 이 제품이 BEST MATCH 입니다.',
+      nextAction: '해당 컬러는 품절이라 대체품을 안내합니다.',
+      reason: '테스트용 사유',
+      difference: '테스트용 차이',
+      recommendedProduct: null,
+      pathDescription: '테스트 경로',
+      actionType: DecisionActionType.otherStoreCheckRequest,
+      actionButtonLabel: '타 매장 확인 요청',
+    );
+  }
+}
+
 /// Issue #13: recommendedProduct-driven branching (제안 제품 vs 확보 경로) and
 /// per-SKU isolation of the Last Intent Card result.
 ///
@@ -149,4 +169,87 @@ void main() {
     expect(identical(sessionAAgain, sessionA), isTrue);
     expect(sessionAAgain.state.decisionResult, isNotNull);
   });
+
+  testWidgets(
+    'a decide() result with forbidden language never renders — shows the fallback instead',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final LastIntentSessionManager manager = LastIntentSessionManager(
+        repository: _ForbiddenLanguageRepository(),
+      );
+      final CartItem item = cartItem(1, 'MCM 백팩 미디움');
+      final LastIntentSessionController session = manager.sessionFor(
+        customer: customer,
+        cartItem: item,
+      );
+      await session.structureIntent('편한 느낌이면 좋겠어요');
+      await session.decide();
+      expect(session.state.decisionResult, isNotNull); // decide() itself succeeded
+
+      await tester.pumpWidget(
+        LastIntentSessionScope(
+          manager: manager,
+          child: MaterialApp(home: LastIntentCardScreen(customer: customer, cartItem: item)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // None of the raw forbidden text ever reaches the screen.
+      expect(find.textContaining('품절'), findsNothing);
+      expect(find.textContaining('대체품'), findsNothing);
+      expect(find.textContaining('BEST MATCH', findRichText: true), findsNothing);
+      expect(find.textContaining('95%'), findsNothing);
+      expect(find.text('결과를 표시할 수 없습니다'), findsOneWidget);
+      expect(find.text('다시 시도'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'tapping the single CTA calls execute() and reaches the 요청 접수 완료 screen with the right message',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final LastIntentSessionManager manager = LastIntentSessionManager(
+        repository: MockSegueRepository(),
+      );
+      final CartItem item = cartItem(1, 'MCM 백팩 미디움');
+      final LastIntentSessionController session = manager.sessionFor(
+        customer: customer,
+        cartItem: item,
+      );
+      await session.structureIntent('편한 느낌이면 좋겠어요');
+      await session.decide();
+      expect(session.state.decisionResult!.actionType, DecisionActionType.otherStoreCheckRequest);
+
+      await tester.pumpWidget(
+        LastIntentSessionScope(
+          manager: manager,
+          child: MaterialApp(home: LastIntentCardScreen(customer: customer, cartItem: item)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final Finder cta = find.text('타 매장 확인 요청');
+      expect(cta, findsOneWidget); // exactly one CTA on the card
+      await tester.tap(cta);
+      await tester.pumpAndSettle();
+
+      expect(find.text('요청 접수 완료'), findsOneWidget);
+      expect(find.text('요청이 접수되었습니다. CA가 실제 재고를 확인합니다'), findsOneWidget);
+      expect(find.text('요청 접수 · 확인 중'), findsOneWidget); // REQUESTED status chip
+      // AC: never implies the real-world action itself is done.
+      expect(find.textContaining('완료'), findsWidgets); // only in "요청 접수 완료"/disclaimer, not "구매 완료" etc.
+      expect(find.textContaining('구매 완료'), findsNothing);
+      expect(find.textContaining('예약 완료'), findsNothing);
+      expect(find.textContaining('제품 이동 완료'), findsNothing);
+      expect(session.state.executionStatus, ExecutionStatus.requested);
+    },
+  );
 }
