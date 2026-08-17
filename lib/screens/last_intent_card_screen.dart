@@ -16,24 +16,17 @@ import '../widgets/staff_image_placeholder.dart';
 /// 입고 정보" chips read live inventory instead of the wireframe's canned
 /// "확인 필요"/"정보 없음" placeholders, since that data already exists.
 ///
-/// Per Issue #12's own scope note, the alternate-path buttons ("정확한 제품
-/// 확인"/"오늘 구매 가능"/"추가 상담") and the primary action button are kept as
-/// inert stubs — switching result types or wiring the execute request is a
-/// later issue's scope.
+/// Issue #13 AC: exactly ONE next action, ever — no result-type badges, no
+/// "BEST MATCH"/적합도/순위, no listing multiple recommended products or
+/// paths. `recommendedProduct` decides which ONE of "제안 제품" (product) vs
+/// "확보 경로" (`pathDescription`) renders; both never show together, and
+/// there is exactly one CTA button (`actionButtonLabel`). Wiring that CTA to
+/// an actual execute() request is a later issue's scope, so it stays inert.
 class LastIntentCardScreen extends StatelessWidget {
   const LastIntentCardScreen({required this.customer, required this.cartItem, super.key});
 
   final Customer customer;
   final CartItem cartItem;
-
-  static String _resultTypeLabel(DecisionResultType type) {
-    return switch (type) {
-      DecisionResultType.exactProduct => '정확한 제품 확인',
-      DecisionResultType.comparisonExperience => '비교 체험 제품',
-      DecisionResultType.todayPurchase => '오늘 구매 가능한 제품',
-      DecisionResultType.additionalConsultation => '추가 상담 필요',
-    };
-  }
 
   static const double _twoColumnBreakpoint = 900;
 
@@ -68,7 +61,7 @@ class LastIntentCardScreen extends StatelessWidget {
                 LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints constraints) {
                     final List<Widget> left = _leftColumn(result);
-                    final List<Widget> right = _rightColumn(context, result);
+                    final List<Widget> right = _rightColumn(result);
                     if (constraints.maxWidth >= _twoColumnBreakpoint) {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,7 +94,7 @@ class LastIntentCardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 12,
           children: <Widget>[
-            const Text('상담 제품 요약', style: StaffText.header16SemiBold),
+            const Text('원제품 정보', style: StaffText.header16SemiBold),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 16,
@@ -114,7 +107,7 @@ class LastIntentCardScreen extends StatelessWidget {
                     children: <Widget>[
                       Text(cartItem.productName, style: StaffText.body12),
                       Text(
-                        '컬러: ${cartItem.color} · SKU: ${cartItem.skuId}',
+                        '컬러: ${cartItem.color} · 사이즈: ${cartItem.size} · SKU: ${cartItem.skuId}',
                         style: StaffText.meta11,
                       ),
                       StaffButton(
@@ -127,8 +120,6 @@ class LastIntentCardScreen extends StatelessWidget {
                 ),
               ],
             ),
-            _LabeledLine(label: '원제품', value: '${cartItem.productName} — ${cartItem.color}'),
-            _LabeledLine(label: '제안 경로', value: result.pathDescription),
           ],
         ),
       ),
@@ -138,7 +129,7 @@ class LastIntentCardScreen extends StatelessWidget {
           spacing: 8,
           children: <Widget>[
             const Text('고객 핵심 조건', style: StaffText.header16SemiBold),
-            _LabeledLine(label: '핵심 조건', value: result.coreConditions),
+            Text(result.coreConditions, style: StaffText.body12),
           ],
         ),
       ),
@@ -147,7 +138,7 @@ class LastIntentCardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 8,
           children: <Widget>[
-            const Text('판단 근거', style: StaffText.header16SemiBold),
+            const Text('선정 이유', style: StaffText.header16SemiBold),
             Text(result.reason, style: StaffText.body12),
           ],
         ),
@@ -157,7 +148,7 @@ class LastIntentCardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 8,
           children: <Widget>[
-            const Text('원제품과 제안 제품 차이', style: StaffText.header16SemiBold),
+            const Text('원제품과 제안 결과의 차이', style: StaffText.header16SemiBold),
             Text(result.difference, style: StaffText.body12),
           ],
         ),
@@ -165,8 +156,9 @@ class LastIntentCardScreen extends StatelessWidget {
     ];
   }
 
-  List<Widget> _rightColumn(BuildContext context, DecisionResult result) {
+  List<Widget> _rightColumn(DecisionResult result) {
     final InventoryStatus inventory = cartItem.inventory;
+    final ProductSkuSummary? recommended = result.recommendedProduct;
     return <Widget>[
       SectionCard(
         child: Column(
@@ -193,61 +185,63 @@ class LastIntentCardScreen extends StatelessWidget {
           ],
         ),
       ),
+      // AC: recommendedProduct가 있으면 제안 "제품"을, 없으면 pathDescription
+      // 기반 확보 "경로"를 보여준다 — 절대 둘 다 보여주거나 여러 개를 나열하지 않는다.
       SectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 12,
           children: <Widget>[
-            const Text('다음 행동', style: StaffText.header16SemiBold),
+            Text(recommended != null ? '제안 제품' : '확보 경로', style: StaffText.header16SemiBold),
+            if (recommended != null)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 16,
+                children: <Widget>[
+                  const StaffImagePlaceholder.square(size: 80),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 4,
+                      children: <Widget>[
+                        Text(recommended.productName, style: StaffText.body12),
+                        Text(
+                          '컬러: ${recommended.color} · 사이즈: ${recommended.size} · SKU: ${recommended.skuId}',
+                          style: StaffText.meta11,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            else
+              Text(result.pathDescription, style: StaffText.body12),
+          ],
+        ),
+      ),
+      SectionCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            const Text('가장 적합한 다음 행동', style: StaffText.header16SemiBold),
             Text(result.nextAction, style: StaffText.body12),
             const Text(
               '이 요청은 실제 예약 또는 제품 이동 완료가 아니라 Client Advisor 후속 확인 요청 접수 상태입니다.',
               style: StaffText.meta11,
             ),
+            // AC: 실행 CTA는 actionButtonLabel 하나만 — 다른 결과 유형으로 전환하는
+            // 버튼이나 대체 경로 목록은 만들지 않는다. 실제 실행(execute) 연결은
+            // 별도 이슈 범위라 아직 onPressed를 연결하지 않는다.
             StaffButton(
               label: result.actionButtonLabel,
               variant: StaffButtonVariant.primary,
-              // 실행 요청(execute) 연결은 별도 이슈 범위라 아직 연결하지 않는다.
               onPressed: null,
-            ),
-            const Text('결과 유형이 다르다면 해당 경로를 선택하세요.', style: StaffText.meta11),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                for (final DecisionResultType type in DecisionResultType.values)
-                  if (type != result.resultType)
-                    StaffButton(
-                      label: _resultTypeLabel(type),
-                      variant: StaffButtonVariant.secondary,
-                      // 다른 결과 유형으로의 전환은 별도 이슈 범위라 아직 연결하지 않는다.
-                      onPressed: null,
-                    ),
-              ],
             ),
           ],
         ),
       ),
     ];
-  }
-}
-
-class _LabeledLine extends StatelessWidget {
-  const _LabeledLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: <Widget>[
-        Text(label, style: StaffText.meta11),
-        Text(value, style: StaffText.body12),
-      ],
-    );
   }
 }
 
