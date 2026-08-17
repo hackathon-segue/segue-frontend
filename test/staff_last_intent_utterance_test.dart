@@ -116,13 +116,15 @@ void main() {
       // actually fired and the screen navigated to the right next step.
       await tester.pumpAndSettle();
       expect(session.state.intentState.hasData, isTrue);
-      expect(find.text('의도 확인'), findsOneWidget);
-      expect(find.text('구매 시급성: 구매 시급성 낮음'), findsOneWidget);
+      expect(find.text('의도 요약 확인'), findsOneWidget);
+      expect(find.text('구매 시급성'), findsOneWidget);
+      expect(find.text('구매 시급성 낮음'), findsOneWidget);
     },
   );
 
   testWidgets(
-    '수정할게요 returns to an editable input form, not the stale analysis-complete state',
+    'popping back to the utterance screen shows an editable input form, not '
+    'the stale analysis-complete state',
     (WidgetTester tester) async {
       await reachUtteranceScreen(tester);
 
@@ -130,9 +132,13 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('제출'));
       await tester.pumpAndSettle();
-      expect(find.text('의도 확인'), findsOneWidget);
+      expect(find.text('의도 요약 확인'), findsOneWidget);
 
-      await tester.tap(find.text('수정할게요'));
+      // Issue #12 repurposed the confirm screen's "수정할게요" button to open
+      // the StructuredIntent edit screen instead of returning here, so this
+      // exercises the same regression (system/back navigation landing back
+      // on this screen) directly via Navigator.pop().
+      Navigator.of(tester.element(find.text('의도 요약 확인'))).pop();
       await tester.pumpAndSettle();
 
       // Bug: this used to show the persisted "고객 의도 분석이 완료되었습니다"
@@ -150,7 +156,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('제출'));
       await tester.pumpAndSettle();
-      expect(find.text('의도 확인'), findsOneWidget);
+      expect(find.text('의도 요약 확인'), findsOneWidget);
     },
   );
 
@@ -196,7 +202,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('답변 제출 후 의도 확인'));
       await tester.pumpAndSettle();
-      expect(find.text('의도 확인'), findsOneWidget);
+      expect(find.text('의도 요약 확인'), findsOneWidget);
 
       // Back to the utterance screen (Confirm -> FollowUp -> Utterance),
       // then submit a NEW utterance that would independently trigger
@@ -204,7 +210,7 @@ void main() {
       // grabbed fresh from whatever's on screen right now — a context
       // captured before these transitions gets deactivated once its
       // element is rebuilt away (e.g. by the loading/success state swap).
-      Navigator.of(tester.element(find.text('의도 확인'))).pop();
+      Navigator.of(tester.element(find.text('의도 요약 확인'))).pop();
       await tester.pumpAndSettle();
       Navigator.of(tester.element(find.text('AI 보충 질문'))).pop();
       await tester.pumpAndSettle();
@@ -217,7 +223,7 @@ void main() {
 
       // Must land on the confirm screen directly — never a second visit to
       // the follow-up screen.
-      expect(find.text('의도 확인'), findsOneWidget);
+      expect(find.text('의도 요약 확인'), findsOneWidget);
       expect(find.text('AI 보충 질문'), findsNothing);
     },
   );

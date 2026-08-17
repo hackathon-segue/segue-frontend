@@ -181,4 +181,42 @@ void main() {
       expect(sessionAAgain.state.intentState.data?.needsFollowUp, isTrue);
     },
   );
+
+  test(
+    'Issue #12: an edited StructuredIntent (updateStructuredIntent, as the '
+    'edit screen save does) stays isolated per SKU and is what decide() sends',
+    () async {
+      final LastIntentSessionController sessionA = manager.sessionFor(
+        customer: customer,
+        cartItem: cartItem(1),
+      );
+      final LastIntentSessionController sessionB = manager.sessionFor(
+        customer: customer,
+        cartItem: cartItem(2),
+      );
+      await sessionA.structureIntent('편한 느낌이면 좋겠어요');
+      await sessionB.structureIntent('편한 느낌이면 좋겠어요');
+
+      final StructuredIntent editedForA = sessionA.state.structuredIntent!.copyWith(
+        purpose: 'A 전용 출장용 구매',
+      );
+      sessionA.updateStructuredIntent(editedForA);
+
+      expect(sessionA.state.structuredIntent!.purpose, 'A 전용 출장용 구매');
+      // B's own structuredIntent must be completely untouched by A's edit.
+      expect(sessionB.state.structuredIntent!.purpose, isEmpty);
+
+      // decide() must send whatever is currently in THIS session's
+      // structuredIntent — i.e. the edited value, not the original AI one.
+      await sessionA.decide();
+      expect(sessionA.state.decisionResult, isNotNull);
+
+      // Switching back to A (after visiting B) still has the edit.
+      final LastIntentSessionController sessionAAgain = manager.sessionFor(
+        customer: customer,
+        cartItem: cartItem(1),
+      );
+      expect(sessionAAgain.state.structuredIntent!.purpose, 'A 전용 출장용 구매');
+    },
+  );
 }
