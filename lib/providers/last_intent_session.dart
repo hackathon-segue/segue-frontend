@@ -13,6 +13,7 @@ class LastIntentSessionState {
     this.utterance = '',
     this.structuredIntent,
     this.followUpQuestion,
+    this.followUpAnswer = '',
     this.decisionResult,
     this.executionResponse,
     this.intentState = const AsyncValue<StructureIntentResponse>.idle(),
@@ -27,6 +28,7 @@ class LastIntentSessionState {
   final String utterance;
   final StructuredIntent? structuredIntent;
   final FollowUpQuestion? followUpQuestion;
+  final String followUpAnswer;
   final DecisionResult? decisionResult;
   final ExecuteConsultationResponse? executionResponse;
   final AsyncValue<StructureIntentResponse> intentState;
@@ -41,6 +43,7 @@ class LastIntentSessionState {
     String? utterance,
     StructuredIntent? structuredIntent,
     FollowUpQuestion? followUpQuestion,
+    String? followUpAnswer,
     DecisionResult? decisionResult,
     ExecuteConsultationResponse? executionResponse,
     AsyncValue<StructureIntentResponse>? intentState,
@@ -55,6 +58,7 @@ class LastIntentSessionState {
       utterance: utterance ?? this.utterance,
       structuredIntent: structuredIntent ?? this.structuredIntent,
       followUpQuestion: followUpQuestion ?? this.followUpQuestion,
+      followUpAnswer: followUpAnswer ?? this.followUpAnswer,
       decisionResult: decisionResult ?? this.decisionResult,
       executionResponse: executionResponse ?? this.executionResponse,
       intentState: intentState ?? this.intentState,
@@ -162,6 +166,7 @@ class LastIntentSessionController extends ChangeNotifier {
     }
 
     _state = _state.copyWith(
+      followUpAnswer: answer,
       intentState: const AsyncValue<StructureIntentResponse>.loading(),
     );
     notifyListeners();

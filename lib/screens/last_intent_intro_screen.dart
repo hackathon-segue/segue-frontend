@@ -7,6 +7,7 @@ import '../utils/staff_design_tokens.dart';
 import '../widgets/section_card.dart';
 import '../widgets/staff_app_shell.dart';
 import '../widgets/staff_button.dart';
+import 'last_intent_utterance_screen.dart';
 
 /// Figma node 14:1256 "Last Intent 상담 시작".
 ///
@@ -44,7 +45,7 @@ class LastIntentIntroScreen extends StatelessWidget {
       body: ListenableBuilder(
         listenable: session,
         builder: (BuildContext context, Widget? _) {
-          return const Column(
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 16,
             children: <Widget>[
@@ -82,15 +83,24 @@ class LastIntentIntroScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const Align(
+              Align(
                 alignment: Alignment.centerRight,
                 child: StaffButton(
                   label: '고객 의도 입력 시작',
                   variant: StaffButtonVariant.primary,
-                  // AC: "여러 미보유 제품을 한 번에 묶어 처리하지 않는다" / 세션이 이미
-                  // sessionFor()로 이 SKU 전용으로 시작된 상태. 다음 단계(F3 고객 의도
-                  // 입력 화면)는 별도 이슈 범위라 아직 연결하지 않는다.
-                  onPressed: null,
+                  // Issue #10: hands off to LastIntentUtteranceScreen, which
+                  // reuses this SAME SKU-scoped session (sessionFor already
+                  // started it above) — no separate consultation-target
+                  // state is created.
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            LastIntentUtteranceScreen(customer: customer, cartItem: cartItem),
+                        settings: const RouteSettings(name: AppRoutes.lastIntentIntro),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
