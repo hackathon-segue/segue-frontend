@@ -77,7 +77,12 @@ void main() {
 
       expect(controller.state.structuredIntent?.needsFollowUp, isFalse);
       expect(controller.state.decisionResult?.actionButtonLabel, '타 매장 확인 요청');
-      expect(controller.state.executionResponse?.consultationResultId, 5);
+      // Issue #15: MockSegueRepository now hands out a unique id per call
+      // (so multiple executed consultations get distinct ConsultationResult
+      // records instead of colliding) rather than always returning the
+      // same fixed literal — the exact value was never a meaningful
+      // contract, just that one is present.
+      expect(controller.state.executionResponse?.consultationResultId, greaterThan(0));
     },
   );
 }
