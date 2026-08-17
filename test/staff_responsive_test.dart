@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
+import 'package:segue_frontend/widgets/staff_check_row.dart';
 
 /// Issue #7 requires the staff/tablet shell to avoid overflow across a
 /// small tablet, a regular tablet, tablet landscape, and a desktop web
@@ -52,6 +53,15 @@ void main() {
       await tester.tap(consentButton);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+
+      // "동의하고 장바구니 확인" stays disabled until all three 동의 범위
+      // checkboxes are confirmed.
+      final Finder checkRows = find.byType(StaffCheckRow);
+      expect(checkRows, findsNWidgets(3));
+      for (int i = 0; i < 3; i++) {
+        await tester.tap(checkRows.at(i));
+        await tester.pump();
+      }
 
       // Continue through to the dedicated cart/inventory screen (Figma
       // 14:1051), which has its own item-row layout distinct from the

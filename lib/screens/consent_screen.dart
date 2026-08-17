@@ -10,11 +10,23 @@ import '../widgets/staff_check_row.dart';
 
 /// Figma node 14:964 "동의 안내 화면".
 ///
-/// SCHEMA.md's `customer_consent` stores a single `status`/`scope` per
-/// customer (no per-item flags), so the three "동의 범위" rows are
-/// read-only and always shown checked.
-class ConsentScreen extends StatelessWidget {
+/// The three "동의 범위" rows start unchecked (node 14:663 "check") and
+/// the CA must tap each one to confirm it before "동의하고 장바구니 확인"
+/// becomes enabled/primary-styled (node 14:637 "secondary" while
+/// disabled). SCHEMA.md's `customer_consent` still only stores one overall
+/// status/scope per customer — these three checks are a client-side
+/// confirmation gate, not three separate persisted fields.
+class ConsentScreen extends StatefulWidget {
   const ConsentScreen({super.key});
+
+  @override
+  State<ConsentScreen> createState() => _ConsentScreenState();
+}
+
+class _ConsentScreenState extends State<ConsentScreen> {
+  final List<bool> _scopeChecked = <bool>[false, false, false];
+
+  bool get _allScopeChecked => _scopeChecked.every((bool checked) => checked);
 
   @override
   Widget build(BuildContext context) {
@@ -45,22 +57,30 @@ class ConsentScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SectionCard(
+              SectionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 12,
                   children: <Widget>[
-                    Text('동의 범위', style: StaffText.header16SemiBold),
+                    const Text('동의 범위', style: StaffText.header16SemiBold),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       spacing: 12,
                       children: <Widget>[
                         StaffCheckRow(
                           label: '회원 장바구니 조회 — 고객 앱에 담긴 제품·컬러 목록을 이번 상담에서 불러옵니다.',
+                          checked: _scopeChecked[0],
+                          onChanged: (bool value) => setState(() => _scopeChecked[0] = value),
                         ),
-                        StaffCheckRow(label: '상담 결과 저장 — 상담 종료 후 결과를 고객 계정에 저장합니다.'),
+                        StaffCheckRow(
+                          label: '상담 결과 저장 — 상담 종료 후 결과를 고객 계정에 저장합니다.',
+                          checked: _scopeChecked[1],
+                          onChanged: (bool value) => setState(() => _scopeChecked[1] = value),
+                        ),
                         StaffCheckRow(
                           label: '고객 모바일 재확인 — 저장된 결과를 고객 앱에서 다시 확인할 수 있도록 제공합니다.',
+                          checked: _scopeChecked[2],
+                          onChanged: (bool value) => setState(() => _scopeChecked[2] = value),
                         ),
                       ],
                     ),
@@ -97,8 +117,13 @@ class ConsentScreen extends StatelessWidget {
                   ),
                   StaffButton(
                     label: '동의하고 장바구니 확인',
-                    variant: StaffButtonVariant.primary,
-                    onPressed: isSubmitting
+                    // Node 14:637 "secondary" until all three 동의 범위 rows
+                    // are checked; only then does it switch to the enabled
+                    // primary styling from node 14:964.
+                    variant: _allScopeChecked
+                        ? StaffButtonVariant.primary
+                        : StaffButtonVariant.secondary,
+                    onPressed: (!_allScopeChecked || isSubmitting)
                         ? null
                         : () async {
                             await controller.submitConsent(true);
