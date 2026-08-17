@@ -7,6 +7,7 @@ import 'screens/consent_declined_screen.dart';
 import 'screens/consent_screen.dart';
 import 'screens/customer_lookup_screen.dart';
 import 'screens/customer_mobile_entry_screen.dart';
+import 'screens/general_product_check_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'screens/staff_home_screen.dart';
 import 'screens/staff_login_screen.dart';
@@ -34,10 +35,13 @@ class _SegueAppState extends State<SegueApp> {
       : RealSegueRepository(apiClient: HttpSegueApiClient());
   late final StaffWebSessionController _staffSessionController =
       StaffWebSessionController(repository: _repository);
+  late final LastIntentSessionController _lastIntentSessionController =
+      LastIntentSessionController(repository: _repository);
 
   @override
   void dispose() {
     _staffSessionController.dispose();
+    _lastIntentSessionController.dispose();
     super.dispose();
   }
 
@@ -47,27 +51,31 @@ class _SegueAppState extends State<SegueApp> {
       repository: _repository,
       child: StaffSessionScope(
         controller: _staffSessionController,
-        child: MaterialApp(
-          title: AppConfig.appName,
-          debugShowCheckedModeBanner: false,
-          theme: SegueTheme.light(),
-          initialRoute: AppRoutes.root,
-          routes: <String, WidgetBuilder>{
-            AppRoutes.root: (_) => const CustomerMobileEntryScreen(),
-            AppRoutes.customerMobile: (_) => const CustomerMobileEntryScreen(),
-            AppRoutes.staffWeb: (_) => const StaffLoginScreen(),
-            AppRoutes.staffHome: (_) => const StaffHomeScreen(),
-            AppRoutes.customerLookup: (_) => const CustomerLookupScreen(),
-            AppRoutes.customerConsent: (_) => const ConsentScreen(),
-            AppRoutes.customerConsentDeclined: (_) => const ConsentDeclinedScreen(),
-            AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
-          },
-          onUnknownRoute: (RouteSettings settings) {
-            return MaterialPageRoute<void>(
-              builder: (_) => NotFoundScreen(routeName: settings.name),
-              settings: settings,
-            );
-          },
+        child: LastIntentSessionScope(
+          controller: _lastIntentSessionController,
+          child: MaterialApp(
+            title: AppConfig.appName,
+            debugShowCheckedModeBanner: false,
+            theme: SegueTheme.light(),
+            initialRoute: AppRoutes.root,
+            routes: <String, WidgetBuilder>{
+              AppRoutes.root: (_) => const CustomerMobileEntryScreen(),
+              AppRoutes.customerMobile: (_) => const CustomerMobileEntryScreen(),
+              AppRoutes.staffWeb: (_) => const StaffLoginScreen(),
+              AppRoutes.staffHome: (_) => const StaffHomeScreen(),
+              AppRoutes.customerLookup: (_) => const CustomerLookupScreen(),
+              AppRoutes.customerConsent: (_) => const ConsentScreen(),
+              AppRoutes.customerConsentDeclined: (_) => const ConsentDeclinedScreen(),
+              AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
+              AppRoutes.generalProductCheck: (_) => const GeneralProductCheckScreen(),
+            },
+            onUnknownRoute: (RouteSettings settings) {
+              return MaterialPageRoute<void>(
+                builder: (_) => NotFoundScreen(routeName: settings.name),
+                settings: settings,
+              );
+            },
+          ),
         ),
       ),
     );

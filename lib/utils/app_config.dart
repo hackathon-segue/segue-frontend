@@ -34,4 +34,5 @@ abstract final class AppRoutes {
   static const String customerConsent = '/staff/consent';
   static const String customerConsentDeclined = '/staff/consent/declined';
   static const String cartInventory = '/staff/cart';
+  static const String generalProductCheck = '/staff/product-check';
 }
