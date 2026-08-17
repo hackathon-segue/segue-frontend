@@ -131,14 +131,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Last Intent Card'), findsOneWidget);
-    expect(find.text('상담 제품 요약'), findsOneWidget);
+    expect(find.text('원제품 정보'), findsOneWidget);
     expect(find.text('재고 및 입고 정보'), findsOneWidget);
-    // MockSegueRepository.decide()'s canned response.
+    // MockSegueRepository.decide()'s canned response has
+    // recommendedProduct: null, so this must show the 확보 경로 section (not
+    // a 제안 제품 card), using pathDescription for both the path label and
+    // its detail — and exactly one CTA button, nothing else.
+    expect(find.text('확보 경로'), findsOneWidget);
+    expect(find.text('제안 제품'), findsNothing);
     expect(find.text('강남 신세계점 재고 확인'), findsOneWidget);
-    expect(find.text('타 매장 확인 요청'), findsWidgets);
-    // exactProduct is the mock's own resultType, so it must NOT appear as
-    // one of the alternate-path stub buttons (only the OTHER 3 do).
+    expect(find.text('타 매장 확인 요청'), findsOneWidget);
+    // Issue #13 AC: never show result-type badges or multiple alternate
+    // actions/paths.
     expect(find.text('정확한 제품 확인'), findsNothing);
-    expect(find.text('오늘 구매 가능한 제품'), findsOneWidget);
+    expect(find.text('오늘 구매 가능한 제품'), findsNothing);
+    expect(find.text('추가 상담 필요'), findsNothing);
+    expect(find.textContaining('BEST MATCH'), findsNothing);
   });
 }

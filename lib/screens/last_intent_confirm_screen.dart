@@ -36,15 +36,25 @@ class LastIntentConfirmScreen extends StatefulWidget {
 class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
   bool _deciding = false;
 
+  // MockSegueRepository resolves near-instantly, so without an artificial
+  // floor the AI-judgment loading state flashes by too fast to actually
+  // see — same rationale as the utterance/follow-up/edit screens.
+  static const Duration _minDecidingDuration = Duration(milliseconds: 600);
+
   Future<void> _confirmAndDecide(LastIntentSessionController session) async {
     if (_deciding) {
       return; // AC: 중복 요청 방지 — 버튼 재클릭 방지.
     }
     setState(() => _deciding = true);
+    final Stopwatch stopwatch = Stopwatch()..start();
     // AC: "맞아요"를 누르면 현재(=수정했다면 수정된) StructuredIntent가 그대로
     // decide() 요청에 실린다 — session.state.structuredIntent가 유일한 source of
     // truth이고 LastIntentEditScreen의 저장도 바로 이 값을 갱신하기 때문.
     await session.decide();
+    final Duration remaining = _minDecidingDuration - stopwatch.elapsed;
+    if (remaining > Duration.zero) {
+      await Future<void>.delayed(remaining);
+    }
     if (!mounted) {
       return;
     }
@@ -71,9 +81,10 @@ class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
         listenable: session,
         builder: (BuildContext context, Widget? _) {
           if (_deciding || session.state.decisionState.isLoading) {
-            // No dedicated Figma loading frame for this step — same bare
-            // shared loading treatment used across the Last Intent flow.
-            return const AppStateView.loading(title: '로딩중...');
+            // No dedicated Figma loading frame for this step — reuses the
+            // shared loading treatment, with copy specific to what's
+            // actually happening (Issue #13: "다음 행동 판단 loading 상태").
+            return const AppStateView.loading(title: 'AI가 다음 행동을 판단하고 있습니다');
           }
 
           if (session.state.decisionState.hasError) {
