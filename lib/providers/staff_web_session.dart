@@ -51,6 +51,11 @@ class StaffWebSessionController extends ChangeNotifier {
 
   StaffWebSessionState get state => _state;
 
+  /// Fired right before a new customer lookup begins. Issue #9 wires this to
+  /// LastIntentSessionManager.reset so a different customer's cart never
+  /// inherits a previous customer's in-progress Last Intent sessions.
+  VoidCallback? onNewLookup;
+
   void setStoreId(int storeId) {
     _state = _state.copyWith(storeId: storeId);
     notifyListeners();
@@ -64,6 +69,7 @@ class StaffWebSessionController extends ChangeNotifier {
   }
 
   Future<void> lookupCustomer(String phoneNumber) async {
+    onNewLookup?.call();
     // Reset to a fresh state (keeping only storeId) so a new customer lookup
     // never carries over a previous customer's cart/consent state.
     _state = StaffWebSessionState(

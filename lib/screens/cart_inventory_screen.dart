@@ -10,6 +10,7 @@ import '../widgets/section_card.dart';
 import '../widgets/staff_app_shell.dart';
 import '../widgets/staff_button.dart';
 import '../widgets/staff_image_placeholder.dart';
+import 'last_intent_intro_screen.dart';
 
 /// Figma node 14:1051 "장바구니·재고 확인 화면" — Issue #8's main screen.
 ///
@@ -68,6 +69,7 @@ class CartInventoryScreen extends StatelessWidget {
               _CustomerSummaryCard(customer: customer, state: state),
               const Text('장바구니 목록', style: StaffText.header16SemiBold),
               _CartList(customer: customer, cartState: state.cartState),
+              _AllLastIntentCompleteBanner(cartState: state.cartState),
               const SectionCard(
                 child: Wrap(
                   spacing: 8,
@@ -214,6 +216,61 @@ class _CartList extends StatelessWidget {
   }
 }
 
+/// Issue #9 AC: "상담 완료 여부 표시" — a small colored badge distinguishing
+/// in-progress vs. completed Last Intent sessions. No Figma design exists
+/// for this yet; colors here are a functional placeholder only.
+class _SessionStatusBadge extends StatelessWidget {
+  const _SessionStatusBadge({required this.label, required this.completed});
+
+  final String label;
+  final bool completed;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = completed ? const Color(0xFF15803D) : const Color(0xFFB45309);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(StaffRadii.chip),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(label, style: StaffText.meta11.copyWith(color: color)),
+    );
+  }
+}
+
+/// Issue #9 작업 범위: "모든 상담 완료 상태 표시" — once every out-of-stock item's
+/// own independent Last Intent session is complete, surface that as one
+/// aggregate banner rather than requiring the CA to check each row.
+class _AllLastIntentCompleteBanner extends StatelessWidget {
+  const _AllLastIntentCompleteBanner({required this.cartState});
+
+  final AsyncValue<List<CartItem>> cartState;
+
+  @override
+  Widget build(BuildContext context) {
+    final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
+    return ListenableBuilder(
+      listenable: manager,
+      builder: (BuildContext context, Widget? _) {
+        final List<CartItem> outOfStockItems = (cartState.data ?? const <CartItem>[])
+            .where((CartItem item) => !item.inventory.currentStoreInStock)
+            .toList();
+        final bool allComplete =
+            outOfStockItems.isNotEmpty &&
+            outOfStockItems.every((CartItem item) => manager.isCompleted(item.skuId));
+        if (!allComplete) {
+          return const SizedBox.shrink();
+        }
+        return const SectionCard(
+          child: Text('미보유 제품의 Last Intent 상담이 모두 완료되었습니다.', style: StaffText.body12),
+        );
+      },
+    );
+  }
+}
+
 class _CartInventoryRow extends StatelessWidget {
   const _CartInventoryRow({required this.customer, required this.item});
 
@@ -230,6 +287,17 @@ class _CartInventoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final LastIntentSessionManager lastIntentManager = LastIntentSessionScope.of(context);
+
+    return ListenableBuilder(
+      listenable: lastIntentManager,
+      builder: (BuildContext context, Widget? _) {
+        return _buildCard(context, lastIntentManager);
+      },
+    );
+  }
+
+  Widget _buildCard(BuildContext context, LastIntentSessionManager lastIntentManager) {
     final bool inStock = item.inventory.currentStoreInStock;
     // API.md/SCHEMA.md only expose a per-SKU currentStoreInStock boolean —
     // there is no field distinguishing "this color/size unavailable" from
@@ -239,6 +307,18 @@ class _CartInventoryRow extends StatelessWidget {
     final String statusLabel = inStock ? '현재 매장 보유' : '현재 매장 미보유';
     final String chipLabel = inStock ? '재고 확인됨' : '재고 없음';
     final String actionLabel = inStock ? '제품 확인하기' : item.actionButtonLabel;
+
+    // Issue #9: each SKU's Last Intent session is tracked independently by
+    // LastIntentSessionManager, so this row's badge only ever reflects THIS
+    // item's own skuId — never a different row's in-progress/completed
+    // session.
+    final bool sessionStarted = !inStock && lastIntentManager.isStarted(item.skuId);
+    final bool sessionCompleted = !inStock && lastIntentManager.isCompleted(item.skuId);
+    final String? sessionStatusLabel = sessionCompleted
+        ? '상담 완료'
+        : sessionStarted
+        ? '상담 진행 중'
+        : null;
 
     final Widget leading = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -275,9 +355,16 @@ class _CartInventoryRow extends StatelessWidget {
       children: <Widget>[
         Column(
           spacing: 4,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: <Widget>[
             Text(statusLabel, style: StaffText.meta11),
             StaffButton(label: chipLabel, variant: StaffButtonVariant.chip, onPressed: null),
+            // Issue #9 AC: "상담 완료 여부 표시" — only ever reflects this row's
+            // own SKU, never another out-of-stock row's session. No Figma
+            // spec exists for this badge yet, so the colors here are a
+            // placeholder pending final design.
+            if (sessionStatusLabel != null)
+              _SessionStatusBadge(label: sessionStatusLabel, completed: sessionCompleted),
           ],
         ),
         StaffButton(
@@ -287,14 +374,18 @@ class _CartInventoryRow extends StatelessWidget {
             if (inStock) {
               Navigator.of(context).pushNamed(AppRoutes.generalProductCheck);
             } else {
-              // AC: "선택된 cart item/SKU context가 상담 플로우로 전달된다" —
-              // hands the SKU/customer context to LastIntentSessionController.
-              // The screen that continues the Last Intent flow from here
-              // (F3 intent input) is a future issue, out of #8's scope, so
-              // this intentionally does not navigate anywhere yet.
-              LastIntentSessionScope.of(
-                context,
-              ).start(customer: customer, cartItem: item);
+              // AC: "선택된 cart item/SKU context가 상담 플로우로 전달된다" — start
+              // (or resume) THIS SKU's own session here, before navigating,
+              // so LastIntentIntroScreen never creates a session mid-build
+              // (sessionFor() notifies listeners on creation, which is only
+              // safe outside the widget build phase).
+              lastIntentManager.sessionFor(customer: customer, cartItem: item);
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => LastIntentIntroScreen(customer: customer, cartItem: item),
+                  settings: const RouteSettings(name: AppRoutes.lastIntentIntro),
+                ),
+              );
             }
           },
         ),

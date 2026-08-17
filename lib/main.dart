@@ -34,14 +34,15 @@ class _SegueAppState extends State<SegueApp> {
       ? MockSegueRepository()
       : RealSegueRepository(apiClient: HttpSegueApiClient());
   late final StaffWebSessionController _staffSessionController =
-      StaffWebSessionController(repository: _repository);
-  late final LastIntentSessionController _lastIntentSessionController =
-      LastIntentSessionController(repository: _repository);
+      StaffWebSessionController(repository: _repository)
+        ..onNewLookup = () => _lastIntentSessionManager.reset();
+  late final LastIntentSessionManager _lastIntentSessionManager =
+      LastIntentSessionManager(repository: _repository);
 
   @override
   void dispose() {
     _staffSessionController.dispose();
-    _lastIntentSessionController.dispose();
+    _lastIntentSessionManager.dispose();
     super.dispose();
   }
 
@@ -52,7 +53,7 @@ class _SegueAppState extends State<SegueApp> {
       child: StaffSessionScope(
         controller: _staffSessionController,
         child: LastIntentSessionScope(
-          controller: _lastIntentSessionController,
+          manager: _lastIntentSessionManager,
           child: MaterialApp(
             title: AppConfig.appName,
             debugShowCheckedModeBanner: false,
