@@ -4,147 +4,128 @@ import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
 import '../utils/staff_design_tokens.dart';
+import '../utils/structured_intent_vocabulary.dart';
+import '../widgets/app_state_view.dart';
 import '../widgets/section_card.dart';
 import '../widgets/staff_app_shell.dart';
 import '../widgets/staff_button.dart';
+import 'last_intent_card_screen.dart';
+import 'last_intent_edit_screen.dart';
 
-/// Figma node 14:1500 "의도 요약 확인 화면" — all 5 of the wireframe's
-/// sections, matching its structure: 고객 핵심 조건 요약 / 의도 정리 근거 / 추가
-/// 상담이 필요한 조건 / 구매 상황 상세 / 장바구니 원제품.
+/// Issue #12 "구조화된 고객 의도 확인/수정 화면" — Figma node 14:1500 "의도 요약 확인
+/// 화면". Design intentionally kept plain per this issue's own instruction
+/// ("디자인은 조금 투박해도 되고, 기능 구현에만 집중") — reuses existing shared
+/// components rather than chasing pixel-exact Figma values.
 ///
 /// Reached once [StructuredIntent] is ready — either straight from
 /// [LastIntentUtteranceScreen] (no follow-up needed) or after
-/// [LastIntentFollowUpScreen]'s answer is submitted. Reads the SAME
-/// SKU-scoped session (`sessionFor`), so it always reflects exactly the
-/// data this SKU's own flow produced.
-///
-/// The current mock adapter (MockSegueRepository.structureIntent, built in
-/// Issue #7/#8, unchanged here) returns the SAME canned essentialConditions/
-/// purchaseUrgency regardless of what the CA typed — there's no real AI
-/// behind it yet, so every non-follow-up run looks identical. That's a mock
-/// limitation, not a display bug; this screen renders whatever the session
-/// actually holds. Two of the five sections (의도 정리 근거, 추가 상담이 필요한
-/// 조건) have no dedicated backing field in StructuredIntent — they're
-/// filled from what real signals ARE available (follow-up occurred or not,
-/// preferred/negotiable condition maps) rather than the wireframe's
-/// fabricated example copy. "맞아요, 다음 단계로" leads into 행동
-/// 판정(decide)/실행, a later issue's scope, so it's left as a stub here.
-class LastIntentConfirmScreen extends StatelessWidget {
+/// [LastIntentFollowUpScreen]'s answer is submitted, or after returning from
+/// [LastIntentEditScreen] with saved edits. Reads the SAME SKU-scoped
+/// session (`sessionFor`), so it always reflects exactly the data this
+/// SKU's own flow (and any edits) produced — never another SKU's session.
+class LastIntentConfirmScreen extends StatefulWidget {
   const LastIntentConfirmScreen({required this.customer, required this.cartItem, super.key});
 
   final Customer customer;
   final CartItem cartItem;
 
-  static String _urgencyLabel(PurchaseUrgency urgency) {
-    return switch (urgency) {
-      PurchaseUrgency.today => '오늘 구매 희망',
-      PurchaseUrgency.thisWeek => '이번 주 내 구매 희망',
-      PurchaseUrgency.flexible => '구매 시급성 낮음',
-    };
-  }
+  @override
+  State<LastIntentConfirmScreen> createState() => _LastIntentConfirmScreenState();
+}
 
-  static String _yesNo(bool? value) {
-    if (value == null) return '확인 필요';
-    return value ? '예' : '아니오';
-  }
+class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
+  bool _deciding = false;
 
-  static String _conditionsList(Map<String, String> conditions) {
-    if (conditions.isEmpty) {
-      return '확인된 항목이 없습니다.';
+  Future<void> _confirmAndDecide(LastIntentSessionController session) async {
+    if (_deciding) {
+      return; // AC: 중복 요청 방지 — 버튼 재클릭 방지.
     }
-    return conditions.entries.map((MapEntry<String, String> e) => '${e.key}: ${e.value}').join(', ');
+    setState(() => _deciding = true);
+    // AC: "맞아요"를 누르면 현재(=수정했다면 수정된) StructuredIntent가 그대로
+    // decide() 요청에 실린다 — session.state.structuredIntent가 유일한 source of
+    // truth이고 LastIntentEditScreen의 저장도 바로 이 값을 갱신하기 때문.
+    await session.decide();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _deciding = false);
+    if (session.state.decisionResult != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              LastIntentCardScreen(customer: widget.customer, cartItem: widget.cartItem),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final LastIntentSessionController session = LastIntentSessionScope.of(
       context,
-    ).sessionFor(customer: customer, cartItem: cartItem);
+    ).sessionFor(customer: widget.customer, cartItem: widget.cartItem);
 
     return StaffAppShell(
       currentRoute: AppRoutes.lastIntentIntro,
       body: ListenableBuilder(
         listenable: session,
         builder: (BuildContext context, Widget? _) {
+          if (_deciding || session.state.decisionState.isLoading) {
+            // No dedicated Figma loading frame for this step — same bare
+            // shared loading treatment used across the Last Intent flow.
+            return const AppStateView.loading(title: '로딩중...');
+          }
+
+          if (session.state.decisionState.hasError) {
+            return AppStateView.error(
+              message: 'Last Intent Card 생성에 실패했습니다. 다시 시도해 주세요.',
+              onAction: () => _confirmAndDecide(session),
+            );
+          }
+
           final StructuredIntent? intent = session.state.structuredIntent;
           if (intent == null) {
             return const Text('구조화된 고객 의도가 아직 없습니다.', style: StaffText.body12);
           }
-          final bool hadFollowUp = session.state.followUpAnswer.isNotEmpty;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 16,
             children: <Widget>[
-              const Text('의도 확인', style: StaffText.title20Bold),
+              const Text('의도 요약 확인', style: StaffText.header16SemiBold),
               const Text('AI가 정리한 고객 구매 의도를 고객과 함께 확인하세요.', style: StaffText.body12),
-
-              // 1. 고객 핵심 조건 요약
               SectionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
+                  spacing: 12,
                   children: <Widget>[
-                    const Text('고객 핵심 조건 요약', style: StaffText.header16SemiBold),
-                    if (intent.essentialConditions.isEmpty)
-                      const Text('확인된 필수 조건이 없습니다.', style: StaffText.meta11)
-                    else
-                      for (final MapEntry<String, String> entry in intent.essentialConditions.entries)
-                        Text('${entry.key}: ${entry.value}', style: StaffText.body12),
-                    Text('구매 시급성: ${_urgencyLabel(intent.purchaseUrgency)}', style: StaffText.body12),
-                    if (hadFollowUp)
-                      Text('보충 답변: ${session.state.followUpAnswer}', style: StaffText.body12),
-                  ],
-                ),
-              ),
-
-              // 2. 의도 정리 근거 — StructuredIntent에 별도 근거 필드가 없어, 실제로
-              // 있었던 분기(보충 질문 진행 여부)만 반영한 안내 문구로 대체.
-              SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
-                  children: <Widget>[
-                    const Text('의도 정리 근거', style: StaffText.header16SemiBold),
-                    Text(
-                      hadFollowUp
-                          ? 'CA가 입력한 고객 발화와 보충 질문 답변을 함께 반영해 조건을 구조화했습니다.'
-                          : 'CA가 입력한 고객 발화를 바탕으로 조건을 구조화했습니다.',
-                      style: StaffText.meta11,
+                    _InfoRow(label: '사용 목적', value: intent.purpose.isEmpty ? '확인 필요' : intent.purpose),
+                    _InfoRow(label: '필수 조건', value: _conditionsList(intent.essentialConditions)),
+                    _InfoRow(label: '선호 조건', value: _conditionsList(intent.preferredConditions)),
+                    _InfoRow(label: '양보 가능한 조건', value: _conditionsList(intent.negotiableConditions)),
+                    _InfoRow(
+                      label: '구매 시급성',
+                      value: StructuredIntentVocabulary.purchaseUrgencyLabel(intent.purchaseUrgency),
+                    ),
+                    _InfoRow(
+                      label: '실물로 확인하고 싶은 요소',
+                      value: intent.physicalCheckAttributes.isEmpty
+                          ? '없음'
+                          : intent.physicalCheckAttributes
+                                .map(StructuredIntentVocabulary.attributeLabel)
+                                .join(', '),
+                    ),
+                    _InfoRow(
+                      label: '대기 가능 여부',
+                      value: StructuredIntentVocabulary.yesNoUnknownLabel(intent.canWait),
+                    ),
+                    _InfoRow(
+                      label: '타 매장 방문 가능 여부',
+                      value: StructuredIntentVocabulary.yesNoUnknownLabel(intent.canVisitOtherStore),
                     ),
                   ],
                 ),
               ),
-
-              // 3. 추가 상담이 필요한 조건 — 실제 preferred/negotiable 필드 사용
-              // (현재 mock은 항상 빈 값이라 "확인된 항목이 없습니다"로 보일 수 있음).
-              SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
-                  children: <Widget>[
-                    const Text('추가 상담이 필요한 조건', style: StaffText.header16SemiBold),
-                    Text('선호 조건: ${_conditionsList(intent.preferredConditions)}', style: StaffText.body12),
-                    Text('협의 가능 조건: ${_conditionsList(intent.negotiableConditions)}', style: StaffText.body12),
-                  ],
-                ),
-              ),
-
-              // 4. 구매 상황 상세
-              SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
-                  children: <Widget>[
-                    const Text('구매 상황 상세', style: StaffText.header16SemiBold),
-                    Text('대기 가능 여부: ${_yesNo(intent.canWait)}', style: StaffText.body12),
-                    Text('타 매장 방문 가능 여부: ${_yesNo(intent.canVisitOtherStore)}', style: StaffText.body12),
-                    Text('보충 질문 여부: ${hadFollowUp ? '1회 완료' : '없음'}', style: StaffText.body12),
-                  ],
-                ),
-              ),
-
-              // 5. 장바구니 원제품
               SectionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,13 +133,12 @@ class LastIntentConfirmScreen extends StatelessWidget {
                   children: <Widget>[
                     const Text('장바구니 원제품', style: StaffText.header16SemiBold),
                     Text(
-                      '${cartItem.productName} · 컬러: ${cartItem.color} · SKU: ${cartItem.skuId}',
+                      '${widget.cartItem.productName} · 컬러: ${widget.cartItem.color} · SKU: ${widget.cartItem.skuId}',
                       style: StaffText.body12,
                     ),
                   ],
                 ),
               ),
-
               Wrap(
                 alignment: WrapAlignment.end,
                 spacing: 12,
@@ -167,13 +147,21 @@ class LastIntentConfirmScreen extends StatelessWidget {
                   StaffButton(
                     label: '수정할게요',
                     variant: StaffButtonVariant.secondary,
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => LastIntentEditScreen(
+                            customer: widget.customer,
+                            cartItem: widget.cartItem,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  const StaffButton(
+                  StaffButton(
                     label: '맞아요, 다음 단계로',
                     variant: StaffButtonVariant.primary,
-                    // 행동 판정(decide)/실행 단계는 별도 이슈 범위라 아직 연결하지 않는다.
-                    onPressed: null,
+                    onPressed: () => _confirmAndDecide(session),
                   ),
                 ],
               ),
@@ -181,6 +169,38 @@ class LastIntentConfirmScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  static String _conditionsList(Map<String, String> conditions) {
+    if (conditions.isEmpty) {
+      return '없음';
+    }
+    return conditions.entries
+        .map(
+          (MapEntry<String, String> e) =>
+              '${StructuredIntentVocabulary.attributeLabel(e.key)}: '
+              '${StructuredIntentVocabulary.attributeValueLabel(e.key, e.value)}',
+        )
+        .join(', ');
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 2,
+      children: <Widget>[
+        Text(label, style: StaffText.meta11),
+        Text(value, style: StaffText.body12),
+      ],
     );
   }
 }
