@@ -164,11 +164,61 @@ void main() {
       await tester.tap(find.text('제출'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Last Intent 상담 · 보충 질문'), findsOneWidget);
+      expect(find.text('Last Intent 상담'), findsOneWidget);
+      expect(find.text('보충 질문'), findsWidgets);
       expect(
         find.text('혹시 오늘 바로 구매를 원하시나요, 아니면 여유를 두고 보셔도 괜찮으실까요?'),
         findsOneWidget,
       );
+
+      // AC: 빈 보충 답변은 제출되지 않는다.
+      final StaffButton disabledButton = tester.widget(
+        find.ancestor(of: find.text('답변 제출 후 의도 확인'), matching: find.byType(StaffButton)),
+      );
+      expect(disabledButton.onPressed, isNull);
+      expect(disabledButton.variant, StaffButtonVariant.secondary);
+    },
+  );
+
+  testWidgets(
+    'Issue #11 AC: 보충 질문은 최대 1회만 발생한다 — completing it once, then '
+    're-submitting another utterance that would need follow-up skips straight to confirm',
+    (WidgetTester tester) async {
+      await reachUtteranceScreen(tester);
+
+      await tester.enterText(find.byType(TextFormField), '비슷한 제품이어도 괜찮아요');
+      await tester.pump();
+      await tester.tap(find.text('제출'));
+      await tester.pumpAndSettle();
+      expect(find.text('AI 보충 질문'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextFormField), '오늘 바로 사고 싶어요');
+      await tester.pump();
+      await tester.tap(find.text('답변 제출 후 의도 확인'));
+      await tester.pumpAndSettle();
+      expect(find.text('의도 확인'), findsOneWidget);
+
+      // Back to the utterance screen (Confirm -> FollowUp -> Utterance),
+      // then submit a NEW utterance that would independently trigger
+      // needsFollowUp again per the mock's own '비슷' rule. Each context is
+      // grabbed fresh from whatever's on screen right now — a context
+      // captured before these transitions gets deactivated once its
+      // element is rebuilt away (e.g. by the loading/success state swap).
+      Navigator.of(tester.element(find.text('의도 확인'))).pop();
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.text('AI 보충 질문'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('고객 의도 입력'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextFormField), '비슷한 걸로 다시 확인해주세요');
+      await tester.pump();
+      await tester.tap(find.text('제출'));
+      await tester.pumpAndSettle();
+
+      // Must land on the confirm screen directly — never a second visit to
+      // the follow-up screen.
+      expect(find.text('의도 확인'), findsOneWidget);
+      expect(find.text('AI 보충 질문'), findsNothing);
     },
   );
 }
