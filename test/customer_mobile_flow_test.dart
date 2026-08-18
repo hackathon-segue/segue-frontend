@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:segue_frontend/exceptions/app_exception.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/providers/providers.dart';
@@ -104,7 +105,88 @@ void main() {
     expect(find.text('앱 장바구니 목록'), findsOneWidget);
     expect(find.text('최근 담은 순서'), findsOneWidget);
     expect(find.text('오렌지 · 스몰'), findsOneWidget);
-    expect(find.text('2026. 08. 16 추가'), findsOneWidget);
+    expect(find.text('2026. 08. 16 추가'), findsWidgets);
+  });
+
+  testWidgets('mobile cart save and cart tab use the repository API contract', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final _RecordingMobileRepository repository = _RecordingMobileRepository();
+
+    await tester.pumpWidget(
+      RepositoryScope(
+        repository: repository,
+        child: MaterialApp(
+          theme: SegueTheme.light(),
+          home: const CustomerMobileEntryScreen(),
+        ),
+      ),
+    );
+    await _openNewProducts(tester);
+
+    await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('스몰'));
+    await tester.tap(find.text('스몰'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('장바구니 담기'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastSaveRequest?.customerId, 1);
+    expect(repository.lastSaveRequest?.productId, 6);
+    expect(repository.lastSaveRequest?.color, '오렌지');
+    expect(repository.lastSaveRequest?.size, '스몰');
+    expect(repository.lastSaveRequest?.toJson(), isNot(contains('skuId')));
+
+    await tester.tap(find.text('장바구니 보기'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastFetchCustomerId, 1);
+    expect(repository.lastFetchStoreId, 1);
+    expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
+  });
+
+  testWidgets('mobile cart fetch failure can be retried in place', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final _FlakyCartRepository repository = _FlakyCartRepository();
+
+    await tester.pumpWidget(
+      RepositoryScope(
+        repository: repository,
+        child: MaterialApp(
+          theme: SegueTheme.light(),
+          home: const CustomerMobileEntryScreen(),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('쇼핑백'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('장바구니를 불러오지 못했습니다'), findsOneWidget);
+    expect(find.text('임시 네트워크 오류'), findsOneWidget);
+
+    await tester.tap(find.text('다시 시도'));
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchAttempts, 2);
+    expect(repository.lastFetchCustomerId, 1);
+    expect(repository.lastFetchStoreId, 1);
+    expect(find.text('MCM 백팩 미디움'), findsOneWidget);
   });
 
   testWidgets('consultation result opens online and store visit guidance', (
@@ -198,4 +280,50 @@ void main() {
     );
     expect(find.text('처리 갱신'), findsOneWidget);
   });
+}
+
+class _RecordingMobileRepository extends MockSegueRepository {
+  CartSaveRequest? lastSaveRequest;
+  int? lastFetchCustomerId;
+  int? lastFetchStoreId;
+
+  @override
+  Future<CartItem> saveCartItem(CartSaveRequest request) {
+    lastSaveRequest = request;
+    return super.saveCartItem(request);
+  }
+
+  @override
+  Future<List<CartItem>> fetchCart({
+    required int customerId,
+    required int storeId,
+  }) {
+    lastFetchCustomerId = customerId;
+    lastFetchStoreId = storeId;
+    return super.fetchCart(customerId: customerId, storeId: storeId);
+  }
+}
+
+class _FlakyCartRepository extends MockSegueRepository {
+  int fetchAttempts = 0;
+  int? lastFetchCustomerId;
+  int? lastFetchStoreId;
+
+  @override
+  Future<List<CartItem>> fetchCart({
+    required int customerId,
+    required int storeId,
+  }) {
+    fetchAttempts += 1;
+    lastFetchCustomerId = customerId;
+    lastFetchStoreId = storeId;
+    if (fetchAttempts == 1) {
+      throw const ApiException(
+        '임시 네트워크 오류',
+        statusCode: 0,
+        code: 'NETWORK_ERROR',
+      );
+    }
+    return super.fetchCart(customerId: customerId, storeId: storeId);
+  }
 }
