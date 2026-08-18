@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/providers.dart';
 import '../repositories/repositories.dart';
 import '../utils/app_design_tokens.dart';
+import '../utils/execution_status_display.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/mobile_product_visual.dart';
 import '../widgets/mobile_screen_scaffold.dart';
@@ -1861,6 +1862,10 @@ class _ConsultationResultSection extends StatelessWidget {
                   value: _executionStatusMessage(result),
                 ),
                 _ResultField(
+                  label: '처리 갱신',
+                  value: _formatKoreanDateTime(result.executionUpdatedAt),
+                ),
+                _ResultField(
                   label: '상담 시각',
                   value: _formatKoreanDateTime(result.consultedAt),
                 ),
@@ -2033,6 +2038,10 @@ class _StoreVisitScreen extends StatelessWidget {
               _ResultField(
                 label: '처리 상태',
                 value: _executionStatusMessage(currentResult),
+              ),
+              _ResultField(
+                label: '처리 갱신',
+                value: _formatKoreanDateTime(currentResult.executionUpdatedAt),
               ),
               _ResultField(
                 label: '상담 일시',
@@ -2279,12 +2288,22 @@ class _StatusBar extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Row(
           children: <Widget>[
-            Icon(_executionStatusIcon(result.executionStatus), size: 18),
+            Icon(executionStatusIcon(result.executionStatus), size: 18),
             const SizedBox(width: AppSpacing.xs),
             Expanded(
-              child: Text(
-                _executionStatusMessage(result),
-                style: theme.textTheme.bodySmall,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    _executionStatusMessage(result),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    '처리 갱신 ${_formatKoreanDateTime(result.executionUpdatedAt)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
               ),
             ),
           ],
@@ -2340,21 +2359,10 @@ String _resultTypeLabel(DecisionResultType resultType) {
 }
 
 String _executionStatusMessage(ConsultationResult result) {
-  return switch (result.executionStatus) {
-    ExecutionStatus.requested => '요청 접수 상태입니다. Client Advisor가 후속 확인을 진행 중입니다.',
-    ExecutionStatus.unable =>
-      '실행이 어렵습니다. ${result.executionNote ?? 'Client Advisor가 사유를 확인 중입니다.'}',
-    ExecutionStatus.followUpNeeded =>
-      '후속 확인이 필요합니다. ${result.executionNote ?? 'Client Advisor가 추가 안내를 준비 중입니다.'}',
-  };
-}
-
-IconData _executionStatusIcon(ExecutionStatus status) {
-  return switch (status) {
-    ExecutionStatus.requested => Icons.schedule_outlined,
-    ExecutionStatus.unable => Icons.error_outline,
-    ExecutionStatus.followUpNeeded => Icons.info_outline,
-  };
+  return executionStatusMessage(
+    status: result.executionStatus,
+    note: result.executionNote,
+  );
 }
 
 String _nextActionMessage(ConsultationResult result) {

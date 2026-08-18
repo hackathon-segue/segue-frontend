@@ -484,6 +484,37 @@ class ConsultationResult {
   final String? executionNote;
   final DateTime executionUpdatedAt;
 
+  ConsultationResult copyWith({
+    int? id,
+    int? skuId,
+    String? productName,
+    String? imageUrl,
+    DecisionResultType? resultType,
+    String? recommendedPath,
+    String? coreConditions,
+    DateTime? consultedAt,
+    ExecutionStatus? executionStatus,
+    String? executionNote,
+    bool clearExecutionNote = false,
+    DateTime? executionUpdatedAt,
+  }) {
+    return ConsultationResult(
+      id: id ?? this.id,
+      skuId: skuId ?? this.skuId,
+      productName: productName ?? this.productName,
+      imageUrl: imageUrl ?? this.imageUrl,
+      resultType: resultType ?? this.resultType,
+      recommendedPath: recommendedPath ?? this.recommendedPath,
+      coreConditions: coreConditions ?? this.coreConditions,
+      consultedAt: consultedAt ?? this.consultedAt,
+      executionStatus: executionStatus ?? this.executionStatus,
+      executionNote: clearExecutionNote
+          ? null
+          : executionNote ?? this.executionNote,
+      executionUpdatedAt: executionUpdatedAt ?? this.executionUpdatedAt,
+    );
+  }
+
   JsonMap toJson() {
     return <String, Object?>{
       'id': id,
