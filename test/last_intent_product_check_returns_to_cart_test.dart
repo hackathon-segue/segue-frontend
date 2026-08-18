@@ -20,7 +20,7 @@ void main() {
 
       await tester.pumpWidget(const SegueApp());
       Navigator.of(
-        tester.element(find.text('앱 로그인 화면')),
+        tester.element(find.text('LXXVI')),
       ).pushNamed(AppRoutes.staffHome);
       await tester.pumpAndSettle();
 

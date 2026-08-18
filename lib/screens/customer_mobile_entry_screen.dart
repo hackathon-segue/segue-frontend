@@ -11,8 +11,8 @@ import '../widgets/mobile_product_visual.dart';
 import '../widgets/mobile_screen_scaffold.dart';
 
 enum _MobileScreen {
-  login,
-  home,
+  start,
+  menu,
   products,
   detail,
   cartAdded,
@@ -20,6 +20,35 @@ enum _MobileScreen {
   results,
   onlinePurchase,
   storeVisit,
+}
+
+abstract final class _McmImageAssets {
+  static const String startHero = 'assets/images/mcm/start_hero.png';
+  static const String menuNewCollection =
+      'assets/images/mcm/menu_new_collection.png';
+  static const String menuBestSeller = 'assets/images/mcm/menu_best_seller.png';
+  static const String menuPina = 'assets/images/mcm/menu_pina.png';
+  static const String menuArenEastWest =
+      'assets/images/mcm/menu_aren_east_west.png';
+  static const String categoryNewBags =
+      'assets/images/mcm/category_new_bags.png';
+  static const String categoryTote = 'assets/images/mcm/category_tote.png';
+  static const String categoryShoulder =
+      'assets/images/mcm/category_shoulder.png';
+  static const String categoryBackpack =
+      'assets/images/mcm/category_backpack.png';
+  static const String categoryTopHandle =
+      'assets/images/mcm/category_top_handle.png';
+
+  static String categoryHeroFor(String? category) {
+    return switch (category ?? '가방') {
+      '토트백 & 쇼퍼백' => categoryTote,
+      '숄더백 & 크로스백' => categoryShoulder,
+      '백팩' => categoryBackpack,
+      '탑 핸들백' => categoryTopHandle,
+      _ => categoryNewBags,
+    };
+  }
 }
 
 class CustomerMobileEntryScreen extends StatefulWidget {
@@ -31,13 +60,10 @@ class CustomerMobileEntryScreen extends StatefulWidget {
 }
 
 class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _searchController = TextEditingController();
-
-  _MobileScreen _screen = _MobileScreen.login;
+  _MobileScreen _screen = _MobileScreen.start;
   MobileProduct _selectedProduct = MobileProductCatalog.products[2];
   String? _selectedCategory;
+  String? _expandedMenuSection;
   String? _selectedColor;
   String? _selectedSize;
   CartItem? _lastSavedCartItem;
@@ -50,36 +76,40 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   String? _resultsError;
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return switch (_screen) {
-      _MobileScreen.login => _LoginScreen(
-        emailController: _emailController,
-        passwordController: _passwordController,
-        onEnter: _openHome,
+      _MobileScreen.start => _StartScreen(
+        onOpenMenu: _openMenu,
+        onOpenResults: () {
+          _openResults();
+        },
       ),
-      _MobileScreen.home => _HomeScreen(
-        onOpenProducts: _openProducts,
-        onBackToLogin: () => setState(() => _screen = _MobileScreen.login),
-        onTabSelected: _openTab,
+      _MobileScreen.menu => _MenuScreen(
+        expandedSection: _expandedMenuSection,
+        onClose: _openStart,
+        onToggleSection: _toggleMenuSection,
+        onOpenProducts: _openProductCategory,
+        onOpenAllProducts: _openAllProducts,
+        onOpenCart: _openCart,
+        onOpenResults: () {
+          _openResults();
+        },
       ),
       _MobileScreen.products => _ProductListScreen(
         products: _filteredProducts,
         selectedCategory: _selectedCategory,
-        searchController: _searchController,
-        onSearchChanged: (_) => setState(() {}),
         onCategorySelected: (String? category) {
-          setState(() => _selectedCategory = category);
+          if (category == null) {
+            _openAllProducts();
+            return;
+          }
+          _openProductCategory(category);
         },
         onProductSelected: _openDetail,
-        onTabSelected: _openTab,
+        onOpenMenu: _openMenu,
+        onOpenResults: () {
+          _openResults();
+        },
       ),
       _MobileScreen.detail => _ProductDetailScreen(
         product: _selectedProduct,
@@ -89,7 +119,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
           color: _selectedColor,
           size: _selectedSize,
         ),
-        onBack: _openProducts,
+        onBack: _returnToProducts,
         onColorSelected: (String color) {
           setState(() {
             _selectedColor = color;
@@ -105,11 +135,11 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         cartItem: _lastSavedCartItem,
         onBack: _openDetailFromCartAdded,
         onOpenCart: _openCart,
-        onContinueShopping: _openProducts,
+        onContinueShopping: _returnToProducts,
       ),
       _MobileScreen.cart => _CartListScreen(
         cartItems: _cartItems,
-        onBackToProducts: _openProducts,
+        onBackToProducts: _returnToProducts,
         onTabSelected: _openTab,
       ),
       _MobileScreen.results => _ConsultationResultsScreen(
@@ -119,7 +149,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onRetry: () => _loadConsultationResults(force: true),
         onOnlinePurchase: _openOnlinePurchase,
         onStoreVisit: _openStoreVisit,
-        onBackToHome: _openHome,
+        onBackToHome: _openStart,
         onTabSelected: _openTab,
       ),
       _MobileScreen.onlinePurchase => _OnlinePurchaseScreen(
@@ -134,23 +164,71 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   List<MobileProduct> get _filteredProducts {
-    final String keyword = _searchController.text.trim().toLowerCase();
-    return MobileProductCatalog.products.where((MobileProduct product) {
-      final bool matchesCategory =
-          _selectedCategory == null || product.category == _selectedCategory;
-      final bool matchesKeyword =
-          keyword.isEmpty ||
-          product.name.toLowerCase().contains(keyword) ||
-          product.collection.toLowerCase().contains(keyword);
-      return matchesCategory && matchesKeyword;
+    final String category = _selectedCategory ?? '가방';
+    final List<MobileProduct> products = MobileProductCatalog.products.where((
+      MobileProduct product,
+    ) {
+      return _matchesProductCategory(product, category);
     }).toList();
+    products.sort((MobileProduct a, MobileProduct b) {
+      final bool aIsNewSeason = a.season.contains('2026');
+      final bool bIsNewSeason = b.season.contains('2026');
+      if (aIsNewSeason != bIsNewSeason) {
+        return aIsNewSeason ? -1 : 1;
+      }
+      return a.id.compareTo(b.id);
+    });
+    return products;
   }
 
-  void _openHome() {
-    setState(() => _screen = _MobileScreen.home);
+  bool _matchesProductCategory(MobileProduct product, String category) {
+    return switch (category) {
+      '신상품' => product.season.contains('2026'),
+      '가방' => product.category != '지갑',
+      '토트백 & 쇼퍼백' => product.name.contains('토트') || product.name.contains('쇼퍼'),
+      '숄더백 & 크로스백' =>
+        product.name.contains('숄더') ||
+            product.name.contains('크로스') ||
+            product.name.contains('Patricia'),
+      '백팩' => product.category == '백팩',
+      '탑 핸들백' =>
+        product.name.contains('탑 핸들') || product.name.contains('Klara'),
+      _ => product.category == category,
+    };
   }
 
-  void _openProducts() {
+  void _openStart() {
+    setState(() => _screen = _MobileScreen.start);
+  }
+
+  void _openMenu() {
+    setState(() {
+      _expandedMenuSection ??= '가방';
+      _screen = _MobileScreen.menu;
+    });
+  }
+
+  void _toggleMenuSection(String section) {
+    setState(() {
+      _expandedMenuSection = _expandedMenuSection == section ? null : section;
+    });
+  }
+
+  void _openAllProducts() {
+    setState(() {
+      _selectedCategory = null;
+      _screen = _MobileScreen.products;
+    });
+  }
+
+  void _openProductCategory(String category) {
+    setState(() {
+      _selectedCategory = category;
+      _screen = _MobileScreen.products;
+    });
+  }
+
+  void _returnToProducts() {
     setState(() => _screen = _MobileScreen.products);
   }
 
@@ -171,7 +249,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
     setState(() {
       _screen = switch (tab) {
-        CustomerMobileTab.home => _MobileScreen.home,
+        CustomerMobileTab.home => _MobileScreen.start,
         CustomerMobileTab.products => _MobileScreen.products,
         CustomerMobileTab.cart => _MobileScreen.cart,
         CustomerMobileTab.results => _MobileScreen.results,
@@ -302,137 +380,58 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 }
 
-class _LoginScreen extends StatelessWidget {
-  const _LoginScreen({
-    required this.emailController,
-    required this.passwordController,
-    required this.onEnter,
-  });
+class _StartScreen extends StatelessWidget {
+  const _StartScreen({required this.onOpenMenu, required this.onOpenResults});
 
-  final TextEditingController emailController;
-  final TextEditingController passwordController;
-  final VoidCallback onEnter;
+  final VoidCallback onOpenMenu;
+  final VoidCallback onOpenResults;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return MobileScreenScaffold(
-      title: '앱 로그인 화면',
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text('로그인', style: theme.textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.lg),
-              Text('이메일 주소', style: theme.textTheme.bodySmall),
-              const SizedBox(height: AppSpacing.xs),
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('비밀번호', style: theme.textTheme.bodySmall),
-              const SizedBox(height: AppSpacing.xs),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                textInputAction: TextInputAction.done,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              FilledButton(onPressed: onEnter, child: const Text('로그인')),
-              const SizedBox(height: AppSpacing.lg),
-              Text('계정이 없으신가요?', style: theme.textTheme.bodySmall),
-              const SizedBox(height: AppSpacing.xs),
-              OutlinedButton(
-                onPressed: onEnter,
-                child: const Text('신규 계정 만들기'),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              Center(child: Text('또는', style: theme.textTheme.bodySmall)),
-              const SizedBox(height: AppSpacing.sm),
-              Align(
-                child: OutlinedButton(
-                  onPressed: onEnter,
-                  child: const Text('앱으로 계속하기'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HomeScreen extends StatelessWidget {
-  const _HomeScreen({
-    required this.onOpenProducts,
-    required this.onBackToLogin,
-    required this.onTabSelected,
-  });
-
-  final VoidCallback onOpenProducts;
-  final VoidCallback onBackToLogin;
-  final ValueChanged<CustomerMobileTab> onTabSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final MobileProduct heroProduct = MobileProductCatalog.products[2];
-
-    return MobileScreenScaffold(
-      title: '앱 홈 화면',
-      currentTab: CustomerMobileTab.home,
-      onTabSelected: onTabSelected,
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
+    return _McmPhoneShell(
+      backgroundColor: const Color(0xFFB7C79B),
+      child: Stack(
+        fit: StackFit.expand,
         children: <Widget>[
-          AspectRatio(
-            aspectRatio: 1.42,
-            child: MobileProductVisual(product: heroProduct),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text('MCM 월드', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            '당신의 스타일을 완성하는 프리미엄 가죽 제품을 만나보세요.',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const _HomeFeatureTile(
-            icon: Icons.auto_awesome_outlined,
-            title: '신상품 컬렉션',
-            description: '새롭게 출시된 MCM 제품을 확인하세요.',
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const _HomeFeatureTile(
-            icon: Icons.favorite_border,
-            title: '베스트셀러',
-            description: '가장 많이 찾는 제품을 한눈에 보세요.',
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const _HomeFeatureTile(
-            icon: Icons.palette_outlined,
-            title: '컬러별 탐색',
-            description: '원하는 컬러로 제품을 찾아보세요.',
-          ),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onOpenProducts,
-              child: const Text('제품 전체 보기'),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: onBackToLogin,
-              child: const Text('돌아가기'),
+          const _CampaignBackdrop(),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  Positioned(
+                    top: 28,
+                    left: -10,
+                    right: -10,
+                    child: Row(
+                      children: <Widget>[
+                        IconButton(
+                          tooltip: '메뉴 열기',
+                          onPressed: onOpenMenu,
+                          color: Colors.white,
+                          iconSize: 34,
+                          icon: const Icon(Icons.menu),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'SEGUE 내역 확인',
+                          onPressed: onOpenResults,
+                          color: Colors.white,
+                          iconSize: 33,
+                          icon: const Icon(Icons.person_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Positioned(
+                    top: 104,
+                    left: 0,
+                    right: 0,
+                    child: _StartScreenLogo(),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -441,43 +440,539 @@ class _HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeFeatureTile extends StatelessWidget {
-  const _HomeFeatureTile({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
+class _StartScreenLogo extends StatelessWidget {
+  const _StartScreenLogo();
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              const Text(
+                'MCM',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                  height: 0.92,
+                  letterSpacing: 0,
+                ),
+              ),
+              Transform.translate(
+                offset: const Offset(-2, 0),
+                child: const _OutlinedText(
+                  'LXXVI',
+                  fontSize: 43,
+                  strokeWidth: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          '1976',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            height: 0.9,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
+class _OutlinedText extends StatelessWidget {
+  const _OutlinedText(
+    this.text, {
+    required this.fontSize,
+    required this.strokeWidth,
+  });
+
+  final String text;
+  final double fontSize;
+  final double strokeWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.w300,
+        height: 0.92,
+        letterSpacing: 0,
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..color = Colors.white,
+      ),
+    );
+  }
+}
+
+class _MenuScreen extends StatelessWidget {
+  const _MenuScreen({
+    required this.expandedSection,
+    required this.onClose,
+    required this.onToggleSection,
+    required this.onOpenProducts,
+    required this.onOpenAllProducts,
+    required this.onOpenCart,
+    required this.onOpenResults,
+  });
+
+  final String? expandedSection;
+  final VoidCallback onClose;
+  final ValueChanged<String> onToggleSection;
+  final ValueChanged<String> onOpenProducts;
+  final VoidCallback onOpenAllProducts;
+  final VoidCallback onOpenCart;
+  final VoidCallback onOpenResults;
+
+  @override
+  Widget build(BuildContext context) {
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
           children: <Widget>[
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.surfaceMuted,
-              foregroundColor: AppColors.ink,
-              child: Icon(icon, size: 22),
-            ),
-            const SizedBox(width: AppSpacing.md),
+            _McmTopBar(onLeadingPressed: onClose, leadingIcon: Icons.close),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
                 children: <Widget>[
-                  Text(title, style: theme.textTheme.titleMedium),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(description, style: theme.textTheme.bodySmall),
+                  _MenuPrimaryRow(
+                    label: '신상품',
+                    expanded: expandedSection == '신상품',
+                    onTap: () => onToggleSection('신상품'),
+                  ),
+                  if (expandedSection == '신상품') ...<Widget>[
+                    _MenuSubItem(
+                      label: '여성 신상품',
+                      onTap: () => onOpenProducts('신상품'),
+                    ),
+                    _MenuSubItem(
+                      label: '남성 신상품',
+                      onTap: () => onOpenProducts('신상품'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _EditorialTile(
+                            assetPath: _McmImageAssets.menuNewCollection,
+                            label: '여성 신상품 둘러보기',
+                            onTap: () => onOpenProducts('신상품'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _EditorialTile(
+                            assetPath: _McmImageAssets.menuBestSeller,
+                            label: '남성 신상품 둘러보기',
+                            onTap: () => onOpenProducts('신상품'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _MenuPrimaryRow(
+                    label: '가방',
+                    expanded: expandedSection == '가방',
+                    onTap: () => onToggleSection('가방'),
+                  ),
+                  if (expandedSection == '가방') ...<Widget>[
+                    _MenuSubItem(
+                      label: '신상품',
+                      onTap: () => onOpenProducts('신상품'),
+                    ),
+                    _MenuSubItem(label: '모두보기', onTap: onOpenAllProducts),
+                    _MenuSubItem(
+                      label: '토트백 & 쇼퍼백',
+                      onTap: () => onOpenProducts('토트백 & 쇼퍼백'),
+                    ),
+                    _MenuSubItem(
+                      label: '숄더백 & 크로스백',
+                      onTap: () => onOpenProducts('숄더백 & 크로스백'),
+                    ),
+                    _MenuSubItem(
+                      label: '백팩',
+                      onTap: () => onOpenProducts('백팩'),
+                    ),
+                    _MenuSubItem(
+                      label: '탑 핸들백',
+                      onTap: () => onOpenProducts('탑 핸들백'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _EditorialTile(
+                            assetPath: _McmImageAssets.menuPina,
+                            label: 'PINA 둘러보기',
+                            onTap: () => onOpenProducts('숄더백 & 크로스백'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _EditorialTile(
+                            assetPath: _McmImageAssets.menuArenEastWest,
+                            label: 'AREN EAST WEST 둘러보기',
+                            onTap: () => onOpenProducts('탑 핸들백'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _MenuPrimaryRow(
+                    label: 'MCM 소개',
+                    expanded: false,
+                    onTap: () => onToggleSection('MCM 소개'),
+                  ),
+                  _MenuPrimaryRow(
+                    label: 'SEGUE 소개',
+                    expanded: false,
+                    onTap: () => onToggleSection('SEGUE 소개'),
+                  ),
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
+              child: Column(
+                children: <Widget>[
+                  _MenuFooterRow(
+                    label: '로그인',
+                    icon: Icons.person_outline,
+                    onTap: onClose,
+                  ),
+                  _MenuFooterRow(
+                    label: '쇼핑백',
+                    icon: Icons.shopping_bag_outlined,
+                    onTap: onOpenCart,
+                  ),
+                  _MenuFooterRow(
+                    label: 'SEGUE 내역 확인',
+                    icon: Icons.receipt_long_outlined,
+                    onTap: onOpenResults,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _McmPhoneShell extends StatelessWidget {
+  const _McmPhoneShell({
+    required this.child,
+    this.backgroundColor = Colors.white,
+  });
+
+  final Widget child;
+  final Color backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF7F7F7C),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppSizes.mobileContentMaxWidth,
+          ),
+          child: ColoredBox(color: backgroundColor, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _McmTopBar extends StatelessWidget {
+  const _McmTopBar({
+    required this.onLeadingPressed,
+    this.leadingIcon = Icons.menu,
+    this.onProfilePressed,
+  });
+
+  final VoidCallback onLeadingPressed;
+  final IconData leadingIcon;
+  final VoidCallback? onProfilePressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              tooltip: leadingIcon == Icons.close ? '메뉴 닫기' : '메뉴 열기',
+              onPressed: onLeadingPressed,
+              icon: Icon(leadingIcon, size: 22),
+            ),
+          ),
+          const Text(
+            'MCM',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              letterSpacing: 0,
+            ),
+          ),
+          if (onProfilePressed != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: 'SEGUE 내역 확인',
+                onPressed: onProfilePressed,
+                icon: const Icon(Icons.person_outline, size: 22),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CampaignBackdrop extends StatelessWidget {
+  const _CampaignBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Positioned.fill(
+          child: Image.asset(
+            _McmImageAssets.startHero,
+            fit: BoxFit.cover,
+            alignment: Alignment.centerLeft,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CampaignMiniature extends StatelessWidget {
+  const _CampaignMiniature({
+    required this.assetPath,
+    this.large = false,
+    this.caption,
+  });
+
+  final String assetPath;
+  final bool large;
+  final String? caption;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Color(0xFFF3F0E8)),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Positioned.fill(
+            child: Image.asset(
+              assetPath,
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              filterQuality: FilterQuality.medium,
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE2DED4)),
+                gradient: large
+                    ? LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: <Color>[
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.18),
+                        ],
+                      )
+                    : null,
+              ),
+            ),
+          ),
+          if (large && caption != null)
+            Positioned(
+              left: 18,
+              bottom: 14,
+              child: Text(
+                caption!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuPrimaryRow extends StatelessWidget {
+  const _MenuPrimaryRow({
+    required this.label,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Icon(
+              expanded ? Icons.keyboard_arrow_down : Icons.chevron_right,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuSubItem extends StatelessWidget {
+  const _MenuSubItem({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 8, 0, 8),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditorialTile extends StatelessWidget {
+  const _EditorialTile({
+    required this.assetPath,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String assetPath;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          AspectRatio(
+            aspectRatio: 1.65,
+            child: _CampaignMiniature(assetPath: assetPath),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: <Widget>[
+              const Icon(Icons.arrow_forward, size: 12),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuFooterRow extends StatelessWidget {
+  const _MenuFooterRow({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 43,
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFBEBEBE))),
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(icon, size: 17),
           ],
         ),
       ),
@@ -489,110 +984,269 @@ class _ProductListScreen extends StatelessWidget {
   const _ProductListScreen({
     required this.products,
     required this.selectedCategory,
-    required this.searchController,
-    required this.onSearchChanged,
     required this.onCategorySelected,
     required this.onProductSelected,
-    required this.onTabSelected,
+    required this.onOpenMenu,
+    required this.onOpenResults,
   });
 
   final List<MobileProduct> products;
   final String? selectedCategory;
-  final TextEditingController searchController;
-  final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onCategorySelected;
   final ValueChanged<MobileProduct> onProductSelected;
-  final ValueChanged<CustomerMobileTab> onTabSelected;
+  final VoidCallback onOpenMenu;
+  final VoidCallback onOpenResults;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    const List<String?> categories = <String?>[null, '가방', '지갑', '액세서리'];
+    final String title = selectedCategory ?? '가방';
+    final String heroAssetPath = _McmImageAssets.categoryHeroFor(
+      selectedCategory,
+    );
+    const List<String?> categories = <String?>[
+      null,
+      '신상품',
+      '토트백 & 쇼퍼백',
+      '숄더백 & 크로스백',
+      '백팩',
+      '탑 핸들백',
+    ];
 
-    return MobileScreenScaffold(
-      title: '제품 목록 화면',
-      currentTab: CustomerMobileTab.products,
-      onTabSelected: onTabSelected,
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        children: <Widget>[
-          Text('제품', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: searchController,
-            onChanged: onSearchChanged,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search, size: 20),
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _McmTopBar(
+              onLeadingPressed: onOpenMenu,
+              onProfilePressed: onOpenResults,
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: <Widget>[
-              for (final String? category in categories)
-                ChoiceChip(
-                  label: Text(category ?? '전체'),
-                  selected: selectedCategory == category,
-                  onSelected: (_) => onCategorySelected(category),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (products.isEmpty)
-            const AppStateView.empty(title: '검색 결과가 없습니다')
-          else
-            for (final MobileProduct product in products) ...<Widget>[
-              _ProductListCard(
-                product: product,
-                onTap: () => onProductSelected(product),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  _CategoryTrail(
+                    selectedCategory: selectedCategory,
+                    categories: categories,
+                    onCategorySelected: onCategorySelected,
+                  ),
+                  _ProductCampaignHero(assetPath: heroAssetPath, title: title),
+                  const _ProductSortRow(),
+                  if (products.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(AppSpacing.xl),
+                      child: AppStateView.empty(title: '검색 결과가 없습니다'),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
+                      child: GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        childAspectRatio: 0.58,
+                        children: <Widget>[
+                          for (final MobileProduct product in products)
+                            _ProductGridTile(
+                              product: product,
+                              onTap: () => onProductSelected(product),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ProductListCard extends StatelessWidget {
-  const _ProductListCard({required this.product, required this.onTap});
+class _CategoryTrail extends StatelessWidget {
+  const _CategoryTrail({
+    required this.selectedCategory,
+    required this.categories,
+    required this.onCategorySelected,
+  });
+
+  final String? selectedCategory;
+  final List<String?> categories;
+  final ValueChanged<String?> onCategorySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (BuildContext context, int index) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 5),
+              child: Text('>', style: TextStyle(fontSize: 10)),
+            ),
+          );
+        },
+        itemBuilder: (BuildContext context, int index) {
+          final String? category = categories[index];
+          final bool selected = selectedCategory == category;
+          return Center(
+            child: InkWell(
+              onTap: () => onCategorySelected(category),
+              child: Text(
+                index == 0 ? '가방' : category!,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected ? Colors.black : const Color(0xFF5C5C5C),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProductCampaignHero extends StatelessWidget {
+  const _ProductCampaignHero({required this.assetPath, required this.title});
+
+  final String assetPath;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Semantics(
+          label: '$title 상품 목록 캠페인',
+          child: AspectRatio(
+            aspectRatio: 1.96,
+            child: _CampaignMiniature(
+              assetPath: assetPath,
+              large: true,
+              caption: 'AUTUMN WINTER 2026',
+            ),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(18, 10, 18, 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  '정렬 기준 / 영역',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                '기준순',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+              Icon(Icons.keyboard_arrow_down, size: 14),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProductSortRow extends StatelessWidget {
+  const _ProductSortRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}
+
+class _ProductGridTile extends StatelessWidget {
+  const _ProductGridTile({required this.product, required this.onTap});
 
   final MobileProduct product;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Card(
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(
+          right: BorderSide(color: Color(0xFFE4E4E4)),
+          bottom: BorderSide(color: Color(0xFFE4E4E4)),
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              SizedBox(
-                width: 132,
-                height: 92,
-                child: MobileProductVisual(product: product, compact: true),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      product.collection,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF8A8A8A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.shopping_bag_outlined, size: 14),
+                ],
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(height: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(product.name, style: theme.textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(product.collection, style: theme.textTheme.bodySmall),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      _formatWon(product.price),
-                      style: theme.textTheme.bodyMedium,
+                child: Center(
+                  child: MobileProductVisual(product: product, compact: true),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                product.name,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                _formatWon(product.price),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Row(
+                children: <Widget>[
+                  for (final String color in product.colors.take(
+                    3,
+                  )) ...<Widget>[
+                    Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(right: 5),
+                      decoration: BoxDecoration(
+                        color: Color(product.optionForColor(color).swatchValue),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFBDBDBD)),
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
             ],
           ),

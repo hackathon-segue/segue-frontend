@@ -29,30 +29,32 @@ void main() {
         _setViewport(tester, size);
 
         await tester.pumpWidget(const SegueApp());
-        _expectScreenReady(tester, 'mobile login');
-        _expectVisibleTextInViewport(tester, '앱 로그인 화면');
-        _expectMaterialTapTarget(tester, '앱으로 계속하기');
+        _expectScreenReady(tester, 'mobile start');
+        _expectVisibleTextInViewport(tester, 'MCM');
+        _expectVisibleTextInViewport(tester, 'LXXVI');
+        _expectVisibleTextInViewport(tester, '1976');
+        _expectTapTarget(tester, find.byTooltip('메뉴 열기'), '메뉴 열기');
 
-        await _tapMaterialButton(tester, '앱으로 계속하기');
-        _expectScreenReady(tester, 'mobile home');
-        _expectVisibleTextInViewport(tester, '앱 홈 화면');
-        _expectVisibleTextInViewport(tester, 'MCM 월드');
-        _expectMaterialTapTarget(tester, '제품 전체 보기');
+        await tester.tap(find.byTooltip('메뉴 열기'));
+        await tester.pumpAndSettle();
+        _expectScreenReady(tester, 'mobile menu');
+        _expectVisibleTextInViewport(tester, '쇼핑백');
+        _expectVisibleTextInViewport(tester, 'SEGUE 내역 확인');
 
-        await _tapMaterialButton(tester, '제품 전체 보기');
+        await tester.tap(find.text('신상품').last);
+        await tester.pumpAndSettle();
         _expectScreenReady(tester, 'mobile product list');
-        _expectVisibleTextInViewport(tester, '제품 목록 화면');
-        _expectVisibleTextInViewport(tester, '제품');
-        await tester.ensureVisible(find.text('Himmel Large Backpack').first);
-        _expectVisibleTextInViewport(tester, 'Himmel Large Backpack');
+        _expectVisibleTextInViewport(tester, 'AUTUMN WINTER 2026');
+        await tester.ensureVisible(find.text('Diamond 3D 카프스킨 숄더백').first);
+        _expectVisibleTextInViewport(tester, 'Diamond 3D 카프스킨 숄더백');
 
-        await tester.tap(find.text('Himmel Large Backpack').first);
+        await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
         await tester.pumpAndSettle();
         _expectScreenReady(tester, 'mobile product detail');
         _expectVisibleTextInViewport(tester, '제품 상세 화면');
         _expectVisibleTextInViewport(tester, '컬러 선택');
-        await tester.ensureVisible(find.text('라지'));
-        await tester.tap(find.text('라지'));
+        await tester.ensureVisible(find.text('스몰'));
+        await tester.tap(find.text('스몰'));
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('장바구니 담기'));
         _expectMaterialTapTarget(tester, '장바구니 담기');
@@ -68,7 +70,7 @@ void main() {
         _expectScreenReady(tester, 'mobile cart list');
         _expectVisibleTextInViewport(tester, '앱 장바구니 목록');
         _expectVisibleTextInViewport(tester, '최근 담은 순서');
-        _expectVisibleTextInViewport(tester, 'Himmel Large Backpack');
+        _expectVisibleTextInViewport(tester, 'Diamond 3D 카프스킨 숄더백');
 
         await tester.tap(find.text('상담 결과').last);
         await tester.pumpAndSettle();
@@ -426,7 +428,7 @@ void _setViewport(WidgetTester tester, Size size) {
 Future<void> _openStaffHome(WidgetTester tester) async {
   await tester.pumpWidget(const SegueApp());
   Navigator.of(
-    tester.element(find.text('앱 로그인 화면')),
+    tester.element(find.text('LXXVI')),
   ).pushNamed(AppRoutes.staffHome);
   await tester.pumpAndSettle();
 }

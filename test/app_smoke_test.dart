@@ -6,7 +6,7 @@ import 'package:segue_frontend/utils/app_config.dart';
 Future<void> _openStaffHome(WidgetTester tester) async {
   await tester.pumpWidget(const SegueApp());
   Navigator.of(
-    tester.element(find.text('앱 로그인 화면')),
+    tester.element(find.text('LXXVI')),
   ).pushNamed(AppRoutes.staffHome);
   await tester.pumpAndSettle();
 }
@@ -34,8 +34,10 @@ void main() {
   ) async {
     await tester.pumpWidget(const SegueApp());
 
-    expect(find.text('앱 로그인 화면'), findsOneWidget);
-    expect(find.text('로그인'), findsWidgets);
+    expect(find.text('MCM'), findsOneWidget);
+    expect(find.text('LXXVI'), findsOneWidget);
+    expect(find.text('1976'), findsOneWidget);
+    expect(find.byTooltip('메뉴 열기'), findsOneWidget);
   });
 
   testWidgets(
