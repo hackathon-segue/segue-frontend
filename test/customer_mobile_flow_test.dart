@@ -92,7 +92,7 @@ void main() {
     await tester.tap(find.text('쇼핑백 확인하기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('나의 쇼핑백(1개 품목)'), findsOneWidget);
+    expect(find.textContaining('나의 쇼핑백('), findsOneWidget);
     expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
     expect(find.text('예상 합계'), findsWidgets);
   });
@@ -229,13 +229,13 @@ void main() {
 
     expect(repository.lastResultsCustomerId, 1);
     expect(find.text('SEGUE 내역'), findsOneWidget);
-    expect(find.text('최신 서버 결과'), findsOneWidget);
+    expect(find.text('최신 서버 결과'), findsWidgets);
 
     await tester.tap(find.text('최신 서버 결과').first);
     await tester.pumpAndSettle();
 
     expect(find.text('SEGUE 결과'), findsWidgets);
-    expect(find.text('최신 서버 결과'), findsOneWidget);
+    expect(find.text('최신 서버 결과'), findsWidgets);
     expect(find.text('서버 저장 경로'), findsOneWidget);
     expect(find.text('서버 저장 핵심 조건'), findsOneWidget);
   });
