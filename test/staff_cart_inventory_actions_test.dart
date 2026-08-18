@@ -64,6 +64,18 @@ void main() {
     expect(find.textContaining('사이즈: 미디움'), findsOneWidget);
     expect(find.textContaining('SKU: 1 · 담은 시각:'), findsOneWidget);
     expect(find.textContaining('SKU: 5 · 담은 시각:'), findsOneWidget);
+
+    expect(find.text('재고/입고 확인 상태'), findsNWidgets(3));
+    expect(find.text('현재 매장 재고'), findsNWidgets(3));
+    expect(find.text('타 매장 보유'), findsNWidgets(3));
+    expect(find.text('입고 예정'), findsNWidgets(3));
+    expect(find.text('확인 완료'), findsNWidgets(3));
+    expect(find.text('오래된 정보'), findsOneWidget);
+    expect(find.textContaining('기준 2026.08.16'), findsWidgets);
+    expect(
+      find.text('확인 필요 또는 오래된 정보는 구매 가능 경로로 확정하지 않고 CA가 다시 확인합니다.'),
+      findsNWidgets(3),
+    );
   });
 
   testWidgets(
@@ -100,7 +112,10 @@ void main() {
 
       expect(find.text('Last Intent 시작'), findsNWidgets(2));
 
-      await tester.tap(find.text('Last Intent 시작').first);
+      final Finder firstLastIntentButton = find.text('Last Intent 시작').first;
+      await tester.ensureVisible(firstLastIntentButton);
+      await tester.pumpAndSettle();
+      await tester.tap(firstLastIntentButton);
       await tester.pumpAndSettle();
       expect(find.text('Last Intent 상담 시작'), findsOneWidget);
       final LastIntentSessionController sku1Session = manager.sessionFor(
@@ -115,7 +130,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
 
-      await tester.tap(find.text('Last Intent 시작').last);
+      final Finder secondLastIntentButton = find.text('Last Intent 시작').last;
+      await tester.ensureVisible(secondLastIntentButton);
+      await tester.pumpAndSettle();
+      await tester.tap(secondLastIntentButton);
       await tester.pumpAndSettle();
       expect(find.text('Last Intent 상담 시작'), findsOneWidget);
       final LastIntentSessionController sku5Session = manager.sessionFor(
