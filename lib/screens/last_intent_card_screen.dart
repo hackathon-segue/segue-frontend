@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../utils/app_config.dart';
 import '../utils/decision_result_validator.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
@@ -22,7 +23,11 @@ import 'last_intent_result_product_screen.dart';
 /// forbidden-language gate as before (#14), just relocated from the old
 /// single-screen layout into this summary.
 class LastIntentCardScreen extends StatelessWidget {
-  const LastIntentCardScreen({required this.customer, required this.cartItem, super.key});
+  const LastIntentCardScreen({
+    required this.customer,
+    required this.cartItem,
+    super.key,
+  });
 
   final Customer customer;
   final CartItem cartItem;
@@ -35,10 +40,11 @@ class LastIntentCardScreen extends StatelessWidget {
         customer: customer,
         cartItem: cartItem,
       ),
-      DecisionResultType.additionalConsultation => LastIntentAdditionalConsultationScreen(
-        customer: customer,
-        cartItem: cartItem,
-      ),
+      DecisionResultType.additionalConsultation =>
+        LastIntentAdditionalConsultationScreen(
+          customer: customer,
+          cartItem: cartItem,
+        ),
     };
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => target));
   }
@@ -53,13 +59,18 @@ class LastIntentCardScreen extends StatelessWidget {
       listenable: session,
       builder: (BuildContext context, Widget? _) {
         if (session.state.decisionState.isLoading) {
-          return const _CardScaffold(child: AppStateView.loading(title: '결과를 다시 불러오고 있습니다'));
+          return const _CardScaffold(
+            child: AppStateView.loading(title: '결과를 다시 불러오고 있습니다'),
+          );
         }
 
         final DecisionResult? result = session.state.decisionResult;
         if (result == null) {
           return const _CardScaffold(
-            child: Text('생성된 Last Intent Card가 없습니다.', style: SegueCardText.body18),
+            child: Text(
+              '생성된 Last Intent Card가 없습니다.',
+              style: SegueCardText.body18,
+            ),
           );
         }
 
@@ -82,10 +93,16 @@ class LastIntentCardScreen extends StatelessWidget {
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
               final List<Widget> left = <Widget>[
-                _ProductSummaryCard(cartItem: cartItem, recommended: recommended),
+                _ProductSummaryCard(
+                  cartItem: cartItem,
+                  recommended: recommended,
+                ),
                 SegueInfoCard(
                   title: '고객 핵심 조건',
-                  child: Text(result.coreConditions, style: SegueCardText.body18),
+                  child: Text(
+                    result.coreConditions,
+                    style: SegueCardText.body18,
+                  ),
                 ),
               ];
               final List<Widget> right = <Widget>[
@@ -95,7 +112,8 @@ class LastIntentCardScreen extends StatelessWidget {
                 ),
                 _NextStepPreviewCard(
                   result: result,
-                  onContinue: () => _goToResultScreen(context, result.resultType),
+                  onContinue: () =>
+                      _goToResultScreen(context, result.resultType),
                 ),
               ];
 
@@ -130,10 +148,10 @@ class LastIntentCardScreen extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  for (final Widget w in <Widget>[...left, ...right]) ...<Widget>[
-                    w,
-                    const SizedBox(height: 16),
-                  ],
+                  for (final Widget w in <Widget>[
+                    ...left,
+                    ...right,
+                  ]) ...<Widget>[w, const SizedBox(height: 16)],
                 ],
               );
             },
@@ -160,14 +178,18 @@ class _CardScaffold extends StatelessWidget {
       screenTitleStyle: SegueCardText.screenTitle24,
       body: child,
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+        onBackToStart: () =>
+            navigateToTabletRoute(context, AppRoutes.staffHome),
       ),
     );
   }
 }
 
 class _ProductSummaryCard extends StatelessWidget {
-  const _ProductSummaryCard({required this.cartItem, required this.recommended});
+  const _ProductSummaryCard({
+    required this.cartItem,
+    required this.recommended,
+  });
 
   final CartItem cartItem;
   final ProductSkuSummary? recommended;
@@ -179,7 +201,11 @@ class _ProductSummaryCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SegueProductImage(imageUrl: cartItem.imageUrl, width: 100, height: 108),
+          SegueProductImage(
+            imageUrl: cartItem.imageUrl,
+            width: 100,
+            height: 108,
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -192,7 +218,10 @@ class _ProductSummaryCard extends StatelessWidget {
                 Text(cartItem.size, style: SegueCardText.productMeta20),
                 if (recommended != null) ...<Widget>[
                   const SizedBox(height: 16),
-                  SegueLabelValueRow(label: '제안 제품', value: recommended!.productName),
+                  SegueLabelValueRow(
+                    label: '제안 제품',
+                    value: recommended!.productName,
+                  ),
                 ],
               ],
             ),
@@ -228,7 +257,11 @@ class _NextStepPreviewCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                SegueProductImage(imageUrl: recommended.imageUrl, width: 100, height: 108),
+                SegueProductImage(
+                  imageUrl: recommended.imageUrl,
+                  width: 100,
+                  height: 108,
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(result.difference, style: SegueCardText.body18),
@@ -238,7 +271,10 @@ class _NextStepPreviewCard extends StatelessWidget {
           else
             Text(result.difference, style: SegueCardText.body18),
           const SizedBox(height: 16),
-          SegueCtaButton(label: result.actionButtonLabel, onPressed: onContinue),
+          SegueCtaButton(
+            label: result.actionButtonLabel,
+            onPressed: onContinue,
+          ),
         ],
       ),
     );

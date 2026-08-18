@@ -25,6 +25,10 @@ abstract final class SegueCardColors {
   // Figma (89:1196) "Rectangle 9" step badge background — distinct from the
   // CA avatar circle below, which was wrongly sharing this same token.
   static const Color stepBadgeBg = Color(0xFF7C7C7C);
+  // Figma 98:1740's "상담 중단" pill (node 98:1803) — same 123×48 badge as
+  // "상담 완료" (stepBadgeBg) but a deliberately darker fill to read as a
+  // distinct, more final state.
+  static const Color consultationAbortedBg = Color(0xFF535353);
   // Figma (89:1196) "Ellipse 1" fill — confirmed via the raw SVG asset
   // (#D9D9D9), NOT the muted/step-badge gray this token used to alias.
   static const Color avatarCircleBg = Color(0xFFD9D9D9);

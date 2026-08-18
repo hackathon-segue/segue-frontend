@@ -19,7 +19,9 @@ void main() {
     // The mobile customer entry screen no longer has a "직원 웹" button (it's
     // now the real customer-facing app) — reach staff routes via a direct
     // named push instead, same as the app's own wireframe QA does.
-    Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
+    Navigator.of(
+      tester.element(find.text('LXXVI')),
+    ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
 
     tester.view.physicalSize = const Size(1440, 900);
@@ -92,6 +94,16 @@ void main() {
     // Mock's essentialConditions {logoPosition: 정면중앙, silhouette: 각진} must
     // render with Korean vocabulary labels, not raw API keys.
     expect(find.text('로고 위치: 정면중앙, 실루엣: 각진'), findsOneWidget);
+  });
+
+  testWidgets('처음으로 돌아가기는 모바일 홈이 아니라 직원 홈으로 이동한다', (WidgetTester tester) async {
+    await reachConfirmScreen(tester);
+
+    await tester.tap(find.text('처음으로 돌아가기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SEGUE HOME'), findsOneWidget);
+    expect(find.text('고객 모바일'), findsNothing);
   });
 
   testWidgets('수정할게요 -> edit fields -> 저장 reflects on the summary screen', (

@@ -54,6 +54,14 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
   bool _seeded = false;
   bool _analyzing = false;
 
+  /// True right after the CA dismisses an error card via "뒤로가기" — lets
+  /// build() show [_UtteranceInput] again (with the previously typed text
+  /// still intact) even though `session.state.intentState` still holds the
+  /// stale error, so they can revise the wording instead of being stuck
+  /// staring at an error card with no way back to the text field. Reset on
+  /// every new [_submit] call so a fresh failure shows its own error again.
+  bool _dismissedError = false;
+
   // MockSegueRepository resolves near-instantly, so without an artificial
   // floor the loading state can flash by too fast for a human to register —
   // this only affects local perceived timing, not the mock response itself.
@@ -103,7 +111,10 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
     if (utterance.isEmpty) {
       return;
     }
-    setState(() => _analyzing = true);
+    setState(() {
+      _analyzing = true;
+      _dismissedError = false;
+    });
     final Stopwatch stopwatch = Stopwatch()..start();
     await session.structureIntent(utterance);
     final Duration remaining = _minLoadingDuration - stopwatch.elapsed;
@@ -183,10 +194,13 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
             return const AppStateView.loading(title: '로딩중...');
           }
 
-          if (session.state.intentState.hasError) {
+          if (!_dismissedError && session.state.intentState.hasError) {
             return AppStateView.error(
               message: '고객 의도 분석에 실패했습니다. 다시 시도해 주세요.',
               onAction: () => _submit(session),
+              secondaryActionLabel: '뒤로가기',
+              onSecondaryAction: () =>
+                  setState(() => _dismissedError = true),
             );
           }
 

@@ -75,6 +75,13 @@ class LastIntentSessionManager extends ChangeNotifier {
   bool isCompleted(int skuId) =>
       _sessionsBySkuId[skuId]?.state.executionResponse != null;
 
+  /// Issue #64: whether [skuId]'s session ended via "추가 상담 미진행"
+  /// (169:3821) rather than a normal completion — [isCompleted] is already
+  /// true either way (both call `execute()`), this only picks the cart
+  /// row's badge text/color (Figma 98:1740's "상담 중단" vs "상담 완료").
+  bool isDeclined(int skuId) =>
+      _sessionsBySkuId[skuId]?.state.additionalConsultationDeclined ?? false;
+
   /// Clears every SKU's session for the current customer. Wired to
   /// [StaffWebSessionController]'s new-lookup hook so a different
   /// customer's cart never inherits a previous customer's in-progress

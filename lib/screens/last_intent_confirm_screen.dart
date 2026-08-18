@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../utils/app_config.dart';
 import '../utils/product_option_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../utils/structured_intent_vocabulary.dart';
@@ -112,6 +113,8 @@ class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
             return AppStateView.error(
               message: 'Last Intent Card 생성에 실패했습니다. 다시 시도해 주세요.',
               onAction: () => _confirmAndDecide(session),
+              secondaryActionLabel: '뒤로 돌아가기',
+              onSecondaryAction: () => Navigator.of(context).pop(),
             );
           }
 
@@ -129,7 +132,7 @@ class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
       ),
       bottomBar: SegueBottomActionRow(
         onBackToStart: () =>
-            Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+            navigateToTabletRoute(context, AppRoutes.staffHome),
         topPadding: 28,
         // Wrap (not a fixed-width Row) so the two buttons can reflow onto
         // their own line instead of overflowing — SegueBottomActionRow's
@@ -237,22 +240,10 @@ class _SummaryCards extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        const SegueInfoCard(
-          title: '의도 정리 근거',
-          titleStyle: SegueCardText.sectionHeading20,
-          height: 155,
-          // StructuredIntent has no reasoning/explanation field of its own
-          // (only DecisionResult.reason does, and that doesn't exist until
-          // AFTER this screen's "맞아요" triggers decide()) — shown as an
-          // honest placeholder instead of hardcoding Figma's example
-          // sentences as if they were real AI output.
-          child: Text(
-            'AI 판단 근거 요약은 다음 단계(Last Intent 결과) 이후에 제공됩니다.',
-            style: SegueCardText.body18,
-          ),
-        ),
-        const SizedBox(height: 10),
+        // Figma (110:2038) has only 2 cards in this column: card1 bottom
+        // 272+177=449 → card2 top 465 = 16px gap. No "의도 근거"/"의도 정리
+        // 근거" card exists in the design — removed to match exactly.
+        const SizedBox(height: 16),
         SegueInfoCard(
           title: '추가 상담 필요 조건',
           titleStyle: SegueCardText.sectionHeading20,

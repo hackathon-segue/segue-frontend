@@ -60,4 +60,5 @@ abstract final class AppRoutes {
   static const String cartInventory = '/staff/cart';
   static const String generalProductCheck = '/staff/product-check';
   static const String lastIntentIntro = '/staff/last-intent';
+  static const String consultationHistory = '/staff/consultation-history';
 }

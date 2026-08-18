@@ -170,7 +170,10 @@ void main() {
   );
 
   test(
-    'missing server-saved result is retryable without re-running execute',
+    'a persistently missing server-saved result (retries exhausted) falls '
+    'back to the locally-built result instead of showing a "저장 실패" '
+    'error — execute() already succeeded, so this confirmation fetch '
+    'failing must not undo that for the CA',
     () async {
       final _ServerResultRepository serverRepository = _ServerResultRepository()
         ..includeSavedResult = false;
@@ -188,17 +191,21 @@ void main() {
       await session.execute();
 
       expect(session.state.executionResponse, isNotNull);
-      expect(session.state.resultSaveState.hasError, isTrue);
       expect(serverRepository.executeCallCount, 1);
-      expect(serverRepository.fetchResultsCallCount, 1);
+      // 1 initial attempt + 2 built-in retries, all failing since
+      // includeSavedResult is still false throughout execute().
+      expect(serverRepository.fetchResultsCallCount, 3);
 
-      serverRepository.includeSavedResult = true;
-      await session.retrySaveConsultationResult();
-
-      expect(serverRepository.executeCallCount, 1);
-      expect(serverRepository.fetchResultsCallCount, 2);
+      // No error — falls back to the locally-built result, which carries
+      // the same id execute() returned, just built from this SKU's own
+      // known data (cart item / decision result) rather than the server's
+      // fixture ('서버 저장 제품' — never seen since the fetch always failed).
+      expect(session.state.resultSaveState.hasError, isFalse);
       expect(session.state.resultSaveState.hasData, isTrue);
-      expect(session.state.resultSaveState.data!.id, 777);
+      final ConsultationResult fallback = session.state.resultSaveState.data!;
+      expect(fallback.id, 777);
+      expect(fallback.productName, 'MCM 백팩');
+      expect(fallback.executionStatus, ExecutionStatus.requested);
     },
   );
 

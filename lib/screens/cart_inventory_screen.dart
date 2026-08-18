@@ -383,6 +383,11 @@ class _CartItemRow extends StatelessWidget {
     final bool completed = inStock
         ? checkedInStockSkuIds.contains(item.skuId)
         : lastIntentManager.isCompleted(item.skuId);
+    // Issue #64: "추가 상담 미진행" (169:3821) still completes the session
+    // (execute() ran) but shows Figma 98:1740's darker "상담 중단" badge
+    // instead of the normal one — in-stock rows have no Last Intent
+    // session at all, so this never applies to them.
+    final bool declined = !inStock && lastIntentManager.isDeclined(item.skuId);
     const String consultLabel = '상담 미진행';
     final String actionLabel = inStock ? '제품 확인하기' : item.actionButtonLabel;
 
@@ -430,13 +435,15 @@ class _CartItemRow extends StatelessWidget {
       style: SegueCardText.rowStatus22,
     );
     final Widget consultStatus = completed
-        ? const SegueCompactButton(
-            label: '상담 완료',
-            backgroundColor: SegueCardColors.stepBadgeBg,
+        ? SegueCompactButton(
+            label: declined ? '상담 중단' : '상담 완료',
+            backgroundColor: declined
+                ? SegueCardColors.consultationAbortedBg
+                : SegueCardColors.stepBadgeBg,
             height: 48,
-            // Figma (98:1737/98:1780): fixed 123×48 box, ~4px horizontal
-            // padding around the label — much tighter than this shared
-            // widget's 16px default.
+            // Figma (98:1737/98:1780/98:1803): fixed 123×48 box, ~4px
+            // horizontal padding around the label — much tighter than this
+            // shared widget's 16px default.
             width: 123,
             horizontalPadding: 4,
             textStyle: SegueCardText.largeButtonLabel20White,

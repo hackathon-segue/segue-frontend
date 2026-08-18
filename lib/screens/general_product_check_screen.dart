@@ -14,7 +14,11 @@ import '../widgets/segue_info_card.dart';
 /// customer, so this screen shows the real [cartItem] directly instead of
 /// running structureIntent/decide/execute.
 class GeneralProductCheckScreen extends StatelessWidget {
-  const GeneralProductCheckScreen({required this.customer, required this.cartItem, super.key});
+  const GeneralProductCheckScreen({
+    required this.customer,
+    required this.cartItem,
+    super.key,
+  });
 
   final Customer customer;
   final CartItem cartItem;
@@ -40,13 +44,19 @@ class GeneralProductCheckScreen extends StatelessWidget {
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              final Widget image = SegueProductImage(imageUrl: cartItem.imageUrl, width: 296, height: 321);
+              final Widget image = SegueProductImage(
+                imageUrl: cartItem.imageUrl,
+                width: 296,
+                height: 321,
+              );
               final Widget button = SegueCtaButton(
                 label: '해당 제품 상담 완료',
                 showArrow: false,
                 onPressed: () {
-                  StaffSessionScope.of(context).markProductChecked(cartItem.skuId);
-                  Navigator.of(context).popUntil(ModalRoute.withName(AppRoutes.cartInventory));
+                  StaffSessionScope.of(
+                    context,
+                  ).markProductChecked(cartItem.skuId);
+                  navigateToTabletRoute(context, AppRoutes.cartInventory);
                 },
               );
               final Widget info = Column(
@@ -59,7 +69,10 @@ class GeneralProductCheckScreen extends StatelessWidget {
                   Text.rich(
                     TextSpan(
                       children: <InlineSpan>[
-                        const TextSpan(text: '쇼핑백 제품  ', style: SegueCardText.cartProductLabel20),
+                        const TextSpan(
+                          text: '쇼핑백 제품  ',
+                          style: SegueCardText.cartProductLabel20,
+                        ),
                         TextSpan(
                           text: '${cartItem.productName} ${cartItem.color}',
                           style: SegueCardText.cartProductValue20,
@@ -78,7 +91,9 @@ class GeneralProductCheckScreen extends StatelessWidget {
                 return Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(25, 28, 19, 15),
-                  decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: SegueCardColors.border, width: 2),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -96,7 +111,9 @@ class GeneralProductCheckScreen extends StatelessWidget {
                 height: 375,
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(25, 28, 19, 15),
-                  decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: SegueCardColors.border, width: 2),
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
@@ -109,7 +126,10 @@ class GeneralProductCheckScreen extends StatelessWidget {
                           children: <Widget>[
                             info,
                             const Spacer(),
-                            Align(alignment: Alignment.bottomRight, child: button),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: button,
+                            ),
                           ],
                         ),
                       ),

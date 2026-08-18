@@ -24,16 +24,22 @@ import '../widgets/segue_info_card.dart';
 /// customer app shows, it never implies the real-world action (purchase/
 /// reservation/product transfer) itself happened.
 class LastIntentCompletionScreen extends StatefulWidget {
-  const LastIntentCompletionScreen({required this.customer, required this.cartItem, super.key});
+  const LastIntentCompletionScreen({
+    required this.customer,
+    required this.cartItem,
+    super.key,
+  });
 
   final Customer customer;
   final CartItem cartItem;
 
   @override
-  State<LastIntentCompletionScreen> createState() => _LastIntentCompletionScreenState();
+  State<LastIntentCompletionScreen> createState() =>
+      _LastIntentCompletionScreenState();
 }
 
-class _LastIntentCompletionScreenState extends State<LastIntentCompletionScreen> {
+class _LastIntentCompletionScreenState
+    extends State<LastIntentCompletionScreen> {
   final TextEditingController _noteController = TextEditingController();
   ExecutionStatus _selectedStatus = ExecutionStatus.requested;
   bool _initializedFromSession = false;
@@ -54,7 +60,8 @@ class _LastIntentCompletionScreenState extends State<LastIntentCompletionScreen>
     final LastIntentSessionController session = LastIntentSessionScope.of(
       context,
     ).sessionFor(customer: widget.customer, cartItem: widget.cartItem);
-    final ExecuteConsultationResponse? response = session.state.executionResponse;
+    final ExecuteConsultationResponse? response =
+        session.state.executionResponse;
     final ExecutionStatus? status = session.state.executionStatus;
     final DecisionResult? decisionResult = session.state.decisionResult;
     final ConsultationResult? savedResult = session.state.resultSaveState.data;
@@ -74,7 +81,8 @@ class _LastIntentCompletionScreenState extends State<LastIntentCompletionScreen>
         screenTitle: '요청 접수 완료',
         body: const Text('접수된 요청 정보가 없습니다.', style: SegueCardText.body18),
         bottomBar: SegueBottomActionRow(
-          onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+          onBackToStart: () =>
+              navigateToTabletRoute(context, AppRoutes.staffHome),
         ),
       );
     }
@@ -103,25 +111,42 @@ class _LastIntentCompletionScreenState extends State<LastIntentCompletionScreen>
                     ),
                     SegueLabelValueRow(
                       label: '제품',
-                      value: '${widget.cartItem.productName} ${widget.cartItem.color}',
+                      value:
+                          '${widget.cartItem.productName} ${widget.cartItem.color}',
                     ),
-                    SegueLabelValueRow(label: '담당 CA', value: '매장 ${session.state.storeId} 담당자'),
+                    SegueLabelValueRow(
+                      label: '담당 CA',
+                      value: '매장 ${session.state.storeId} 담당자',
+                    ),
                     if (status != null)
-                      SegueLabelValueRow(label: '상태', value: executionStatusLabel(status)),
+                      SegueLabelValueRow(
+                        label: '상태',
+                        value: executionStatusLabel(status),
+                      ),
                   ],
                 );
                 final Widget right = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    SegueLabelValueRow(label: '고객', value: widget.customer.name),
-                    SegueLabelValueRow(label: '고객 번호', value: widget.customer.phoneNumber),
+                    SegueLabelValueRow(
+                      label: '고객',
+                      value: widget.customer.name,
+                    ),
+                    SegueLabelValueRow(
+                      label: '고객 번호',
+                      value: widget.customer.phoneNumber,
+                    ),
                     SegueLabelValueRow(
                       label: '접수 시각',
-                      value: _formatDateTime(savedResult?.consultedAt ?? DateTime.now()),
+                      value: _formatDateTime(
+                        savedResult?.consultedAt ?? DateTime.now(),
+                      ),
                     ),
                     SegueLabelValueRow(
                       label: '처리 갱신',
-                      value: _formatDateTime(savedResult?.executionUpdatedAt ?? DateTime.now()),
+                      value: _formatDateTime(
+                        savedResult?.executionUpdatedAt ?? DateTime.now(),
+                      ),
                     ),
                   ],
                 );
@@ -151,17 +176,20 @@ class _LastIntentCompletionScreenState extends State<LastIntentCompletionScreen>
               setState(() => _selectedStatus = status);
             },
             onNoteChanged: () => setState(() {}),
-            onSubmit: () =>
-                session.updateExecutionStatus(_selectedStatus, note: _noteController.text),
+            onSubmit: () => session.updateExecutionStatus(
+              _selectedStatus,
+              note: _noteController.text,
+            ),
           ),
         ],
       ),
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+        onBackToStart: () =>
+            navigateToTabletRoute(context, AppRoutes.staffHome),
         cta: SegueCtaButton(
           label: '해당 제품 상담 완료',
           onPressed: () =>
-              Navigator.of(context).popUntil(ModalRoute.withName(AppRoutes.cartInventory)),
+              navigateToTabletRoute(context, AppRoutes.cartInventory),
         ),
       ),
     );
@@ -277,7 +305,10 @@ class _ExecutionStatusUpdateCard extends StatelessWidget {
           if (updateState.hasError) ...<Widget>[
             const SizedBox(height: 12),
             Text(
-              _errorMessage(updateState.error, fallback: '상태 갱신에 실패했습니다. 다시 시도해 주세요.'),
+              _errorMessage(
+                updateState.error,
+                fallback: '상태 갱신에 실패했습니다. 다시 시도해 주세요.',
+              ),
               style: SegueCardText.body18.copyWith(color: Colors.redAccent),
             ),
           ],
@@ -304,14 +335,19 @@ class _HeadlineCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+      decoration: BoxDecoration(
+        border: Border.all(color: SegueCardColors.border, width: 2),
+      ),
       child: Row(
         children: <Widget>[
           Container(
             width: 63,
             height: 63,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: SegueCardColors.stepBadgeBg, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: SegueCardColors.stepBadgeBg,
+              shape: BoxShape.circle,
+            ),
             child: const Icon(Icons.check, color: Colors.white, size: 32),
           ),
           const SizedBox(width: 20),

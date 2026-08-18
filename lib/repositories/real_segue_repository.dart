@@ -1,6 +1,5 @@
 import '../exceptions/app_exception.dart';
 import '../models/models.dart';
-import '../utils/structured_intent_vocabulary.dart';
 import 'segue_api_client.dart';
 import 'segue_repository.dart';
 
@@ -73,8 +72,14 @@ class RealSegueRepository implements SegueRepository {
       '/api/consultations/intent',
       body: request.toJson(),
     );
+    // No _validateStructureIntentResponse gate here (deliberately, see that
+    // function's own doc comment) — _requireObject alone is enough: it
+    // catches a genuinely broken response (not even a JSON object), while
+    // StructureIntentResponse.fromJson/StructuredIntent.fromJson below
+    // already tolerate every other kind of mismatch (missing/extra/wrongly
+    // typed/out-of-vocabulary fields) by falling back to safe defaults
+    // instead of throwing.
     final JsonMap json = _requireObject(response, 'structureIntent');
-    _validateStructureIntentResponse(json, 'structureIntent');
     return StructureIntentResponse.fromJson(json);
   }
 
@@ -99,8 +104,8 @@ class RealSegueRepository implements SegueRepository {
       '/api/consultations/followup-answer',
       body: request.toJson(),
     );
+    // Same relaxed handling as structureIntent() above — same response shape.
     final JsonMap json = _requireObject(response, 'followUpAnswer');
-    _validateStructureIntentResponse(json, 'followUpAnswer');
     return StructureIntentResponse.fromJson(json);
   }
 
@@ -267,29 +272,6 @@ int _requireInt(JsonMap json, String key, String context) {
   return value;
 }
 
-bool _requireBool(JsonMap json, String key, String context) {
-  final Object? value = json[key];
-  if (value is! bool) {
-    _throwSchemaMismatch(
-      context,
-      'field "$key" must be a boolean',
-      details: json,
-    );
-  }
-  return value;
-}
-
-void _requireNullableBool(JsonMap json, String key, String context) {
-  final Object? value = json[key];
-  if (value != null && value is! bool) {
-    _throwSchemaMismatch(
-      context,
-      'field "$key" must be a boolean or null',
-      details: json,
-    );
-  }
-}
-
 JsonMap _requireMap(JsonMap json, String key, String context) {
   final Object? value = json[key];
   if (value is! Map) {
@@ -300,44 +282,6 @@ JsonMap _requireMap(JsonMap json, String key, String context) {
     );
   }
   return asJsonMap(value);
-}
-
-void _requireStringMap(JsonMap json, String key, String context) {
-  final JsonMap value = _requireMap(json, key, context);
-  for (final MapEntry<String, Object?> entry in value.entries) {
-    if (entry.value is! String) {
-      _throwSchemaMismatch(
-        context,
-        'field "$key.${entry.key}" must be a string',
-        details: json,
-      );
-    }
-  }
-}
-
-List<Object?> _requireList(JsonMap json, String key, String context) {
-  final Object? value = json[key];
-  if (value is! List) {
-    _throwSchemaMismatch(
-      context,
-      'field "$key" must be an array',
-      details: json,
-    );
-  }
-  return value.cast<Object?>();
-}
-
-void _requireStringList(JsonMap json, String key, String context) {
-  final List<Object?> values = _requireList(json, key, context);
-  for (final Object? value in values) {
-    if (value is! String) {
-      _throwSchemaMismatch(
-        context,
-        'field "$key" must contain strings only',
-        details: json,
-      );
-    }
-  }
 }
 
 void _requireOneOf(
@@ -353,73 +297,6 @@ void _requireOneOf(
       'field "$key" has unsupported value: $value',
       details: json,
     );
-  }
-}
-
-void _validateStructureIntentResponse(JsonMap json, String context) {
-  _requireKeys(json, <String>['structuredIntent', 'needsFollowUp'], context);
-  _requireBool(json, 'needsFollowUp', context);
-  final JsonMap intent = _requireMap(json, 'structuredIntent', context);
-  _validateStructuredIntent(intent, '$context.structuredIntent');
-}
-
-void _validateStructuredIntent(JsonMap json, String context) {
-  _requireKeys(json, <String>[
-    'purpose',
-    'essentialConditions',
-    'preferredConditions',
-    'negotiableConditions',
-    'purchaseUrgency',
-    'physicalCheckAttributes',
-    'canWait',
-    'canVisitOtherStore',
-    'needsFollowUp',
-    'followUpReason',
-  ], context);
-  _requireString(json, 'purpose', context);
-  _requireConditionMap(json, 'essentialConditions', context);
-  _requireConditionMap(json, 'preferredConditions', context);
-  _requireConditionMap(json, 'negotiableConditions', context);
-  _requireOneOf(
-    json,
-    'purchaseUrgency',
-    PurchaseUrgency.values.map((PurchaseUrgency value) => value.wireName),
-    context,
-  );
-  _requirePhysicalCheckAttributes(json, context);
-  _requireNullableBool(json, 'canWait', context);
-  _requireNullableBool(json, 'canVisitOtherStore', context);
-  _requireBool(json, 'needsFollowUp', context);
-  _requireString(json, 'followUpReason', context);
-}
-
-void _requireConditionMap(JsonMap json, String key, String context) {
-  _requireStringMap(json, key, context);
-  final JsonMap conditions = asJsonMap(json[key]);
-  for (final MapEntry<String, Object?> entry in conditions.entries) {
-    final List<String>? allowedValues =
-        StructuredIntentVocabulary.attributeValues[entry.key];
-    if (allowedValues == null || !allowedValues.contains(entry.value)) {
-      _throwSchemaMismatch(
-        context,
-        'field "$key.${entry.key}" is outside the API.md vocabulary',
-        details: json,
-      );
-    }
-  }
-}
-
-void _requirePhysicalCheckAttributes(JsonMap json, String context) {
-  _requireStringList(json, 'physicalCheckAttributes', context);
-  final List<Object?> attributes = asJsonList(json['physicalCheckAttributes']);
-  for (final Object? attribute in attributes) {
-    if (!StructuredIntentVocabulary.attributeLabels.containsKey(attribute)) {
-      _throwSchemaMismatch(
-        context,
-        'physicalCheckAttributes contains an unsupported key: $attribute',
-        details: json,
-      );
-    }
   }
 }
 

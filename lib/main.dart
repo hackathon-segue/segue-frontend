@@ -5,6 +5,7 @@ import 'repositories/repositories.dart';
 import 'screens/cart_inventory_screen.dart';
 import 'screens/consent_declined_screen.dart';
 import 'screens/consent_screen.dart';
+import 'screens/consultation_history_screen.dart';
 import 'screens/customer_lookup_screen.dart';
 import 'screens/customer_mobile_entry_screen.dart';
 import 'screens/not_found_screen.dart';
@@ -75,6 +76,8 @@ class _SegueAppState extends State<SegueApp> {
               AppRoutes.customerConsentDeclined: (_) =>
                   const ConsentDeclinedScreen(),
               AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
+              AppRoutes.consultationHistory: (_) =>
+                  const ConsultationHistoryScreen(),
             },
             onUnknownRoute: (RouteSettings settings) {
               return MaterialPageRoute<void>(
