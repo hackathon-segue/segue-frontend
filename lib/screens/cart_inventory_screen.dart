@@ -44,6 +44,11 @@ class CartInventoryScreen extends StatelessWidget {
               message: '고객 조회 화면에서 먼저 고객을 조회해 주세요.',
             );
           }
+          if (customer.hasConsented && state.cartState.isIdle) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              controller.loadCart();
+            });
+          }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,7 +76,13 @@ class CartInventoryScreen extends StatelessWidget {
               ),
               _CustomerSummaryCard(customer: customer, state: state),
               const Text('장바구니 목록', style: StaffText.header16SemiBold),
-              _CartList(customer: customer, cartState: state.cartState),
+              _CartList(
+                customer: customer,
+                cartState: state.cartState,
+                onRetry: controller.loadCart,
+                onOpenConsent: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.customerConsent),
+              ),
               _AllLastIntentCompleteBanner(cartState: state.cartState),
               const SectionCard(
                 child: Wrap(
@@ -322,10 +333,17 @@ class _InventoryStateBadge extends StatelessWidget {
 }
 
 class _CartList extends StatelessWidget {
-  const _CartList({required this.customer, required this.cartState});
+  const _CartList({
+    required this.customer,
+    required this.cartState,
+    required this.onRetry,
+    required this.onOpenConsent,
+  });
 
   final Customer customer;
   final AsyncValue<List<CartItem>> cartState;
+  final VoidCallback onRetry;
+  final VoidCallback onOpenConsent;
 
   @override
   Widget build(BuildContext context) {
@@ -343,7 +361,14 @@ class _CartList extends StatelessWidget {
       final String message = error is AppException
           ? error.message
           : '장바구니를 불러오지 못했습니다.';
-      return AppStateView.error(message: message);
+      final bool consentRequired =
+          error is ApiException && error.isConsentRequired;
+      return AppStateView.error(
+        title: consentRequired ? '데이터 이용 동의가 필요합니다' : '장바구니를 불러오지 못했습니다',
+        message: message,
+        actionLabel: consentRequired ? '동의 화면으로 이동' : '다시 시도',
+        onAction: consentRequired ? onOpenConsent : onRetry,
+      );
     }
     final List<CartItem> items = cartState.data ?? const <CartItem>[];
     if (items.isEmpty) {

@@ -58,7 +58,10 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
         spacing: 16,
         children: <Widget>[
           const Text('고객 조회', style: StaffText.title20Bold),
-          const Text('테스트 고객 계정 또는 가상 휴대전화 번호로 고객을 조회하세요.', style: StaffText.body12),
+          const Text(
+            '테스트 고객 계정 또는 가상 휴대전화 번호로 고객을 조회하세요.',
+            style: StaffText.body12,
+          ),
           ListenableBuilder(
             listenable: controller,
             builder: (BuildContext context, Widget? _) {
@@ -83,7 +86,16 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
                     phonePattern: _phonePattern,
                     onSubmit: () => _submit(controller),
                   );
-                  final Widget result = _ResultPanel(state: state);
+                  final Widget result = _ResultPanel(
+                    state: state,
+                    onRetryLookup: _phoneController.text.trim().isEmpty
+                        ? null
+                        : () => _submit(controller),
+                    onRetryCart: controller.loadCart,
+                    onOpenConsent: () => Navigator.of(
+                      context,
+                    ).pushNamed(AppRoutes.customerConsent),
+                  );
 
                   if (constraints.maxWidth < StaffSizes.twoPaneBreakpoint) {
                     return Column(
@@ -144,23 +156,31 @@ class _SearchPanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 12,
                   children: <Widget>[
-                    StaffTextField(label: '회원 번호', controller: memberNumberController),
+                    StaffTextField(
+                      label: '회원 번호',
+                      controller: memberNumberController,
+                    ),
                     StaffTextField(
                       label: '휴대전화 번호',
                       controller: phoneController,
                       keyboardType: TextInputType.phone,
                       validator: (String? value) {
                         final String trimmed = value?.trim() ?? '';
-                        if (trimmed.isEmpty && memberNumberController.text.trim().isEmpty) {
+                        if (trimmed.isEmpty &&
+                            memberNumberController.text.trim().isEmpty) {
                           return '휴대전화 번호를 입력해 주세요.';
                         }
-                        if (trimmed.isNotEmpty && !phonePattern.hasMatch(trimmed)) {
+                        if (trimmed.isNotEmpty &&
+                            !phonePattern.hasMatch(trimmed)) {
                           return '010-0000-0000 형식으로 입력해 주세요.';
                         }
                         return null;
                       },
                     ),
-                    const Text('예: 010-0000-0000 (MVP 테스트 번호 사용)', style: StaffText.meta11),
+                    const Text(
+                      '예: 010-0000-0000 (MVP 테스트 번호 사용)',
+                      style: StaffText.meta11,
+                    ),
                     StaffButton(
                       label: '고객 조회',
                       variant: StaffButtonVariant.primary,
@@ -182,10 +202,14 @@ class _SearchPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 8,
                 children: <Widget>[
-                  Text('MVP 단계에서는 실제 개인정보 대신 테스트 고객 계정과 가상 번호를 사용합니다.',
-                      style: StaffText.body12),
-                  Text('조회된 고객 정보는 상담 목적으로만 활용되며, 데이터 이용 동의 확인 후 진행됩니다.',
-                      style: StaffText.body12),
+                  Text(
+                    'MVP 단계에서는 실제 개인정보 대신 테스트 고객 계정과 가상 번호를 사용합니다.',
+                    style: StaffText.body12,
+                  ),
+                  Text(
+                    '조회된 고객 정보는 상담 목적으로만 활용되며, 데이터 이용 동의 확인 후 진행됩니다.',
+                    style: StaffText.body12,
+                  ),
                 ],
               ),
             ],
@@ -197,9 +221,17 @@ class _SearchPanel extends StatelessWidget {
 }
 
 class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({required this.state});
+  const _ResultPanel({
+    required this.state,
+    required this.onRetryLookup,
+    required this.onRetryCart,
+    required this.onOpenConsent,
+  });
 
   final StaffWebSessionState state;
+  final VoidCallback? onRetryLookup;
+  final VoidCallback onRetryCart;
+  final VoidCallback onOpenConsent;
 
   @override
   Widget build(BuildContext context) {
@@ -208,8 +240,17 @@ class _ResultPanel extends StatelessWidget {
     }
     if (state.lookupState.hasError) {
       final Object? error = state.lookupState.error;
-      final String message = error is AppException ? error.message : '회원 정보를 다시 확인해 주세요.';
-      return AppStateView.error(message: message);
+      final String message = error is AppException
+          ? error.message
+          : '회원 정보를 다시 확인해 주세요.';
+      final bool notFound =
+          (error is ApiException && error.statusCode == 404) ||
+          (error is AppException && error.code == 'CUSTOMER_NOT_FOUND');
+      return AppStateView.error(
+        title: notFound ? '조회 결과가 없습니다' : '고객 조회에 실패했습니다',
+        message: message,
+        onAction: onRetryLookup,
+      );
     }
     final Customer? customer = state.customer;
     if (customer == null) {
@@ -271,12 +312,20 @@ class _ResultPanel extends StatelessWidget {
               const Row(
                 children: <Widget>[
                   Expanded(
-                    child: Text('장바구니 제품 목록', style: StaffText.header16SemiBold),
+                    child: Text(
+                      '장바구니 제품 목록',
+                      style: StaffText.header16SemiBold,
+                    ),
                   ),
                   Text('최근 담은 순', style: StaffText.meta11),
                 ],
               ),
-              _CartPreview(customer: customer, cartState: state.cartState),
+              _CartPreview(
+                customer: customer,
+                cartState: state.cartState,
+                onRetry: onRetryCart,
+                onOpenConsent: onOpenConsent,
+              ),
             ],
           ),
         ),
@@ -285,7 +334,8 @@ class _ResultPanel extends StatelessWidget {
           child: StaffButton(
             label: '데이터 이용 동의 확인',
             variant: StaffButtonVariant.primary,
-            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.customerConsent),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.customerConsent),
           ),
         ),
       ],
@@ -294,10 +344,17 @@ class _ResultPanel extends StatelessWidget {
 }
 
 class _CartPreview extends StatelessWidget {
-  const _CartPreview({required this.customer, required this.cartState});
+  const _CartPreview({
+    required this.customer,
+    required this.cartState,
+    required this.onRetry,
+    required this.onOpenConsent,
+  });
 
   final Customer customer;
   final AsyncValue<List<CartItem>> cartState;
+  final VoidCallback onRetry;
+  final VoidCallback onOpenConsent;
 
   @override
   Widget build(BuildContext context) {
@@ -312,8 +369,17 @@ class _CartPreview extends StatelessWidget {
     }
     if (cartState.hasError) {
       final Object? error = cartState.error;
-      final String message = error is AppException ? error.message : '장바구니를 불러오지 못했습니다.';
-      return AppStateView.error(message: message);
+      final String message = error is AppException
+          ? error.message
+          : '장바구니를 불러오지 못했습니다.';
+      final bool consentRequired =
+          error is ApiException && error.isConsentRequired;
+      return AppStateView.error(
+        title: consentRequired ? '데이터 이용 동의가 필요합니다' : '장바구니를 불러오지 못했습니다',
+        message: message,
+        actionLabel: consentRequired ? '동의 화면으로 이동' : '다시 시도',
+        onAction: consentRequired ? onOpenConsent : onRetry,
+      );
     }
     final List<CartItem> items = cartState.data ?? const <CartItem>[];
     if (items.isEmpty) {
@@ -322,7 +388,9 @@ class _CartPreview extends StatelessWidget {
 
     return Column(
       spacing: 8,
-      children: <Widget>[for (final CartItem item in items) _CartItemRow(item: item)],
+      children: <Widget>[
+        for (final CartItem item in items) _CartItemRow(item: item),
+      ],
     );
   }
 }
@@ -342,7 +410,9 @@ class _CartItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String statusLabel = item.inventory.currentStoreInStock ? '현재 매장 보유' : '현재 매장 미보유';
+    final String statusLabel = item.inventory.currentStoreInStock
+        ? '현재 매장 보유'
+        : '현재 매장 미보유';
 
     final Widget leading = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -354,7 +424,11 @@ class _CartItemRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 4,
             children: <Widget>[
-              Text(item.productName, style: StaffText.body12, overflow: TextOverflow.ellipsis),
+              Text(
+                item.productName,
+                style: StaffText.body12,
+                overflow: TextOverflow.ellipsis,
+              ),
               Text('컬러: ${item.color}', style: StaffText.meta11),
             ],
           ),
@@ -369,7 +443,11 @@ class _CartItemRow extends StatelessWidget {
       runSpacing: 8,
       children: <Widget>[
         Text(statusLabel, style: StaffText.meta11),
-        StaffButton(label: item.actionButtonLabel, variant: StaffButtonVariant.chip, onPressed: () {}),
+        StaffButton(
+          label: item.actionButtonLabel,
+          variant: StaffButtonVariant.chip,
+          onPressed: () {},
+        ),
       ],
     );
 
@@ -385,13 +463,19 @@ class _CartItemRow extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             spacing: 16,
-            children: <Widget>[Expanded(child: leading), trailing],
+            children: <Widget>[
+              Expanded(child: leading),
+              trailing,
+            ],
           );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 8,
-          children: <Widget>[leading, Align(alignment: Alignment.centerRight, child: trailing)],
+          children: <Widget>[
+            leading,
+            Align(alignment: Alignment.centerRight, child: trailing),
+          ],
         );
       },
     );

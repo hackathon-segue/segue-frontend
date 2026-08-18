@@ -6,6 +6,54 @@ import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/repositories/repositories.dart';
 
 void main() {
+  test('real repository looks up a staff customer by phone number', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      getResponse: <String, Object?>{
+        'id': 1,
+        'name': '김세계',
+        'phoneNumber': '010-1234-5678',
+        'hasConsented': true,
+      },
+    );
+    final RealSegueRepository repository = RealSegueRepository(
+      apiClient: apiClient,
+    );
+
+    final Customer customer = await repository.lookupCustomerByPhone(
+      '010-1234-5678',
+    );
+
+    expect(apiClient.lastGetPath, '/api/customers/lookup');
+    expect(apiClient.lastGetQueryParameters, <String, Object?>{
+      'phoneNumber': '010-1234-5678',
+    });
+    expect(customer.name, '김세계');
+    expect(customer.hasConsented, isTrue);
+  });
+
+  test('real repository posts the staff consent decision', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      postResponse: <String, Object?>{
+        'customerId': 1,
+        'status': 'AGREE',
+        'scope': '장바구니 조회, 구매 의도·상담 결과 저장, 고객 모바일 재확인',
+        'consentedAt': '2026-08-16T17:30:41',
+      },
+    );
+    final RealSegueRepository repository = RealSegueRepository(
+      apiClient: apiClient,
+    );
+
+    final CustomerConsent consent = await repository.submitCustomerConsent(
+      customerId: 1,
+      agreed: true,
+    );
+
+    expect(apiClient.lastPostPath, '/api/customers/1/consent');
+    expect(apiClient.lastPostBody, <String, Object?>{'agreed': true});
+    expect(consent.hasAgreed, isTrue);
+  });
+
   test(
     'real repository posts the API.md cart save body to /api/cart',
     () async {

@@ -136,7 +136,7 @@ class StaffWebSessionController extends ChangeNotifier {
 
   Future<void> loadCart() async {
     final Customer? customer = _state.customer;
-    if (customer == null) {
+    if (customer == null || _state.cartState.isLoading) {
       return;
     }
 
@@ -150,9 +150,11 @@ class StaffWebSessionController extends ChangeNotifier {
         customerId: customer.id,
         storeId: _state.storeId,
       );
+      final List<CartItem> sortedItems = cartItems.toList()
+        ..sort((CartItem a, CartItem b) => b.savedAt.compareTo(a.savedAt));
       _state = _state.copyWith(
-        cartItems: cartItems,
-        cartState: AsyncValue<List<CartItem>>.data(cartItems),
+        cartItems: sortedItems,
+        cartState: AsyncValue<List<CartItem>>.data(sortedItems),
       );
     } catch (error, stackTrace) {
       _state = _state.copyWith(
