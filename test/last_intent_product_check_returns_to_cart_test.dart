@@ -6,12 +6,12 @@ import 'package:segue_frontend/widgets/staff_check_row.dart';
 
 /// "해당 제품 상담 완료" (COMPARISON_EXPERIENCE/TODAY_PURCHASE's
 /// productCheckRequest CTA) must skip the "요청 접수 완료" hand-off screen and
-/// return straight to the cart, with that item's row now showing "상담 완료" —
+/// return straight to the cart, with that item's row now showing "요청 접수" —
 /// as opposed to the "타 매장 확인 요청 접수" CTA (EXACT_PRODUCT,
 /// otherStoreCheckRequest), which still goes to the "요청 접수 완료" screen.
 void main() {
   testWidgets(
-    '해당 제품 상담 완료 tap executes then returns to the cart with 상담 완료 shown',
+    '해당 제품 상담 완료 tap executes then returns to the cart with 요청 접수 shown',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
@@ -48,7 +48,7 @@ void main() {
       await tester.tap(agreeButton);
       await tester.pumpAndSettle();
       expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
-      expect(find.text('상담 완료'), findsNothing);
+      expect(find.text('요청 접수'), findsNothing);
 
       await tester.tap(find.text('Last Intent 시작').first);
       await tester.pumpAndSettle();
@@ -83,9 +83,9 @@ void main() {
 
       // Never shows the "요청 접수 완료" hand-off screen for this actionType.
       expect(find.text('요청 접수 완료'), findsNothing);
-      // Lands back on the cart, with this SKU's row now marked complete.
+      // Lands back on the cart, with this SKU's row now marked request-accepted.
       expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
-      expect(find.text('상담 완료'), findsOneWidget);
+      expect(find.text('요청 접수'), findsOneWidget);
     },
   );
 }

@@ -33,8 +33,9 @@ void main() {
     hasConsented: true,
   );
 
-  testWidgets('shows the real completionMessage headline and 요청 내용 sourced from real session data', (
+  Future<LastIntentSessionController> pumpCompletionScreen(
     WidgetTester tester,
+    MockSegueRepository repository,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
@@ -42,7 +43,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final LastIntentSessionManager manager = LastIntentSessionManager(
-      repository: MockSegueRepository(),
+      repository: repository,
     );
     final CartItem item = cartItem();
     final LastIntentSessionController session = manager.sessionFor(
@@ -56,23 +57,69 @@ void main() {
     await tester.pumpWidget(
       LastIntentSessionScope(
         manager: manager,
-        child: MaterialApp(home: LastIntentCompletionScreen(customer: customer, cartItem: item)),
+        child: MaterialApp(
+          home: LastIntentCompletionScreen(customer: customer, cartItem: item),
+        ),
       ),
     );
     await tester.pumpAndSettle();
+    return session;
+  }
 
-    expect(find.text('요청 접수 완료'), findsOneWidget);
-    // Real completionMessage from execute()'s response, not Figma's example
-    // "타 매장 확인 요청이 접수되었습니다." headline text.
-    expect(find.text(session.state.executionResponse!.completionMessage), findsOneWidget);
-    expect(find.text('요청 내용'), findsOneWidget);
-    expect(find.text(customer.name), findsOneWidget);
-    expect(find.text(customer.phoneNumber), findsOneWidget);
-    expect(find.text('타 매장 확인 요청'), findsOneWidget); // real actionButtonLabel
-    expect(find.text('확인 대기'), findsOneWidget); // REQUESTED status label
-    // AC: never implies the real-world action itself is done.
-    expect(find.textContaining('구매 완료'), findsNothing);
-    expect(find.textContaining('예약 완료'), findsNothing);
-    expect(find.textContaining('제품 이동 완료'), findsNothing);
-  });
+  testWidgets(
+    'shows the real completionMessage headline and 요청 내용 sourced from real session data',
+    (WidgetTester tester) async {
+      final LastIntentSessionController session = await pumpCompletionScreen(
+        tester,
+        MockSegueRepository(),
+      );
+
+      expect(find.text('요청 접수 완료'), findsOneWidget);
+      // Real completionMessage from execute()'s response, not Figma's example
+      // "타 매장 확인 요청이 접수되었습니다." headline text.
+      expect(
+        find.text(session.state.executionResponse!.completionMessage),
+        findsOneWidget,
+      );
+      expect(find.text('요청 내용'), findsOneWidget);
+      expect(find.text(customer.name), findsOneWidget);
+      expect(find.text(customer.phoneNumber), findsOneWidget);
+      expect(find.text('타 매장 확인 요청'), findsOneWidget); // real actionButtonLabel
+      expect(find.text('요청 접수'), findsWidgets); // REQUESTED status label
+      expect(find.text('후속 처리 상태'), findsOneWidget);
+      // AC: never implies the real-world action itself is done.
+      expect(find.textContaining('구매 완료'), findsNothing);
+      expect(find.textContaining('예약 완료'), findsNothing);
+      expect(find.textContaining('제품 이동 완료'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'CA can update execution status and the mock result store reflects it',
+    (WidgetTester tester) async {
+      final MockSegueRepository repository = MockSegueRepository();
+      final LastIntentSessionController session = await pumpCompletionScreen(
+        tester,
+        repository,
+      );
+
+      await tester.tap(find.text('후속 확인 필요'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '타 매장 재고를 다시 확인해야 합니다.');
+      final Finder updateButton = find.text('상태 갱신');
+      await tester.ensureVisible(updateButton);
+      await tester.pumpAndSettle();
+      await tester.tap(updateButton);
+      await tester.pumpAndSettle();
+
+      expect(session.state.executionStatus, ExecutionStatus.followUpNeeded);
+      expect(session.state.executionNote, '타 매장 재고를 다시 확인해야 합니다.');
+      expect(find.text('후속 확인 필요 상태로 갱신되었습니다.'), findsOneWidget);
+
+      final List<ConsultationResult> stored = await repository
+          .fetchConsultationResults(customer.id);
+      expect(stored.single.executionStatus, ExecutionStatus.followUpNeeded);
+      expect(stored.single.executionNote, '타 매장 재고를 다시 확인해야 합니다.');
+    },
+  );
 }

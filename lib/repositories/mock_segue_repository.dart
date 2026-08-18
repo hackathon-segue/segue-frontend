@@ -8,7 +8,7 @@ class MockSegueRepository implements SegueRepository {
   MockSegueRepository({bool seedDemoConsultationResults = false}) {
     if (seedDemoConsultationResults) {
       _consultationResultsByCustomer[1] = <int, ConsultationResult>{
-        5: _consultationResult(),
+        5: MockDemoFixtures.seededConsultationResult(),
       };
     }
   }
@@ -245,27 +245,36 @@ class MockSegueRepository implements SegueRepository {
     required int consultationResultId,
     required ExecutionStatusUpdateRequest request,
   }) async {
+    final String? trimmedNote = request.note?.trim();
     if (request.status != ExecutionStatus.requested &&
-        (request.note == null || request.note!.trim().isEmpty)) {
+        (trimmedNote == null || trimmedNote.isEmpty)) {
       throw const AppException(
         '실행 불가 또는 후속 확인 필요 상태에는 사유가 필요합니다.',
         code: 'EXECUTION_NOTE_REQUIRED',
       );
     }
 
-    return _consultationResult(
-      executionStatus: request.status,
-      executionNote: request.note,
-    );
-  }
+    for (final Map<int, ConsultationResult> results
+        in _consultationResultsByCustomer.values) {
+      final ConsultationResult? existing = results[consultationResultId];
+      if (existing == null) {
+        continue;
+      }
+      final ConsultationResult updated = existing.copyWith(
+        executionStatus: request.status,
+        executionNote: trimmedNote == null || trimmedNote.isEmpty
+            ? null
+            : trimmedNote,
+        clearExecutionNote: trimmedNote == null || trimmedNote.isEmpty,
+        executionUpdatedAt: DateTime.now(),
+      );
+      results[consultationResultId] = updated;
+      return updated;
+    }
 
-  ConsultationResult _consultationResult({
-    ExecutionStatus executionStatus = ExecutionStatus.requested,
-    String? executionNote,
-  }) {
-    return MockDemoFixtures.seededConsultationResult(
-      executionStatus: executionStatus,
-      executionNote: executionNote,
+    throw const AppException(
+      '상담 결과를 찾을 수 없습니다.',
+      code: 'CONSULTATION_RESULT_NOT_FOUND',
     );
   }
 }

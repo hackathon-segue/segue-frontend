@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
+import 'package:segue_frontend/models/models.dart';
+import 'package:segue_frontend/providers/providers.dart';
+import 'package:segue_frontend/repositories/mock_segue_repository.dart';
+import 'package:segue_frontend/screens/customer_mobile_entry_screen.dart';
+import 'package:segue_frontend/utils/app_theme.dart';
 
 void main() {
   testWidgets('customer mobile login opens home and product list', (
@@ -124,7 +129,11 @@ void main() {
 
     expect(find.text('온라인 구매 화면'), findsOneWidget);
     expect(find.text('온라인 구매 안내'), findsOneWidget);
-    await tester.ensureVisible(find.text('온라인 스토어에서 구매하기'));
+    await tester.scrollUntilVisible(
+      find.text('온라인 스토어에서 구매하기'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('온라인 스토어에서 구매하기'), findsOneWidget);
 
     await tester.tap(find.byTooltip('뒤로'));
@@ -148,5 +157,48 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('요청 접수 안내'), findsOneWidget);
+  });
+
+  testWidgets('consultation results show updated execution status on mobile', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final MockSegueRepository repository = MockSegueRepository(
+      seedDemoConsultationResults: true,
+    );
+    await repository.updateExecutionStatus(
+      consultationResultId: 5,
+      request: const ExecutionStatusUpdateRequest(
+        status: ExecutionStatus.unable,
+        note: '타 매장 보유가 확인되지 않았습니다.',
+      ),
+    );
+
+    await tester.pumpWidget(
+      RepositoryScope(
+        repository: repository,
+        child: MaterialApp(
+          theme: SegueTheme.light(),
+          home: const CustomerMobileEntryScreen(),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('앱으로 계속하기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('상담 결과').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('앱 상담 결과 확인'), findsOneWidget);
+    expect(
+      find.textContaining('실행이 어렵습니다. 타 매장 보유가 확인되지 않았습니다.'),
+      findsWidgets,
+    );
+    expect(find.text('처리 갱신'), findsOneWidget);
   });
 }

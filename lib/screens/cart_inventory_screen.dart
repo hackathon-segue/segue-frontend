@@ -361,7 +361,7 @@ class _CartList extends StatelessWidget {
 }
 
 /// Issue #9 AC: "상담 완료 여부 표시" — a small colored badge distinguishing
-/// in-progress vs. completed Last Intent sessions. No Figma design exists
+/// in-progress vs. request-accepted Last Intent sessions. No Figma design exists
 /// for this yet; colors here are a functional placeholder only.
 class _SessionStatusBadge extends StatelessWidget {
   const _SessionStatusBadge({required this.label, required this.completed});
@@ -387,7 +387,7 @@ class _SessionStatusBadge extends StatelessWidget {
 }
 
 /// Issue #9 작업 범위: "모든 상담 완료 상태 표시" — once every out-of-stock item's
-/// own independent Last Intent session is complete, surface that as one
+/// own independent Last Intent request is accepted, surface that as one
 /// aggregate banner rather than requiring the CA to check each row.
 class _AllLastIntentCompleteBanner extends StatelessWidget {
   const _AllLastIntentCompleteBanner({required this.cartState});
@@ -414,7 +414,7 @@ class _AllLastIntentCompleteBanner extends StatelessWidget {
         }
         return const SectionCard(
           child: Text(
-            '미보유 제품의 Last Intent 상담이 모두 완료되었습니다.',
+            '미보유 제품의 Last Intent 요청이 모두 접수되었습니다.',
             style: StaffText.body12,
           ),
         );
@@ -476,7 +476,7 @@ class _CartInventoryRow extends StatelessWidget {
     final bool sessionCompleted =
         !inStock && lastIntentManager.isCompleted(item.skuId);
     final String? sessionStatusLabel = sessionCompleted
-        ? '상담 완료'
+        ? '요청 접수'
         : sessionStarted
         ? '상담 진행 중'
         : null;
