@@ -1,100 +1,168 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/providers/providers.dart';
+import 'package:segue_frontend/repositories/mock_demo_fixtures.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 
-/// Deterministic keyword-triggered persona scenarios (SCHEMA.md 페르소나
-/// 1~5) so all 4 resultTypes are reachable from the real running app, not
-/// just from spy-repository widget tests. Typing these exact utterances
-/// into the "고객 의도 입력" screen reproduces each result screen.
 void main() {
-  const Customer customer = Customer(
-    id: 1,
-    name: '김세계',
-    phoneNumber: '010-1234-5678',
-    hasConsented: true,
+  test('mock fixture exposes exactly the SCHEMA.md demo scenarios A-D', () {
+    expect(
+      MockDemoFixtures.scenarios.map(
+        (MockDemoScenario scenario) => scenario.id.label,
+      ),
+      <String>['A', 'B', 'C', 'D'],
+    );
+  });
+
+  test(
+    'mock fixture StructuredIntent values stay inside API.md vocabulary',
+    () {
+      const Map<String, List<String>> allowedVocabulary =
+          <String, List<String>>{
+            'colorFamily': <String>['블랙', '브라운', '베이지'],
+            'colorTone': <String>['웜', '쿨', '뉴트럴'],
+            'material': <String>['가죽', '캔버스', '패브릭'],
+            'glossLevel': <String>['높음', '중간', '낮음'],
+            'logoVisibility': <String>['높음', '중간', '낮음'],
+            'logoPosition': <String>['정면중앙', '정면하단', '스트랩'],
+            'patternDensity': <String>['높음', '중간', '낮음'],
+            'silhouette': <String>['각진', '라운드', '사각'],
+            'structure': <String>['하드', '소프트'],
+            'sizeGrade': <String>['미니', '스몰', '미디움', '라지'],
+            'strapType': <String>['체인스트랩', '패브릭스트랩', '패브릭+레더콤보', '벨트스트랩'],
+            'hardwareColor': <String>['골드', '실버', '건메탈'],
+            'usageContext': <String>['데일리', '오피스', '이브닝'],
+            'weightGrade': <String>['가벼움', '보통', '무거움'],
+            'lockType': <String>['지퍼', '플립', '마그네틱'],
+            'internalStorageLevel': <String>['심플', '구획많음'],
+            'laptopCompatible': <String>['true', 'false'],
+          };
+
+      void expectVocabulary(Map<String, String> values) {
+        for (final MapEntry<String, String> entry in values.entries) {
+          expect(allowedVocabulary.keys, contains(entry.key));
+          expect(allowedVocabulary[entry.key], contains(entry.value));
+        }
+      }
+
+      for (final MockDemoScenario scenario in MockDemoFixtures.scenarios) {
+        for (final StructuredIntent intent in <StructuredIntent>[
+          scenario.initialIntent,
+          scenario.finalIntent,
+        ]) {
+          expectVocabulary(intent.essentialConditions);
+          expectVocabulary(intent.preferredConditions);
+          expectVocabulary(intent.negotiableConditions);
+          for (final String key in intent.physicalCheckAttributes) {
+            expect(allowedVocabulary.keys, contains(key));
+          }
+        }
+      }
+    },
   );
 
-  CartItem cartItem() {
-    return CartItem.fromJson(<String, Object?>{
-      'cartItemId': 1,
-      'productId': 1,
-      'productName': 'MCM 백팩 미디움',
-      'imageUrl': 'https://example.com/x.png',
-      'category': '백팩',
-      'skuId': 1,
-      'color': '블랙',
-      'size': '미디움',
-      'currentStoreInStock': false,
-      'otherStoreInStock': true,
-      'restockPlanned': false,
-      'actionButtonLabel': 'Last Intent 시작',
-      'savedAt': DateTime(2026, 8, 16).toIso8601String(),
-    });
-  }
+  group('SCHEMA.md demo scenario QA', () {
+    for (final MockDemoScenario scenario in MockDemoFixtures.scenarios) {
+      test(
+        'Scenario ${scenario.id.label}: ${scenario.title} reaches the expected saved result',
+        () async {
+          final MockSegueRepository repository = MockSegueRepository();
+          final Customer customer = await repository.lookupCustomerByPhone(
+            MockDemoFixtures.consentedCustomerPhone,
+          );
+          final List<CartItem> cartItems = await repository.fetchCart(
+            customerId: customer.id,
+            storeId: MockDemoFixtures.storeId,
+          );
+          final CartItem originalItem = cartItems.firstWhere(
+            (CartItem item) => item.skuId == MockDemoFixtures.originalSkuId,
+          );
+          final LastIntentSessionManager manager = LastIntentSessionManager(
+            repository: repository,
+          );
+          addTearDown(manager.dispose);
 
-  test('페르소나 1 (다이아몬드+직사각) → COMPARISON_EXPERIENCE, SKU 2', () async {
-    final LastIntentSessionManager manager = LastIntentSessionManager(repository: MockSegueRepository());
-    final LastIntentSessionController session = manager.sessionFor(customer: customer, cartItem: cartItem());
-    await session.structureIntent('이 직사각형 형태와 다이아몬드 모양 핸들이 가장 좋아요. 색이나 소재는 달라도 괜찮아요.');
-    await session.decide();
+          final LastIntentSessionController session = manager.sessionFor(
+            customer: customer,
+            cartItem: originalItem,
+          );
+          await session.structureIntent(scenario.utterance);
 
-    expect(session.state.decisionResult!.resultType, DecisionResultType.comparisonExperience);
-    expect(session.state.decisionResult!.recommendedProduct!.skuId, 2);
+          expect(session.state.intentState.hasData, isTrue);
+          expect(
+            session.state.structuredIntent!.toJson(),
+            scenario.initialIntent.toJson(),
+          );
+
+          if (scenario.needsFollowUp) {
+            await session.requestFollowUpQuestion();
+            expect(
+              session.state.followUpQuestion?.question,
+              MockDemoFixtures.defaultFollowUpQuestion.question,
+            );
+            await session.submitFollowUpAnswer(scenario.followUpAnswer!);
+          }
+
+          expect(
+            session.state.structuredIntent!.toJson(),
+            scenario.finalIntent.toJson(),
+          );
+
+          await session.decide();
+          expect(session.state.decisionState.hasData, isTrue);
+          expect(
+            session.state.decisionResult!.toJson(),
+            scenario.decisionResult.toJson(),
+          );
+
+          await session.execute();
+          expect(session.state.executionStatus, ExecutionStatus.requested);
+          expect(session.state.executionState.hasData, isTrue);
+          expect(session.state.resultSaveState.hasData, isTrue);
+
+          final List<ConsultationResult> storedResults = await repository
+              .fetchConsultationResults(customer.id);
+          expect(storedResults, hasLength(1));
+          final ConsultationResult saved = storedResults.single;
+          final ProductSkuSummary? recommended =
+              scenario.decisionResult.recommendedProduct;
+          final String expectedSavedPath = recommended == null
+              ? scenario.decisionResult.pathDescription
+              : '${recommended.productName} (${recommended.color})';
+
+          expect(saved.skuId, MockDemoFixtures.originalSkuId);
+          expect(saved.productName, MockDemoFixtures.originalProductName);
+          expect(saved.resultType, scenario.decisionResult.resultType);
+          expect(saved.recommendedPath, expectedSavedPath);
+          expect(saved.coreConditions, scenario.decisionResult.coreConditions);
+          expect(saved.executionStatus, ExecutionStatus.requested);
+          expect(saved.executionNote, isNull);
+        },
+      );
+    }
   });
 
-  test('페르소나 2 (가죽/비세토스) → COMPARISON_EXPERIENCE, SKU 3', () async {
-    final LastIntentSessionManager manager = LastIntentSessionManager(repository: MockSegueRepository());
-    final LastIntentSessionController session = manager.sessionFor(customer: customer, cartItem: cartItem());
-    await session.structureIntent('저는 이 모양보다 꼬냑 비세토스 가죽 패턴이 더 중요해요.');
-    await session.decide();
+  test(
+    'unmatched utterances keep the default exact-product demo path',
+    () async {
+      final MockSegueRepository repository = MockSegueRepository();
+      final StructureIntentResponse response = await repository.structureIntent(
+        const StructureIntentRequest(
+          storeId: MockDemoFixtures.storeId,
+          skuId: MockDemoFixtures.originalSkuId,
+          utterance: '편한 느낌이면 좋겠어요',
+        ),
+      );
+      final DecisionResult result = await repository.decide(
+        DecisionRequest(
+          storeId: MockDemoFixtures.storeId,
+          skuId: MockDemoFixtures.originalSkuId,
+          structuredIntent: response.structuredIntent,
+        ),
+      );
 
-    expect(session.state.decisionResult!.resultType, DecisionResultType.comparisonExperience);
-    expect(session.state.decisionResult!.recommendedProduct!.skuId, 3);
-  });
-
-  test('페르소나 3 (노트북) → TODAY_PURCHASE, SKU 4', () async {
-    final LastIntentSessionManager manager = LastIntentSessionManager(repository: MockSegueRepository());
-    final LastIntentSessionController session = manager.sessionFor(customer: customer, cartItem: cartItem());
-    await session.structureIntent('오늘 출장 전에 꼭 필요하고 16인치 노트북이 들어가야 해요.');
-    await session.decide();
-
-    expect(session.state.decisionResult!.resultType, DecisionResultType.todayPurchase);
-    expect(session.state.decisionResult!.recommendedProduct!.skuId, 4);
-  });
-
-  test('페르소나 4 (색이나 소재가 다른 건 원하지) → EXACT_PRODUCT', () async {
-    final LastIntentSessionManager manager = LastIntentSessionManager(repository: MockSegueRepository());
-    final LastIntentSessionController session = manager.sessionFor(customer: customer, cartItem: cartItem());
-    await session.structureIntent('색이나 소재가 다른 건 원하지 않아요. 다른 매장에 있으면 거기서 받고 싶어요.');
-    await session.decide();
-
-    expect(session.state.decisionResult!.resultType, DecisionResultType.exactProduct);
-    expect(session.state.decisionResult!.recommendedProduct, isNull);
-  });
-
-  test('페르소나 5 (비슷 → 보충질문 → 여전히 모르겠음) → ADDITIONAL_CONSULTATION', () async {
-    final LastIntentSessionManager manager = LastIntentSessionManager(repository: MockSegueRepository());
-    final LastIntentSessionController session = manager.sessionFor(customer: customer, cartItem: cartItem());
-    await session.structureIntent('그냥 비슷한 느낌의 가방이면 다 좋아요.');
-    expect(session.state.structuredIntent!.needsFollowUp, isTrue);
-
-    await session.requestFollowUpQuestion();
-    await session.submitFollowUpAnswer('음.. 그것도 잘 모르겠어요');
-    await session.decide();
-
-    expect(session.state.decisionResult!.resultType, DecisionResultType.additionalConsultation);
-    expect(session.state.decisionResult!.recommendedProduct, isNull);
-  });
-
-  test('기본값(키워드 미매칭 발화)은 기존 EXACT_PRODUCT 응답과 동일하게 유지된다', () async {
-    final LastIntentSessionManager manager = LastIntentSessionManager(repository: MockSegueRepository());
-    final LastIntentSessionController session = manager.sessionFor(customer: customer, cartItem: cartItem());
-    await session.structureIntent('편한 느낌이면 좋겠어요');
-    await session.decide();
-
-    expect(session.state.decisionResult!.resultType, DecisionResultType.exactProduct);
-    expect(session.state.decisionResult!.coreConditions, '로고가 정면 중앙에 오는 각진 실루엣을 중요하게 보고 계셨습니다.');
-    expect(session.state.decisionResult!.actionButtonLabel, '타 매장 확인 요청');
-  });
+      expect(response.needsFollowUp, isFalse);
+      expect(result.toJson(), MockDemoFixtures.scenarioAResult.toJson());
+    },
+  );
 }
