@@ -8,7 +8,10 @@ import 'package:segue_frontend/widgets/staff_check_row.dart';
 /// 14:637) until all three "동의 범위" checkboxes are checked (each
 /// starting unchecked, node 14:663), then switch to enabled/primary.
 void main() {
-  Future<void> reachConsentScreen(WidgetTester tester) async {
+  Future<void> reachConsentScreen(
+    WidgetTester tester, {
+    String phoneNumber = '010-1234-5678',
+  }) async {
     await tester.pumpWidget(const SegueApp());
     Navigator.of(
       tester.element(find.text('앱 로그인 화면')),
@@ -18,7 +21,7 @@ void main() {
     await tester.tap(find.text('고객 조회 시작'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
+    await tester.enterText(find.byType(TextFormField).at(1), phoneNumber);
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
     await tester.tap(
@@ -96,4 +99,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('상담 데이터 이용 동의'), findsOneWidget);
   });
+
+  testWidgets(
+    'agreeing from an unconsented customer loads the cart inventory',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await reachConsentScreen(tester, phoneNumber: '010-9876-5432');
+
+      for (int i = 0; i < 3; i++) {
+        await tester.tap(find.byType(StaffCheckRow).at(i));
+        await tester.pump();
+      }
+
+      final Finder agreeButton = find.text('동의하고 장바구니 확인');
+      await tester.ensureVisible(agreeButton);
+      await tester.tap(agreeButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
+      expect(find.text('MCM 백팩 미디움'), findsOneWidget);
+      expect(find.text('데이터 이용 동의가 필요합니다'), findsNothing);
+    },
+  );
 }

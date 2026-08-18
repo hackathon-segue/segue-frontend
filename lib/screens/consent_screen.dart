@@ -44,8 +44,10 @@ class _ConsentScreenState extends State<ConsentScreen> {
             spacing: 16,
             children: <Widget>[
               const Text('상담 데이터 이용 동의', style: StaffText.title20Bold),
-              const Text('고객 정보를 활용한 상담 서비스 제공을 위해 아래 내용을 고객에게 안내하고 동의 여부를 확인해 주세요.',
-                  style: StaffText.body12),
+              const Text(
+                '고객 정보를 활용한 상담 서비스 제공을 위해 아래 내용을 고객에게 안내하고 동의 여부를 확인해 주세요.',
+                style: StaffText.body12,
+              ),
               const SectionCard(
                 child: _BulletSection(
                   title: '수집 및 이용 목적',
@@ -68,19 +70,24 @@ class _ConsentScreenState extends State<ConsentScreen> {
                       spacing: 12,
                       children: <Widget>[
                         StaffCheckRow(
-                          label: '회원 장바구니 조회 — 고객 앱에 담긴 제품·컬러 목록을 이번 상담에서 불러옵니다.',
+                          label:
+                              '회원 장바구니 조회 — 고객 앱에 담긴 제품·컬러 목록을 이번 상담에서 불러옵니다.',
                           checked: _scopeChecked[0],
-                          onChanged: (bool value) => setState(() => _scopeChecked[0] = value),
+                          onChanged: (bool value) =>
+                              setState(() => _scopeChecked[0] = value),
                         ),
                         StaffCheckRow(
                           label: '상담 결과 저장 — 상담 종료 후 결과를 고객 계정에 저장합니다.',
                           checked: _scopeChecked[1],
-                          onChanged: (bool value) => setState(() => _scopeChecked[1] = value),
+                          onChanged: (bool value) =>
+                              setState(() => _scopeChecked[1] = value),
                         ),
                         StaffCheckRow(
-                          label: '고객 모바일 재확인 — 저장된 결과를 고객 앱에서 다시 확인할 수 있도록 제공합니다.',
+                          label:
+                              '고객 모바일 재확인 — 저장된 결과를 고객 앱에서 다시 확인할 수 있도록 제공합니다.',
                           checked: _scopeChecked[2],
-                          onChanged: (bool value) => setState(() => _scopeChecked[2] = value),
+                          onChanged: (bool value) =>
+                              setState(() => _scopeChecked[2] = value),
                         ),
                       ],
                     ),
@@ -110,8 +117,13 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         ? null
                         : () async {
                             await controller.submitConsent(false);
-                            if (context.mounted) {
-                              Navigator.of(context).pushNamed(AppRoutes.customerConsentDeclined);
+                            final bool declined =
+                                controller.state.consentState.data?.hasAgreed ==
+                                false;
+                            if (context.mounted && declined) {
+                              Navigator.of(
+                                context,
+                              ).pushNamed(AppRoutes.customerConsentDeclined);
                             }
                           },
                   ),
@@ -127,8 +139,17 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         ? null
                         : () async {
                             await controller.submitConsent(true);
+                            final bool agreed =
+                                controller.state.consentState.data?.hasAgreed ==
+                                true;
+                            if (!agreed) {
+                              return;
+                            }
+                            await controller.loadCart();
                             if (context.mounted) {
-                              Navigator.of(context).pushNamed(AppRoutes.cartInventory);
+                              Navigator.of(
+                                context,
+                              ).pushNamed(AppRoutes.cartInventory);
                             }
                           },
                   ),
