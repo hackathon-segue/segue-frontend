@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
+import '../utils/product_option_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
@@ -166,28 +167,60 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
-                child: _ProductRow(
-                  productName: config.productName,
-                  color: config.color,
-                  size: config.size,
-                  chipLabel: config.chipLabel,
-                  description: result.nextAction,
-                ),
+              Stack(
+                children: <Widget>[
+                  Container(
+                    width: double.infinity,
+                    // Figma (159:2295): fixed 295px card — real dynamic
+                    // `nextAction` text can be longer than the example
+                    // copy, so this scrolls internally (matching every
+                    // other fixed-height card below) instead of forcing
+                    // the whole page to grow/scroll.
+                    height: 295,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+                    child: SingleChildScrollView(
+                      child: _ProductRow(
+                        imageUrl: config.imageUrl,
+                        productName: config.productName,
+                        color: config.color,
+                        size: config.size,
+                        description: result.nextAction,
+                      ),
+                    ),
+                  ),
+                  // Figma (159:2295/Rectangle 10): pinned to the card's own
+                  // top-right corner (18px from top, 16px from right) — not
+                  // flowing inline with the product details column.
+                  Positioned(
+                    top: 18,
+                    right: 16,
+                    child: Container(
+                      width: 108,
+                      height: 39,
+                      alignment: Alignment.center,
+                      color: SegueCardColors.chipBg,
+                      child: Text(config.chipLabel, style: SegueCardText.chipLabel16White),
+                    ),
+                  ),
+                ],
               ),
-              // Figma: product box bottom 276+295=571 → 3-card row top 594 = 23px.
-              const SizedBox(height: 23),
+              // Figma measures a 23px gap here (product box bottom 571 →
+              // 3-card row top 594), but the page needs every spare pixel
+              // to avoid the whole body needing to scroll at the 900px
+              // baseline — 13px of that gap is traded directly into the
+              // card row's own height below (23→10, 177→190), so the
+              // row's bottom edge (and everything positioned after it:
+              // the CTA row, "처음으로 돌아가기") lands exactly where it did
+              // before. Nothing below this point moved.
+              const SizedBox(height: 10),
               LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
-                  // Figma fixes every card in this row to 177px tall
-                  // regardless of content length (156-char "선정 근거"
-                  // paragraphs and 3-line bullet lists render at the same
-                  // box height) — SegueInfoCard's height param replicates
-                  // that instead of letting each card size to its own content.
-                  const double cardHeight = 177;
+                  // See the gap comment above — 177+13=190, so cards get
+                  // more real breathing room (less likely to need their
+                  // own internal scroll for typical content) without
+                  // changing the total space this row+gap occupies.
+                  const double cardHeight = 190;
                   final List<Widget> cards = <Widget>[
                     SegueInfoCard(
                       title: '고객 핵심 조건',
@@ -254,8 +287,11 @@ class _ResultScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SegueCardShell(
-      step: step,
-      title: title,
+      pageTitle: 'CURRENT SESSION',
+      activeMenuItem: TabletMenuItem.currentSession,
+      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      stepBadge: step,
+      screenTitle: title,
       subtitle: subtitle,
       body: child,
       bottomBar: SegueBottomActionRow(
@@ -270,82 +306,88 @@ class _ResultScaffold extends StatelessWidget {
 
 class _ProductRow extends StatelessWidget {
   const _ProductRow({
+    required this.imageUrl,
     required this.productName,
     required this.color,
     required this.size,
-    required this.chipLabel,
     required this.description,
   });
 
+  final String imageUrl;
   final String productName;
   final String color;
   final String size;
-  final String chipLabel;
   final String description;
 
   @override
   Widget build(BuildContext context) {
-    final Widget details = Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.start,
-      spacing: 12,
-      runSpacing: 8,
+    final int spaceIndex = productName.indexOf(' ');
+    final Widget nameText = spaceIndex == -1
+        ? Text(productName, style: SegueCardText.productName30)
+        : Text.rich(
+            TextSpan(
+              children: <InlineSpan>[
+                TextSpan(
+                  text: productName.substring(0, spaceIndex),
+                  style: SegueCardText.productNameLatin30,
+                ),
+                TextSpan(
+                  text: productName.substring(spaceIndex),
+                  style: SegueCardText.productName30,
+                ),
+              ],
+            ),
+          );
+    // Figma positions the description relative to the CARD (top 494), not
+    // chained after the image's own 256px height — real data only ever
+    // fills 2 of the meta block's 3 example lines (no price field), so
+    // this is derived from the real 2-line meta bottom (366+48=414) up to
+    // the description top (494) = 80px, not Figma's 3-line-example gap.
+    // Folding description into `details` (instead of positioning it below
+    // the whole image+details Row) keeps the card's total height pinned
+    // to the image's 256px regardless of description length, matching
+    // Figma's compact ~295px card instead of growing past it.
+    final Widget details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(productName, style: SegueCardText.productName30),
-            // Figma: name bottom 296+43=339 → details top 366 = 27px.
-            const SizedBox(height: 27),
-            Text(color, style: SegueCardText.productMeta20),
-            Text(size, style: SegueCardText.productMeta20),
-          ],
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          color: SegueCardColors.chipBg,
-          child: Text(chipLabel, style: SegueCardText.chipLabel16White),
-        ),
+        nameText,
+        // Figma: name bottom 296+43=339 → details top 366 = 27px.
+        const SizedBox(height: 27),
+        Text(color, style: SegueCardText.productMeta20),
+        Text(size, style: SegueCardText.productMeta20),
+        const SizedBox(height: 80),
+        Text(description, style: SegueCardText.body18),
       ],
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            // Figma's fixed 237px-wide image doesn't fit alongside the
-            // details column below ~360px of available width (narrow
-            // tablet portrait) — stack the image above instead of forcing
-            // a horizontal overflow.
-            if (constraints.maxWidth < 360) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const SegueProductImage(),
-                  const SizedBox(height: 21),
-                  details,
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Figma (159:2295): image 314,295 237x256 — the box's
-                // actual product photo size, not a small thumbnail.
-                const SegueProductImage(),
-                // Figma: image right edge 314+237=551 → name left 572 = 21px.
-                const SizedBox(width: 21),
-                Expanded(child: details),
-              ],
-            );
-          },
-        ),
-        // Figma: details-block bottom 366+72=438 → description top 494 = 56px.
-        const SizedBox(height: 56),
-        Text(description, style: SegueCardText.body18),
-      ],
+    // Figma's fixed 237px-wide image doesn't fit alongside the details
+    // column below ~360px of available width (narrow tablet portrait) —
+    // stack the image above instead of forcing a horizontal overflow.
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SegueProductImage(imageUrl: imageUrl),
+              const SizedBox(height: 21),
+              details,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // Figma (159:2295): image 314,295 237x256 — the box's actual
+            // product photo size, not a small thumbnail.
+            SegueProductImage(imageUrl: imageUrl),
+            // Figma: image right edge 314+237=551 → name left 572 = 21px.
+            const SizedBox(width: 21),
+            Expanded(child: details),
+          ],
+        );
+      },
     );
   }
 }
@@ -356,6 +398,7 @@ class _ResultTypeConfig {
   const _ResultTypeConfig({
     required this.title,
     required this.subtitle,
+    required this.imageUrl,
     required this.productName,
     required this.color,
     required this.size,
@@ -372,9 +415,12 @@ class _ResultTypeConfig {
         return _ResultTypeConfig(
           title: '정확한 제품 확인',
           subtitle: '고객의 디자인 조건을 유지하기 위해 동일 제품의 확보를 제안합니다.',
+          // EXACT_PRODUCT always shows the ORIGINAL cart item's own photo,
+          // never recommendedProduct (there isn't one for this resultType).
+          imageUrl: cartItem.imageUrl,
           productName: cartItem.productName,
-          color: cartItem.color,
-          size: cartItem.size,
+          color: displayProductColor(cartItem.color),
+          size: displayProductSize(cartItem.size),
           chipLabel: otherStore ? '타 매장 보유' : (restock ? '입고 예정' : '확인 필요'),
           card2Label: '제품 확보 정보',
           card2Content: Column(
@@ -395,6 +441,7 @@ class _ResultTypeConfig {
         return _ResultTypeConfig(
           title: result.resultType == DecisionResultType.comparisonExperience ? '비교 체험 제품' : '오늘 구매 가능한 제품',
           subtitle: '원제품의 소재와 시그니처 인상을 현재 매장에서 직접 확인할 수 있는 제품입니다.',
+          imageUrl: product.imageUrl,
           productName: product.productName,
           color: product.color,
           size: product.size,
@@ -409,6 +456,7 @@ class _ResultTypeConfig {
         return _ResultTypeConfig(
           title: '',
           subtitle: '',
+          imageUrl: cartItem.imageUrl,
           productName: cartItem.productName,
           color: cartItem.color,
           size: cartItem.size,
@@ -421,6 +469,7 @@ class _ResultTypeConfig {
 
   final String title;
   final String subtitle;
+  final String imageUrl;
   final String productName;
   final String color;
   final String size;

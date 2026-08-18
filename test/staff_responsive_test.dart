@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
-import 'package:segue_frontend/widgets/staff_check_row.dart';
+import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// Issue #7 requires the staff/tablet shell to avoid overflow across a
 /// small tablet, a regular tablet, tablet landscape, and a desktop web
@@ -28,7 +28,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.text('고객 조회 시작'));
+      await tester.tap(find.text('START SEGUE'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
@@ -40,15 +40,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      final Finder consentButton = find.text('데이터 이용 동의 확인');
+      final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
       await tester.ensureVisible(consentButton);
       await tester.tap(consentButton);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      // "동의하고 장바구니 확인" stays disabled until all three 동의 범위
+      // "동의하고 쇼핑백 확인" stays disabled until all three 동의 범위
       // checkboxes are confirmed.
-      final Finder checkRows = find.byType(StaffCheckRow);
+      final Finder checkRows = find.byType(SegueCheckboxRow);
       expect(checkRows, findsNWidgets(3));
       for (int i = 0; i < 3; i++) {
         await tester.tap(checkRows.at(i));
@@ -58,28 +58,30 @@ void main() {
       // Continue through to the dedicated cart/inventory screen (Figma
       // 14:1051), which has its own item-row layout distinct from the
       // lookup screen's cart preview.
-      final Finder agreeButton = find.text('동의하고 장바구니 확인');
+      final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
       await tester.ensureVisible(agreeButton);
       await tester.tap(agreeButton);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
+      expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
 
       // Issue #46: continue through the redesigned ("MCM SEGUE") Last
       // Intent flow — Card, its EXACT_PRODUCT result-detail screen, and the
       // completion screen — none of which the pre-#46 version of this test
       // reached, so none of it was actually checked for overflow at
       // smaller tablet widths.
-      await tester.tap(find.text('Last Intent 시작').first);
+      final Finder lastIntentButton = find.text('Last Intent 시작').first;
+      await tester.ensureVisible(lastIntentButton);
+      await tester.tap(lastIntentButton);
       await tester.pumpAndSettle();
       await tester.tap(find.text('고객 의도 입력 시작'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      await tester.enterText(find.byType(TextFormField), '편한 느낌이면 좋겠어요');
+      await tester.enterText(find.byType(TextField), '편한 느낌이면 좋겠어요');
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pump();
-      await tester.tap(find.text('제출'));
+      await tester.tap(find.text('고객 의도 구조화하기'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 

@@ -46,6 +46,25 @@ class LastIntentSessionManager extends ChangeNotifier {
 
   bool isStarted(int skuId) => _sessionsBySkuId.containsKey(skuId);
 
+  /// Number of sessions started but not yet completed — drives the
+  /// "CURRENT SESSION" sidebar badge (Figma 89:1196/159:2173 etc.).
+  int get activeCount => _sessionsBySkuId.values.where((LastIntentSessionController c) {
+    return c.state.executionResponse == null;
+  }).length;
+
+  /// The first started-but-not-completed session's state — drives the
+  /// "진행 중인 상담" card on the Home screen (Figma 80:776). Null when
+  /// [activeCount] is 0, matching that screen's empty-state variant
+  /// (89:1196).
+  LastIntentSessionState? get firstActiveSession {
+    for (final LastIntentSessionController controller in _sessionsBySkuId.values) {
+      if (controller.state.executionResponse == null) {
+        return controller.state;
+      }
+    }
+    return null;
+  }
+
   /// A session counts as complete once its execute step has a response —
   /// reusing the signal [LastIntentSessionController] already exposes
   /// rather than keeping a second "completed" flag that could drift out of

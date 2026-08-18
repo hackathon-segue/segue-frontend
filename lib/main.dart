@@ -7,7 +7,6 @@ import 'screens/consent_declined_screen.dart';
 import 'screens/consent_screen.dart';
 import 'screens/customer_lookup_screen.dart';
 import 'screens/customer_mobile_entry_screen.dart';
-import 'screens/general_product_check_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'screens/staff_home_screen.dart';
 import 'utils/app_config.dart';
@@ -66,7 +65,6 @@ class _SegueAppState extends State<SegueApp> {
               AppRoutes.customerConsent: (_) => const ConsentScreen(),
               AppRoutes.customerConsentDeclined: (_) => const ConsentDeclinedScreen(),
               AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
-              AppRoutes.generalProductCheck: (_) => const GeneralProductCheckScreen(),
             },
             onUnknownRoute: (RouteSettings settings) {
               return MaterialPageRoute<void>(

@@ -23,6 +23,11 @@ abstract final class AppConfig {
     'USE_MOCK_DATA',
     defaultValue: true,
   );
+
+  static const bool debugGeneralProductCheck = bool.fromEnvironment(
+    'DEBUG_GENERAL_PRODUCT_CHECK',
+    defaultValue: false,
+  );
 }
 
 abstract final class AppRoutes {

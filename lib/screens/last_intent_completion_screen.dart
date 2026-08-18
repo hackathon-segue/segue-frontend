@@ -52,8 +52,11 @@ class LastIntentCompletionScreen extends StatelessWidget {
 
     if (response == null) {
       return SegueCardShell(
-        step: '5/5',
-        title: '요청 접수 완료',
+        pageTitle: 'CURRENT SESSION',
+        activeMenuItem: TabletMenuItem.currentSession,
+        sessionCount: LastIntentSessionScope.of(context).activeCount,
+        stepBadge: '5/5',
+        screenTitle: '요청 접수 완료',
         body: const Text('접수된 요청 정보가 없습니다.', style: SegueCardText.body18),
         bottomBar: SegueBottomActionRow(
           onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
@@ -62,8 +65,11 @@ class LastIntentCompletionScreen extends StatelessWidget {
     }
 
     return SegueCardShell(
-      step: '5/5',
-      title: '요청 접수 완료',
+      pageTitle: 'CURRENT SESSION',
+      activeMenuItem: TabletMenuItem.currentSession,
+      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      stepBadge: '5/5',
+      screenTitle: '요청 접수 완료',
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -147,7 +153,7 @@ class _HeadlineCard extends StatelessWidget {
             width: 63,
             height: 63,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: SegueCardColors.avatarBg, shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: SegueCardColors.stepBadgeBg, shape: BoxShape.circle),
             child: const Icon(Icons.check, color: Colors.white, size: 32),
           ),
           const SizedBox(width: 20),

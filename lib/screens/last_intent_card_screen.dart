@@ -152,9 +152,12 @@ class _CardScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SegueCardShell(
-      step: '4/5',
-      title: 'SEGUE CARD',
-      titleStyle: SegueCardText.screenTitle24,
+      pageTitle: 'CURRENT SESSION',
+      activeMenuItem: TabletMenuItem.currentSession,
+      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      stepBadge: '4/5',
+      screenTitle: 'SEGUE CARD',
+      screenTitleStyle: SegueCardText.screenTitle24,
       body: child,
       bottomBar: SegueBottomActionRow(
         onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),

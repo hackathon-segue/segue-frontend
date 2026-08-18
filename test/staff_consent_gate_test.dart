@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
-import 'package:segue_frontend/widgets/staff_check_row.dart';
+import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
-/// "동의하고 장바구니 확인" must stay disabled (secondary-styled, node
+/// "동의하고 쇼핑백 확인" must stay disabled (secondary-styled, node
 /// 14:637) until all three "동의 범위" checkboxes are checked (each
 /// starting unchecked, node 14:663), then switch to enabled/primary.
 void main() {
@@ -12,7 +12,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '직원 웹'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('고객 조회 시작'));
+    await tester.tap(find.text('START SEGUE'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
@@ -21,14 +21,14 @@ void main() {
     await tester.tap(find.descendant(of: find.byType(Form), matching: find.text('고객 조회')));
     await tester.pumpAndSettle();
 
-    final Finder consentButton = find.text('데이터 이용 동의 확인');
+    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
     await tester.ensureVisible(consentButton);
     await tester.tap(consentButton);
     await tester.pumpAndSettle();
   }
 
   testWidgets(
-    '동의하고 장바구니 확인 button is disabled until all three checkboxes are checked',
+    '동의하고 쇼핑백 확인 button is disabled until all three checkboxes are checked',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
@@ -37,8 +37,8 @@ void main() {
 
       await reachConsentScreen(tester);
 
-      final Finder agreeButton = find.text('동의하고 장바구니 확인');
-      final Finder checkRows = find.byType(StaffCheckRow);
+      final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
+      final Finder checkRows = find.byType(SegueCheckboxRow);
       expect(checkRows, findsNWidgets(3));
 
       Future<void> tapAgree() async {
@@ -63,7 +63,7 @@ void main() {
       await tester.tap(checkRows.at(2));
       await tester.pump();
       await tapAgree();
-      expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
+      expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
     },
   );
 
@@ -75,7 +75,7 @@ void main() {
 
     await reachConsentScreen(tester);
 
-    final Finder firstCheck = find.byType(StaffCheckRow).first;
+    final Finder firstCheck = find.byType(SegueCheckboxRow).first;
     await tester.tap(firstCheck);
     await tester.pump();
     await tester.tap(firstCheck);
@@ -83,7 +83,7 @@ void main() {
 
     // After checking then unchecking, the agree button must remain
     // disabled (still not all three checked).
-    final Finder agreeButton = find.text('동의하고 장바구니 확인');
+    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
     await tester.ensureVisible(agreeButton);
     await tester.tap(agreeButton);
     await tester.pumpAndSettle();
