@@ -2,24 +2,30 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 import '../utils/structured_intent_vocabulary.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
-import 'last_intent_completion_screen.dart';
 
 /// Figma node 169:3683 ("진행" checked) / 169:3821 ("미진행" checked) —
 /// "추가 상담 진행" (ADDITIONAL_CONSULTATION). Both nodes are the SAME screen
 /// state-toggled, not separate pages — [_inProgress] is a local UI-only
-/// toggle (no backing field anywhere in API.md/SCHEMA.md; no endpoint takes
-/// free-text "고객 답변"/"실행 불가 사유" at this step either, so
-/// [_noteController]'s text isn't sent anywhere). Only the checkbox
-/// pair/hint text/CTA label+arrow change with the toggle — the CTA still
-/// calls the SAME real `execute()`/completion flow every other resultType
-/// uses (RECONSULT is just another `actionType` per API.md's `/execute`
-/// table): the Figma-literal labels are a display-only override, same
-/// pattern as the result-detail screens' `_figmaCtaLabel`.
+/// toggle (no backing field anywhere in API.md/SCHEMA.md). The CTA always
+/// calls the same real `execute()` (RECONSULT, per API.md's `/execute`
+/// table) as before — Issue #64 only changed what happens AFTER it
+/// succeeds: both branches now return straight to the cart (never the
+/// "요청 접수 완료" hand-off screen), and:
+/// - "진행" (169:3683): [_noteController]'s CA-written note is attached via
+///   the existing `updateExecutionStatus(REQUESTED, note: ...)` PATCH
+///   (status unchanged, only the note) — reuses real backend capability
+///   instead of inventing a new one. Cart row shows the normal "상담 완료"
+///   badge.
+/// - "미진행" (169:3821): [LastIntentSessionController.declineAdditionalConsultation]
+///   sets a local-only display flag (never a new `ExecutionStatus` value —
+///   backend only defines REQUESTED/UNABLE/FOLLOW_UP_NEEDED). Cart row
+///   shows Figma 98:1740's darker "상담 중단" badge instead.
 class LastIntentAdditionalConsultationScreen extends StatefulWidget {
   const LastIntentAdditionalConsultationScreen({
     required this.customer,
@@ -80,13 +86,26 @@ class _LastIntentAdditionalConsultationScreenState
       return;
     }
     setState(() => _executing = false);
-    if (session.state.executionResponse != null && session.state.resultSaveState.hasData) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) =>
-              LastIntentCompletionScreen(customer: widget.customer, cartItem: widget.cartItem),
-        ),
-      );
+    if (session.state.executionResponse != null &&
+        session.state.resultSaveState.hasData) {
+      if (_inProgress) {
+        // Attaches the CA's note via the real PATCH endpoint (status stays
+        // REQUESTED — no new ExecutionStatus value) rather than inventing
+        // storage for it; only when there's actually something to attach.
+        final String note = _noteController.text.trim();
+        if (note.isNotEmpty) {
+          await session.updateExecutionStatus(
+            ExecutionStatus.requested,
+            note: note,
+          );
+          if (!mounted) {
+            return;
+          }
+        }
+      } else {
+        session.declineAdditionalConsultation();
+      }
+      navigateToTabletRoute(context, AppRoutes.cartInventory);
     }
   }
 
@@ -128,7 +147,9 @@ class _LastIntentAdditionalConsultationScreenState
         if (_executing || session.state.executionState.isLoading) {
           return _Scaffold(
             child: AppStateView.loading(
-              title: session.state.executionState.isLoading ? '요청을 접수하고 있습니다' : '상담 결과를 저장하고 있습니다',
+              title: session.state.executionState.isLoading
+                  ? '요청을 접수하고 있습니다'
+                  : '상담 결과를 저장하고 있습니다',
             ),
           );
         }
@@ -156,8 +177,10 @@ class _LastIntentAdditionalConsultationScreenState
           // established pattern as the result-detail screens' CTA label —
           // execute() below still sends the real actionType/actionButtonLabel
           // from decisionResult, only the on-screen text/arrow toggle here.
-          ctaLabel: _inProgress ? '요청 접수 완료' : '해당 제품 상담 중단',
-          ctaShowArrow: _inProgress,
+          ctaLabel: _inProgress ? '상담 완료' : '해당 제품 상담 중단',
+          // Neither 169:3683 nor 169:3821's Continue Button has an arrow
+          // icon (unlike this flow's other Continue Buttons).
+          ctaShowArrow: false,
           onCta: () => _handleExecute(session),
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
@@ -171,14 +194,21 @@ class _LastIntentAdditionalConsultationScreenState
                       children: <Widget>[
                         SegueLabelValueRow(
                           label: '관심 제품',
-                          value: '${widget.cartItem.productName} ${widget.cartItem.color}',
+                          value:
+                              '${widget.cartItem.productName} ${widget.cartItem.color}',
                         ),
-                        SegueLabelValueRow(label: '고객 핵심 조건', value: result.coreConditions),
+                        SegueLabelValueRow(
+                          label: '고객 핵심 조건',
+                          value: result.coreConditions,
+                        ),
                         SegueLabelValueRow(
                           label: '상담 일시',
                           value: _formatDateTime(DateTime.now()),
                         ),
-                        const SegueLabelValueRow(label: '현재 상태', value: '추가 상담 필요'),
+                        const SegueLabelValueRow(
+                          label: '현재 상태',
+                          value: '추가 상담 필요',
+                        ),
                       ],
                     ),
                   ),
@@ -216,7 +246,9 @@ class _LastIntentAdditionalConsultationScreenState
                   children: <Widget>[
                     Text(
                       '고객과 함께 핵심 조건을 다시 확인한 뒤 상담을 재개합니다.',
-                      style: SegueCardText.body18.copyWith(color: SegueCardColors.subtitleMuted),
+                      style: SegueCardText.body18.copyWith(
+                        color: SegueCardColors.subtitleMuted,
+                      ),
                     ),
                     // Figma: subtitle bottom 322+24=346 → first checkbox row
                     // top 372 = 26px.
@@ -237,7 +269,7 @@ class _LastIntentAdditionalConsultationScreenState
                     _NoteInput(
                       controller: _noteController,
                       hintText: _inProgress
-                          ? '고객 답변 입력하기'
+                          ? '상담 내용 기록하기'
                           : '실행 불가 사유 입력하기 (예: 고객 동의 거절, 시간 부족 등)',
                     ),
                   ],
@@ -267,7 +299,12 @@ class _LastIntentAdditionalConsultationScreenState
 }
 
 class _Scaffold extends StatelessWidget {
-  const _Scaffold({required this.child, this.ctaLabel, this.onCta, this.ctaShowArrow = true});
+  const _Scaffold({
+    required this.child,
+    this.ctaLabel,
+    this.onCta,
+    this.ctaShowArrow = true,
+  });
 
   final Widget child;
   final String? ctaLabel;
@@ -282,12 +319,18 @@ class _Scaffold extends StatelessWidget {
       sessionCount: LastIntentSessionScope.of(context).activeCount,
       stepBadge: '3/5',
       screenTitle: '추가 상담 진행',
-      subtitle: '보다 정확한 제안을 위해 추가 상담이 필요합니다. Client Advisor가 고객님과 더 깊이 있는 상담을 진행하겠습니다.',
+      subtitle:
+          '보다 정확한 제안을 위해 추가 상담이 필요합니다. Client Advisor가 고객님과 더 깊이 있는 상담을 진행하겠습니다.',
       body: child,
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+        onBackToStart: () =>
+            navigateToTabletRoute(context, AppRoutes.staffHome),
         cta: ctaLabel != null
-            ? SegueCtaButton(label: ctaLabel!, onPressed: onCta, showArrow: ctaShowArrow)
+            ? SegueCtaButton(
+                label: ctaLabel!,
+                onPressed: onCta,
+                showArrow: ctaShowArrow,
+              )
             : null,
       ),
     );
@@ -302,7 +345,11 @@ class _Scaffold extends StatelessWidget {
 /// values — [SegueCheckboxRow]'s 28px gap/19px-Bold label are the consent
 /// screen's own spec, not reused here since they don't match this Figma.
 class _ToggleCheckboxRow extends StatelessWidget {
-  const _ToggleCheckboxRow({required this.label, required this.checked, required this.onTap});
+  const _ToggleCheckboxRow({
+    required this.label,
+    required this.checked,
+    required this.onTap,
+  });
 
   final String label;
   final bool checked;
@@ -325,7 +372,9 @@ class _ToggleCheckboxRow extends StatelessWidget {
                 color: checked ? SegueCardColors.ink : Colors.white,
                 border: Border.all(color: SegueCardColors.ink, width: 2),
               ),
-              child: checked ? const Icon(Icons.check, size: 11, color: Colors.white) : null,
+              child: checked
+                  ? const Icon(Icons.check, size: 11, color: Colors.white)
+                  : null,
             ),
             const SizedBox(width: 11),
             Text(label, style: SegueCardText.toggleCheckLabel18),
@@ -353,7 +402,10 @@ class _NoteInput extends StatelessWidget {
     return Container(
       width: double.infinity,
       height: 215,
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: SegueCardColors.border, width: 2)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: SegueCardColors.border, width: 2),
+      ),
       child: TextField(
         controller: controller,
         maxLines: null,

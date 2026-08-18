@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
@@ -181,7 +182,7 @@ class _LastIntentFollowUpScreenState extends State<LastIntentFollowUpScreen> {
           final bool canSubmit = _answerController.text.trim().isNotEmpty;
           return SegueBottomActionRow(
             onBackToStart: () =>
-                Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+                navigateToTabletRoute(context, AppRoutes.staffHome),
             // Wrap (not a fixed-width Row) so the two buttons can reflow
             // onto their own line instead of overflowing on narrow
             // viewports — SegueBottomActionRow's own Wrap doesn't shrink a

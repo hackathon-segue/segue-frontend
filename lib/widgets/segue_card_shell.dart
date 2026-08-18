@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 
 /// The 5 sidebar sections shared across every tablet screen (Figma 89:1196,
@@ -19,6 +20,47 @@ enum TabletMenuItem {
 
   const TabletMenuItem(this.label);
   final String label;
+
+  /// The route each menu item navigates to when tapped — null means no
+  /// screen exists yet for it (Figma gives no reference for REQUESTS), so
+  /// that item stays visible but inert rather than fabricating a page.
+  String? get route {
+    switch (this) {
+      case TabletMenuItem.home:
+        return AppRoutes.staffHome;
+      case TabletMenuItem.customerSearch:
+        return AppRoutes.customerLookup;
+      // No dedicated "current session" landing screen exists — the cart
+      // inventory screen is the real hub every Last Intent flow branches
+      // from and returns to, so it's the closest existing match.
+      case TabletMenuItem.currentSession:
+        return AppRoutes.cartInventory;
+      case TabletMenuItem.requests:
+        return null;
+      case TabletMenuItem.consultationHistory:
+        return AppRoutes.consultationHistory;
+    }
+  }
+}
+
+/// Navigates to [routeName] by popping back to it if it's already somewhere
+/// in the stack (avoiding duplicate stacked screens), or pushing it fresh
+/// otherwise. Safe to call from any tablet screen regardless of how deep in
+/// the navigation stack it is — never hangs even if [routeName] was never
+/// visited, since it always stops at the first route.
+void navigateToTabletRoute(BuildContext context, String routeName) {
+  final NavigatorState navigator = Navigator.of(context);
+  bool found = false;
+  navigator.popUntil((Route<dynamic> route) {
+    if (route.settings.name == routeName) {
+      found = true;
+      return true;
+    }
+    return route.isFirst;
+  });
+  if (!found) {
+    navigator.pushNamed(routeName);
+  }
 }
 
 /// Shared chrome for every tablet ("MCM SEGUE") screen — header, sidebar
@@ -368,17 +410,26 @@ class TabletHeader extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          SizedBox(
-            width: 48,
-            height: 15.2,
-            child: SvgPicture.asset(
-              'assets/icons/mcm_logo.svg',
-              fit: BoxFit.contain,
+          InkWell(
+            onTap: () =>
+                navigateToTabletRoute(context, AppRoutes.staffHome),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SizedBox(
+                  width: 48,
+                  height: 15.2,
+                  child: SvgPicture.asset(
+                    'assets/icons/mcm_logo.svg',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                // Figma: icon right edge 32+48=80 → "SEGUE" text left 87 = 7px.
+                const SizedBox(width: 7),
+                const Text('SEGUE', style: SegueCardText.brandLogo20),
+              ],
             ),
           ),
-          // Figma: icon right edge 32+48=80 → "SEGUE" text left 87 = 7px.
-          const SizedBox(width: 7),
-          const Text('SEGUE', style: SegueCardText.brandLogo20),
           const Spacer(),
           SizedBox(
             width: 25.27,
@@ -457,6 +508,12 @@ class TabletNavSidebar extends StatelessWidget {
                             TabletMenuItem.currentSession
                         ? sessionCount
                         : null,
+                    onTap: TabletMenuItem.values[i].route == null
+                        ? null
+                        : () => navigateToTabletRoute(
+                            context,
+                            TabletMenuItem.values[i].route!,
+                          ),
                   ),
                 ],
               ],
@@ -507,6 +564,7 @@ class _SidebarMenuRow extends StatelessWidget {
     required this.item,
     required this.active,
     this.sessionCount,
+    this.onTap,
   });
 
   final TabletMenuItem item;
@@ -515,42 +573,50 @@ class _SidebarMenuRow extends StatelessWidget {
   /// Non-null only for [TabletMenuItem.currentSession].
   final int? sessionCount;
 
+  /// Null for menu items with no destination screen yet (e.g. REQUESTS) —
+  /// the row stays visible but non-interactive rather than navigating
+  /// nowhere.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        if (active) ...<Widget>[
-          // Figma applies a 90° rotation to this arrow asset (drawn
-          // pointing up, rotated to point right for the active-item marker).
-          Transform.rotate(
-            angle: math.pi / 2,
-            child: SizedBox(
-              width: 14,
-              height: 14,
-              child: SvgPicture.asset(
-                'assets/icons/nav_active_arrow.svg',
-                fit: BoxFit.contain,
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        children: <Widget>[
+          if (active) ...<Widget>[
+            // Figma applies a 90° rotation to this arrow asset (drawn
+            // pointing up, rotated to point right for the active-item marker).
+            Transform.rotate(
+              angle: math.pi / 2,
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: SvgPicture.asset(
+                  'assets/icons/nav_active_arrow.svg',
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              item.label,
+              style: active
+                  ? SegueCardText.menuItemActive16
+                  : SegueCardText.menuItem16,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ),
-          const SizedBox(width: 6),
+          // The "CURRENT SESSION" count badge is intentionally removed here
+          // (per explicit design direction) even though Figma still shows it
+          // — [sessionCount] is kept as a param (screens still pass it) but
+          // no longer rendered, so re-adding it later needs no call-site
+          // changes.
         ],
-        Flexible(
-          child: Text(
-            item.label,
-            style: active
-                ? SegueCardText.menuItemActive16
-                : SegueCardText.menuItem16,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-        ),
-        // The "CURRENT SESSION" count badge is intentionally removed here
-        // (per explicit design direction) even though Figma still shows it
-        // — [sessionCount] is kept as a param (screens still pass it) but
-        // no longer rendered, so re-adding it later needs no call-site
-        // changes.
-      ],
+      ),
     );
   }
 }

@@ -38,16 +38,22 @@ String _figmaCtaLabel(DecisionResult result) {
 }
 
 class LastIntentResultProductScreen extends StatefulWidget {
-  const LastIntentResultProductScreen({required this.customer, required this.cartItem, super.key});
+  const LastIntentResultProductScreen({
+    required this.customer,
+    required this.cartItem,
+    super.key,
+  });
 
   final Customer customer;
   final CartItem cartItem;
 
   @override
-  State<LastIntentResultProductScreen> createState() => _LastIntentResultProductScreenState();
+  State<LastIntentResultProductScreen> createState() =>
+      _LastIntentResultProductScreenState();
 }
 
-class _LastIntentResultProductScreenState extends State<LastIntentResultProductScreen> {
+class _LastIntentResultProductScreenState
+    extends State<LastIntentResultProductScreen> {
   bool _executing = false;
 
   // MockSegueRepository resolves near-instantly, so without an artificial
@@ -80,19 +86,24 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
       return;
     }
     setState(() => _executing = false);
-    if (session.state.executionResponse != null && session.state.resultSaveState.hasData) {
+    if (session.state.executionResponse != null &&
+        session.state.resultSaveState.hasData) {
       // "해당 제품 상담 완료" (COMPARISON_EXPERIENCE/TODAY_PURCHASE's
       // productCheckRequest CTA) skips the "요청 접수 완료" hand-off screen and
       // returns straight to the cart — that screen's row already reflects
       // this SKU's session via LastIntentSessionManager.isCompleted(), which
       // just flipped true because executionResponse is now set. Every other
       // actionType keeps going to the completion screen.
-      if (session.state.decisionResult?.actionType == DecisionActionType.productCheckRequest) {
-        Navigator.of(context).popUntil(ModalRoute.withName(AppRoutes.cartInventory));
+      if (session.state.decisionResult?.actionType ==
+          DecisionActionType.productCheckRequest) {
+        navigateToTabletRoute(context, AppRoutes.cartInventory);
       } else {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => LastIntentCompletionScreen(customer: widget.customer, cartItem: widget.cartItem),
+            builder: (_) => LastIntentCompletionScreen(
+              customer: widget.customer,
+              cartItem: widget.cartItem,
+            ),
           ),
         );
       }
@@ -118,7 +129,10 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
           );
         }
 
-        final _ResultTypeConfig config = _ResultTypeConfig.of(result, widget.cartItem);
+        final _ResultTypeConfig config = _ResultTypeConfig.of(
+          result,
+          widget.cartItem,
+        );
 
         if (_executing || session.state.executionState.isLoading) {
           return _ResultScaffold(
@@ -126,7 +140,9 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
             title: config.title,
             subtitle: config.subtitle,
             child: AppStateView.loading(
-              title: session.state.executionState.isLoading ? '요청을 접수하고 있습니다' : '상담 결과를 저장하고 있습니다',
+              title: session.state.executionState.isLoading
+                  ? '요청을 접수하고 있습니다'
+                  : '상담 결과를 저장하고 있습니다',
             ),
           );
         }
@@ -163,7 +179,8 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
           ctaLabel: _figmaCtaLabel(result),
           // Figma (159:2213/169:4101): the "해당 제품 상담 완료" button has no
           // trailing arrow, unlike every other Continue Button in this flow.
-          ctaShowArrow: result.actionType != DecisionActionType.productCheckRequest,
+          ctaShowArrow:
+              result.actionType != DecisionActionType.productCheckRequest,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -178,7 +195,12 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
                     // the whole page to grow/scroll.
                     height: 295,
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: SegueCardColors.border,
+                        width: 2,
+                      ),
+                    ),
                     child: SingleChildScrollView(
                       child: _ProductRow(
                         imageUrl: config.imageUrl,
@@ -200,7 +222,10 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
                       height: 39,
                       alignment: Alignment.center,
                       color: SegueCardColors.chipBg,
-                      child: Text(config.chipLabel, style: SegueCardText.chipLabel16White),
+                      child: Text(
+                        config.chipLabel,
+                        style: SegueCardText.chipLabel16White,
+                      ),
                     ),
                   ),
                 ],
@@ -225,7 +250,10 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
                     SegueInfoCard(
                       title: '고객 핵심 조건',
                       height: cardHeight,
-                      child: Text(result.coreConditions, style: SegueCardText.body18),
+                      child: Text(
+                        result.coreConditions,
+                        style: SegueCardText.body18,
+                      ),
                     ),
                     SegueInfoCard(
                       title: config.card2Label,
@@ -252,7 +280,10 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
                   }
                   return Column(
                     children: <Widget>[
-                      for (final Widget c in cards) ...<Widget>[c, const SizedBox(height: 16)],
+                      for (final Widget c in cards) ...<Widget>[
+                        c,
+                        const SizedBox(height: 16),
+                      ],
                     ],
                   );
                 },
@@ -295,9 +326,14 @@ class _ResultScaffold extends StatelessWidget {
       subtitle: subtitle,
       body: child,
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+        onBackToStart: () =>
+            navigateToTabletRoute(context, AppRoutes.staffHome),
         cta: ctaLabel != null
-            ? SegueCtaButton(label: ctaLabel!, onPressed: onCta, showArrow: ctaShowArrow)
+            ? SegueCtaButton(
+                label: ctaLabel!,
+                onPressed: onCta,
+                showArrow: ctaShowArrow,
+              )
             : null,
       ),
     );
@@ -431,15 +467,21 @@ class _ResultTypeConfig {
                 value: cartItem.inventory.currentStoreInStock ? '보유' : '미보유',
               ),
               SegueLabelValueRow(label: '보유 매장', value: result.pathDescription),
-              SegueLabelValueRow(label: '입고 예정', value: restock ? '입고 예정 있음' : '확인 필요'),
+              SegueLabelValueRow(
+                label: '입고 예정',
+                value: restock ? '입고 예정 있음' : '확인 필요',
+              ),
             ],
           ),
         );
       case DecisionResultType.comparisonExperience:
       case DecisionResultType.todayPurchase:
-        final ProductSkuSummary product = result.recommendedProduct ?? cartItem.skuSummary;
+        final ProductSkuSummary product =
+            result.recommendedProduct ?? cartItem.skuSummary;
         return _ResultTypeConfig(
-          title: result.resultType == DecisionResultType.comparisonExperience ? '비교 체험 제품' : '오늘 구매 가능한 제품',
+          title: result.resultType == DecisionResultType.comparisonExperience
+              ? '비교 체험 제품'
+              : '오늘 구매 가능한 제품',
           subtitle: '원제품의 소재와 시그니처 인상을 현재 매장에서 직접 확인할 수 있는 제품입니다.',
           imageUrl: product.imageUrl,
           productName: product.productName,

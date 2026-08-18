@@ -140,4 +140,76 @@ void main() {
       expect(staffController.state.cartState.isIdle, isTrue);
     },
   );
+
+  group('Issue #64: declineAdditionalConsultation / activeCount interplay', () {
+    test(
+      'a session stays active until execute() runs, regardless of decline',
+      () {
+        final CartItem itemA = cartItem(1, 'A');
+        final LastIntentSessionController sessionA = manager.sessionFor(
+          customer: customer,
+          cartItem: itemA,
+        );
+
+        expect(manager.activeCount, 1);
+        expect(manager.isCompleted(1), isFalse);
+        expect(manager.isDeclined(1), isFalse);
+
+        // declineAdditionalConsultation() alone (no execute() yet) is not a
+        // real usage of the method — this only proves it doesn't fabricate
+        // completion on its own, execute() is still what flips isCompleted.
+        sessionA.declineAdditionalConsultation();
+        expect(manager.isDeclined(1), isTrue);
+        expect(manager.isCompleted(1), isFalse);
+        expect(manager.activeCount, 1);
+      },
+    );
+
+    test(
+      'once execute() runs, a declined SKU counts as completed (not active) '
+      'exactly like a normally-completed one, and only the badge flag differs',
+      () async {
+        final CartItem itemA = cartItem(1, 'A');
+        final CartItem itemB = cartItem(2, 'B');
+        final LastIntentSessionController sessionA = manager.sessionFor(
+          customer: customer,
+          cartItem: itemA,
+        );
+        final LastIntentSessionController sessionB = manager.sessionFor(
+          customer: customer,
+          cartItem: itemB,
+        );
+        await sessionA.structureIntent('편한 느낌이면 좋겠어요');
+        await sessionA.decide();
+        await sessionB.structureIntent('편한 느낌이면 좋겠어요');
+        await sessionB.decide();
+
+        expect(manager.activeCount, 2);
+
+        // SKU A: "추가 상담 미진행" — execute() runs, then declined.
+        await sessionA.execute();
+        sessionA.declineAdditionalConsultation();
+
+        expect(manager.isCompleted(1), isTrue);
+        expect(manager.isDeclined(1), isTrue);
+        // SKU B is untouched — still active, not declined.
+        expect(manager.isCompleted(2), isFalse);
+        expect(manager.isDeclined(2), isFalse);
+        // Only SKU B is left active now that A completed (declined or not).
+        expect(manager.activeCount, 1);
+        expect(manager.firstActiveSession?.selectedCartItem?.skuId, 2);
+
+        // SKU B: normal completion — execute() runs, never declined.
+        await sessionB.execute();
+
+        expect(manager.isCompleted(2), isTrue);
+        expect(manager.isDeclined(2), isFalse);
+        // Both SKUs done (one declined, one normal) → no active sessions
+        // left, matching "모든 상담 대상 상품이 상담 완료 또는 상담 중단이면
+        // 고객 진행 중 상담 종료" (Issue #64).
+        expect(manager.activeCount, 0);
+        expect(manager.firstActiveSession, isNull);
+      },
+    );
+  });
 }

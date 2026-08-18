@@ -309,8 +309,13 @@ void main() {
   );
 
   test(
-    'real AI/engine schema mismatches become retryable API errors',
+    'structureIntent() tolerates AI response variance instead of failing '
+    'the whole request — StructuredIntent.fromJson already defaults every '
+    'missing/malformed/out-of-vocabulary field safely, so the extra '
+    'pre-validation gate was only rejecting otherwise-usable AI output',
     () async {
+      // Missing the whole `structuredIntent` key: still succeeds, backed by
+      // StructuredIntent.empty()-equivalent defaults.
       final _RecordingApiClient missingKeyClient = _RecordingApiClient(
         postResponse: <String, Object?>{'needsFollowUp': false},
       );
@@ -318,41 +323,46 @@ void main() {
         apiClient: missingKeyClient,
       );
 
-      await expectLater(
-        repository.structureIntent(
-          const StructureIntentRequest(storeId: 1, skuId: 1, utterance: '테스트'),
-        ),
-        throwsA(
-          isA<ApiException>().having(
-            (ApiException error) => error.code,
-            'code',
-            'JSON_SCHEMA_MISMATCH',
-          ),
-        ),
+      final StructureIntentResponse missingKeyResponse = await repository
+          .structureIntent(
+            const StructureIntentRequest(
+              storeId: 1,
+              skuId: 1,
+              utterance: '테스트',
+            ),
+          );
+      expect(missingKeyResponse.structuredIntent.purpose, '');
+      expect(missingKeyResponse.structuredIntent.essentialConditions, isEmpty);
+      expect(
+        missingKeyResponse.structuredIntent.purchaseUrgency,
+        PurchaseUrgency.flexible,
       );
 
-      final JsonMap invalidVocabularyResponse = _structureIntentResponseJson();
+      // A condition value outside API.md's documented vocabulary: still
+      // succeeds, keeping the AI's raw value rather than discarding the
+      // whole structured intent over one unrecognized field.
+      final JsonMap outOfVocabularyResponse = _structureIntentResponseJson();
       final JsonMap intent = asJsonMap(
-        invalidVocabularyResponse['structuredIntent'],
+        outOfVocabularyResponse['structuredIntent'],
       );
       intent['essentialConditions'] = <String, Object?>{'glossLevel': '보통'};
-      final _RecordingApiClient invalidVocabularyClient = _RecordingApiClient(
-        postResponse: invalidVocabularyResponse,
+      final _RecordingApiClient outOfVocabularyClient = _RecordingApiClient(
+        postResponse: outOfVocabularyResponse,
       );
-      final RealSegueRepository invalidVocabularyRepository =
-          RealSegueRepository(apiClient: invalidVocabularyClient);
+      final RealSegueRepository outOfVocabularyRepository =
+          RealSegueRepository(apiClient: outOfVocabularyClient);
 
-      await expectLater(
-        invalidVocabularyRepository.structureIntent(
-          const StructureIntentRequest(storeId: 1, skuId: 1, utterance: '테스트'),
-        ),
-        throwsA(
-          isA<ApiException>().having(
-            (ApiException error) => error.code,
-            'code',
-            'JSON_SCHEMA_MISMATCH',
-          ),
-        ),
+      final StructureIntentResponse outOfVocabularyResult =
+          await outOfVocabularyRepository.structureIntent(
+            const StructureIntentRequest(
+              storeId: 1,
+              skuId: 1,
+              utterance: '테스트',
+            ),
+          );
+      expect(
+        outOfVocabularyResult.structuredIntent.essentialConditions,
+        <String, String>{'glossLevel': '보통'},
       );
     },
   );

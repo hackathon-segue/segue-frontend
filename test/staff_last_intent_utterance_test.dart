@@ -1,23 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:segue_frontend/exceptions/app_exception.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/providers/providers.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
+import 'package:segue_frontend/repositories/segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
 import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// Issue #10: LastIntentUtteranceScreen's input/validation/loading/success
 /// states, reached through the real Issue #7-9 flow with the app's default
 /// (never-throwing) MockSegueRepository.
+
+/// Throws on demand so tests can exercise structureIntent()'s error state —
+/// same pattern as last_intent_utterance_flow_test.dart's `_SpyRepository`,
+/// duplicated locally since that one is file-private.
+class _ThrowingRepository extends MockSegueRepository {
+  bool shouldThrow = false;
+
+  @override
+  Future<StructureIntentResponse> structureIntent(
+    StructureIntentRequest request,
+  ) async {
+    if (shouldThrow) {
+      throw const AppException('AI 분석에 실패했습니다.', code: 'AI_INTENT_FAILED');
+    }
+    return super.structureIntent(request);
+  }
+}
+
 void main() {
-  Future<void> reachUtteranceScreen(WidgetTester tester) async {
+  Future<void> reachUtteranceScreen(
+    WidgetTester tester, {
+    SegueRepository? repository,
+  }) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+    await tester.pumpWidget(
+      SegueApp(repository: repository ?? MockSegueRepository()),
+    );
     // The mobile customer entry screen no longer has a "직원 웹" button (it's
     // now the real customer-facing app) — reach staff routes via a direct
     // named push instead, same as the app's own wireframe QA does.
@@ -225,6 +250,43 @@ void main() {
       // the follow-up screen.
       expect(find.text('고객 의도 요약 확인'), findsOneWidget);
       expect(find.text('고객 의도 입력 - 보충 질문'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    '구조화 요청이 실패하면 에러 카드가 뜨고, 뒤로가기로 입력창에 남아있는 텍스트를 '
+    '고쳐서 다시 제출할 수 있다',
+    (WidgetTester tester) async {
+      final _ThrowingRepository repository = _ThrowingRepository();
+      await reachUtteranceScreen(tester, repository: repository);
+
+      repository.shouldThrow = true;
+      await tester.enterText(find.byType(TextField), '편한 느낌이면 좋겠어요');
+      await tester.pump();
+      await tester.tap(find.text('고객 의도 구조화하기'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('고객 의도 분석에 실패했습니다. 다시 시도해 주세요.'), findsOneWidget);
+      // The error card replaces the text field entirely — nothing to edit.
+      expect(find.byType(TextField), findsNothing);
+
+      await tester.tap(find.text('뒤로가기'));
+      await tester.pump();
+
+      // Back to the editable input, with the previously typed text intact.
+      expect(find.text('고객 의도 분석에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+      final Finder field = find.byType(TextField);
+      expect(field, findsOneWidget);
+      expect((tester.widget(field) as TextField).controller!.text, '편한 느낌이면 좋겠어요');
+
+      // Revise the text and succeed on the next attempt.
+      repository.shouldThrow = false;
+      await tester.enterText(field, '역시 이 색상이 좋을 것 같아요');
+      await tester.pump();
+      await tester.tap(find.text('고객 의도 구조화하기'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('고객 의도 요약 확인'), findsOneWidget);
     },
   );
 }

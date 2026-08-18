@@ -153,10 +153,15 @@ class _SearchPanel extends StatelessWidget {
             keyboardType: TextInputType.phone,
             validator: (String? value) {
               final String trimmed = value?.trim() ?? '';
-              if (trimmed.isEmpty && memberNumberController.text.trim().isEmpty) {
+              // API.md: 고객 조회는 `GET /api/customers/lookup?phoneNumber=`
+              // 하나뿐이고 회원번호로 조회하는 API는 없다 — 회원번호만 입력하고
+              // 전화번호를 비워두면 예전엔 검증을 통과해 빈 전화번호로 조회를
+              // 시도해 항상 "조회 결과가 없습니다"로 실패했다. 전화번호를 항상
+              // 필수로 만들어 그 실패를 명확한 안내 문구로 바꾼다.
+              if (trimmed.isEmpty) {
                 return '휴대전화 번호를 입력해 주세요.';
               }
-              if (trimmed.isNotEmpty && !phonePattern.hasMatch(trimmed)) {
+              if (!phonePattern.hasMatch(trimmed)) {
                 return '010-0000-0000 형식으로 입력해 주세요.';
               }
               return null;
