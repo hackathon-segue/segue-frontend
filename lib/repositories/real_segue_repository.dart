@@ -123,7 +123,9 @@ class RealSegueRepository implements SegueRepository {
       '/api/consultations/execute',
       body: request.toJson(),
     );
-    return ExecuteConsultationResponse.fromJson(asJsonMap(response));
+    final JsonMap json = _requireObject(response, 'execute');
+    _validateExecuteConsultationResponse(json, 'execute');
+    return ExecuteConsultationResponse.fromJson(json);
   }
 
   @override
@@ -145,9 +147,15 @@ class RealSegueRepository implements SegueRepository {
     final Object? response = await _apiClient.getJson(
       '/api/consultations/customers/$customerId',
     );
-    return asJsonList(response)
-        .map((Object? item) => ConsultationResult.fromJson(asJsonMap(item)))
-        .toList();
+    final List<Object?> results = _requireResponseList(
+      response,
+      'fetchConsultationResults',
+    );
+    return results.map((Object? item) {
+      final JsonMap json = _requireObject(item, 'consultationResult');
+      _validateConsultationResult(json, 'consultationResult');
+      return ConsultationResult.fromJson(json);
+    }).toList();
   }
 
   @override
@@ -159,7 +167,9 @@ class RealSegueRepository implements SegueRepository {
       '/api/consultations/$consultationResultId/execution-status',
       body: request.toJson(),
     );
-    return ConsultationResult.fromJson(asJsonMap(response));
+    final JsonMap json = _requireObject(response, 'updateExecutionStatus');
+    _validateConsultationResult(json, 'updateExecutionStatus');
+    return ConsultationResult.fromJson(json);
   }
 }
 
@@ -188,6 +198,17 @@ JsonMap _requireObject(Object? value, String context) {
     );
   }
   return asJsonMap(value);
+}
+
+List<Object?> _requireResponseList(Object? value, String context) {
+  if (value is! List) {
+    _throwSchemaMismatch(
+      context,
+      'response must be a JSON array',
+      details: value,
+    );
+  }
+  return value.cast<Object?>();
 }
 
 void _requireKeys(JsonMap json, Iterable<String> keys, String context) {
@@ -221,6 +242,29 @@ String _requireString(
 
 String _requireNonEmptyString(JsonMap json, String key, String context) {
   return _requireString(json, key, context, allowEmpty: false);
+}
+
+void _requireNullableString(JsonMap json, String key, String context) {
+  final Object? value = json[key];
+  if (value != null && value is! String) {
+    _throwSchemaMismatch(
+      context,
+      'field "$key" must be a string or null',
+      details: json,
+    );
+  }
+}
+
+int _requireInt(JsonMap json, String key, String context) {
+  final Object? value = json[key];
+  if (value is! int) {
+    _throwSchemaMismatch(
+      context,
+      'field "$key" must be an integer',
+      details: json,
+    );
+  }
+  return value;
 }
 
 bool _requireBool(JsonMap json, String key, String context) {
@@ -420,6 +464,63 @@ void _validateDecisionResult(JsonMap json, String context) {
     context,
   );
   _requireProductSkuSummary(recommendedJson, '$context.recommendedProduct');
+}
+
+void _validateExecuteConsultationResponse(JsonMap json, String context) {
+  _requireKeys(json, <String>[
+    'consultationResultId',
+    'completionMessage',
+  ], context);
+  _requireInt(json, 'consultationResultId', context);
+  _requireNonEmptyString(json, 'completionMessage', context);
+}
+
+void _validateConsultationResult(JsonMap json, String context) {
+  _requireKeys(json, <String>[
+    'id',
+    'skuId',
+    'productName',
+    'imageUrl',
+    'resultType',
+    'recommendedPath',
+    'coreConditions',
+    'consultedAt',
+    'executionStatus',
+    'executionNote',
+    'executionUpdatedAt',
+  ], context);
+  _requireInt(json, 'id', context);
+  _requireInt(json, 'skuId', context);
+  _requireNonEmptyString(json, 'productName', context);
+  _requireString(json, 'imageUrl', context);
+  _requireOneOf(
+    json,
+    'resultType',
+    DecisionResultType.values.map((DecisionResultType value) => value.wireName),
+    context,
+  );
+  _requireString(json, 'recommendedPath', context);
+  _requireNonEmptyString(json, 'coreConditions', context);
+  _requireDateTimeString(json, 'consultedAt', context);
+  _requireOneOf(
+    json,
+    'executionStatus',
+    ExecutionStatus.values.map((ExecutionStatus value) => value.wireName),
+    context,
+  );
+  _requireNullableString(json, 'executionNote', context);
+  _requireDateTimeString(json, 'executionUpdatedAt', context);
+}
+
+void _requireDateTimeString(JsonMap json, String key, String context) {
+  final String value = _requireNonEmptyString(json, key, context);
+  if (DateTime.tryParse(value) == null) {
+    _throwSchemaMismatch(
+      context,
+      'field "$key" must be an ISO-8601 date-time string',
+      details: json,
+    );
+  }
 }
 
 void _requireProductSkuSummary(JsonMap json, String context) {

@@ -241,6 +241,42 @@ void main() {
     expect(find.text('요청 접수 안내'), findsOneWidget);
   });
 
+  testWidgets('mobile consultation results use the fetched server payload', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final _RecordingResultsRepository repository =
+        _RecordingResultsRepository();
+
+    await tester.pumpWidget(
+      RepositoryScope(
+        repository: repository,
+        child: MaterialApp(
+          theme: SegueTheme.light(),
+          home: const CustomerMobileEntryScreen(),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('SEGUE 내역 확인'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastResultsCustomerId, 1);
+    expect(find.text('앱 상담 결과 확인'), findsOneWidget);
+    expect(find.text('최신 서버 결과'), findsOneWidget);
+    expect(find.text('서버 저장 경로'), findsOneWidget);
+
+    await tester.tap(find.text('온라인 구매하기').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('온라인 구매 화면'), findsOneWidget);
+    expect(find.text('최신 서버 결과'), findsOneWidget);
+  });
+
   testWidgets('consultation results show updated execution status on mobile', (
     WidgetTester tester,
   ) async {
@@ -325,5 +361,44 @@ class _FlakyCartRepository extends MockSegueRepository {
       );
     }
     return super.fetchCart(customerId: customerId, storeId: storeId);
+  }
+}
+
+class _RecordingResultsRepository extends MockSegueRepository {
+  int? lastResultsCustomerId;
+
+  @override
+  Future<List<ConsultationResult>> fetchConsultationResults(
+    int customerId,
+  ) async {
+    lastResultsCustomerId = customerId;
+    return <ConsultationResult>[
+      ConsultationResult(
+        id: 11,
+        skuId: 1,
+        productName: '이전 서버 결과',
+        imageUrl: 'https://example.com/previous.png',
+        resultType: DecisionResultType.exactProduct,
+        recommendedPath: '이전 저장 경로',
+        coreConditions: '이전 핵심 조건',
+        consultedAt: DateTime(2026, 8, 16, 12),
+        executionStatus: ExecutionStatus.requested,
+        executionNote: null,
+        executionUpdatedAt: DateTime(2026, 8, 16, 12),
+      ),
+      ConsultationResult(
+        id: 12,
+        skuId: 1,
+        productName: '최신 서버 결과',
+        imageUrl: 'https://example.com/latest.png',
+        resultType: DecisionResultType.exactProduct,
+        recommendedPath: '서버 저장 경로',
+        coreConditions: '서버 저장 핵심 조건',
+        consultedAt: DateTime(2026, 8, 16, 15),
+        executionStatus: ExecutionStatus.requested,
+        executionNote: null,
+        executionUpdatedAt: DateTime(2026, 8, 16, 15),
+      ),
+    ];
   }
 }

@@ -70,6 +70,7 @@ class HttpSegueApiClient implements SegueApiClient {
   static const Map<String, String> _headers = <String, String>{
     'Accept': 'application/json',
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   };
 
   Uri _uri(

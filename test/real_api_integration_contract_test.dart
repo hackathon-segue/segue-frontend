@@ -138,6 +138,55 @@ void main() {
   });
 
   test(
+    'real repository executes the card request and fetches the saved mobile result',
+    () async {
+      final _RecordingApiClient apiClient = _RecordingApiClient(
+        postResponse: <String, Object?>{
+          'consultationResultId': 5,
+          'completionMessage': '요청이 접수되었습니다. CA가 실제 재고를 확인합니다',
+        },
+        getResponse: <Object?>[_consultationResultJson()],
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: apiClient,
+      );
+
+      final ExecuteConsultationResponse executeResponse = await repository
+          .executeConsultation(
+            ExecuteConsultationRequest.fromDecisionResult(
+              customerId: 1,
+              skuId: 1,
+              decisionResult: DecisionResult.fromJson(_decisionResultJson()),
+            ),
+          );
+
+      expect(apiClient.lastPostPath, '/api/consultations/execute');
+      expect(apiClient.lastPostBody, <String, Object?>{
+        'customerId': 1,
+        'skuId': 1,
+        'resultType': 'EXACT_PRODUCT',
+        'actionType': 'OTHER_STORE_CHECK_REQUEST',
+        'recommendedSkuId': null,
+        'pathDescription': '강남 신세계점 재고 확인',
+        'coreConditionsSummary': '로고가 정면 중앙에 오는 각진 실루엣을 중요하게 보고 계셨습니다.',
+      });
+      expect(executeResponse.consultationResultId, 5);
+
+      final List<ConsultationResult> results = await repository
+          .fetchConsultationResults(1);
+
+      expect(apiClient.lastGetPath, '/api/consultations/customers/1');
+      expect(results.single.id, executeResponse.consultationResultId);
+      expect(results.single.recommendedPath, '강남 신세계점 재고 확인');
+      expect(
+        results.single.coreConditions,
+        '로고가 정면 중앙에 오는 각진 실루엣을 중요하게 보고 계셨습니다.',
+      );
+      expect(results.single.executionStatus, ExecutionStatus.requested);
+    },
+  );
+
+  test(
     'real repository posts staff utterance to the AI intent endpoint',
     () async {
       final _RecordingApiClient apiClient = _RecordingApiClient(
@@ -309,6 +358,55 @@ void main() {
   );
 
   test(
+    'real consultation result schema mismatches become retryable API errors',
+    () async {
+      final _RecordingApiClient badExecuteClient = _RecordingApiClient(
+        postResponse: <String, Object?>{'completionMessage': '접수'},
+      );
+      final RealSegueRepository badExecuteRepository = RealSegueRepository(
+        apiClient: badExecuteClient,
+      );
+
+      await expectLater(
+        badExecuteRepository.executeConsultation(
+          ExecuteConsultationRequest.fromDecisionResult(
+            customerId: 1,
+            skuId: 1,
+            decisionResult: DecisionResult.fromJson(_decisionResultJson()),
+          ),
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException error) => error.code,
+            'code',
+            'JSON_SCHEMA_MISMATCH',
+          ),
+        ),
+      );
+
+      final JsonMap invalidResult = _consultationResultJson()
+        ..remove('executionStatus');
+      final _RecordingApiClient badResultClient = _RecordingApiClient(
+        getResponse: <Object?>[invalidResult],
+      );
+      final RealSegueRepository badResultRepository = RealSegueRepository(
+        apiClient: badResultClient,
+      );
+
+      await expectLater(
+        badResultRepository.fetchConsultationResults(1),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException error) => error.code,
+            'code',
+            'JSON_SCHEMA_MISMATCH',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
     'HTTP client converts slow backend responses into retryable timeout errors',
     () async {
       final HttpSegueApiClient apiClient = HttpSegueApiClient(
@@ -371,6 +469,22 @@ JsonMap _decisionResultJson() {
     'pathDescription': '강남 신세계점 재고 확인',
     'actionType': 'OTHER_STORE_CHECK_REQUEST',
     'actionButtonLabel': '타 매장 확인 요청',
+  };
+}
+
+JsonMap _consultationResultJson() {
+  return <String, Object?>{
+    'id': 5,
+    'skuId': 1,
+    'productName': 'MCM 백팩 미디움',
+    'imageUrl': 'https://example.com/mcm-backpack.png',
+    'resultType': 'EXACT_PRODUCT',
+    'recommendedPath': '강남 신세계점 재고 확인',
+    'coreConditions': '로고가 정면 중앙에 오는 각진 실루엣을 중요하게 보고 계셨습니다.',
+    'consultedAt': '2026-08-16T15:20:00',
+    'executionStatus': 'REQUESTED',
+    'executionNote': null,
+    'executionUpdatedAt': '2026-08-16T15:20:00',
   };
 }
 
