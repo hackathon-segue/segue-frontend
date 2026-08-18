@@ -6,13 +6,10 @@ import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/screens/last_intent_additional_consultation_screen.dart';
 import 'package:segue_frontend/screens/last_intent_completion_screen.dart';
 
-/// Issue #46: ADDITIONAL_CONSULTATION detail screen (Figma 169:3683/3821).
-///
-/// Deliberately does NOT test for Figma's 진행/미진행 toggle or "고객 답변
-/// 입력하기"/"실행 불가 사유" textareas — those have no backing API field and
-/// conflict with this issue's explicit single-CTA rule, so the
-/// implementation replaces them with the real actionButtonLabel CTA (see
-/// the doc comment on the screen itself).
+/// Issue #46: ADDITIONAL_CONSULTATION detail screen — Figma 169:3683 ("진행"
+/// checked) / 169:3821 ("미진행" checked), a single screen with a local
+/// 진행/미진행 toggle (see the doc comment on the screen itself for why the
+/// toggle/free-text input have no backing API field).
 class _AdditionalConsultationRepository extends MockSegueRepository {
   @override
   Future<DecisionResult> decide(DecisionRequest request) async {
@@ -56,7 +53,7 @@ void main() {
     hasConsented: true,
   );
 
-  testWidgets('shows the real coreConditions/reason data, never a hardcoded 진행/미진행 toggle', (
+  testWidgets('defaults to the 진행 state (169:3683) with real coreConditions/reason data', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -85,18 +82,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('추가 상담 진행'), findsOneWidget);
+    // Screen title + the toggle's own "진행" checkbox label both render
+    // this string (169:3683's default checked state).
+    expect(find.text('추가 상담 진행'), findsWidgets);
+    expect(find.text('추가 상담 미진행'), findsOneWidget);
     expect(find.text('이전 상담 요약'), findsOneWidget);
     expect(find.text('복수의 조건이 명확하지 않아 우선순위를 확인하지 못했습니다.'), findsOneWidget);
-    // Real actionButtonLabel — not Figma's example "요청 접수 완료"/"해당 제품 상담 중단".
-    expect(find.text('조건 다시 확인하기'), findsOneWidget);
-    expect(find.text('요청 접수 완료'), findsNothing);
+    // Figma-literal CTA display override for the 진행 state — execute()'s
+    // real payload still uses decisionResult.actionType/actionButtonLabel
+    // (asserted separately below), this is on-screen text only.
+    expect(find.text('요청 접수 완료'), findsOneWidget);
     expect(find.text('해당 제품 상담 중단'), findsNothing);
-    expect(find.text('추가 상담 미진행'), findsNothing);
-    expect(find.text('고객 답변 입력하기'), findsNothing);
+    expect(find.text('고객 답변 입력하기'), findsOneWidget);
+    expect(find.text('실행 불가 사유 입력하기 (예: 고객 동의 거절, 시간 부족 등)'), findsNothing);
   });
 
-  testWidgets('tapping the single CTA calls execute() with RECONSULT and reaches completion', (
+  testWidgets('tapping 추가 상담 미진행 switches to the 169:3821 state instantly', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -125,11 +126,57 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('조건 다시 확인하기'));
+    await tester.tap(find.text('추가 상담 미진행'));
+    await tester.pump();
+
+    expect(find.text('해당 제품 상담 중단'), findsOneWidget);
+    expect(find.text('요청 접수 완료'), findsNothing);
+    expect(find.text('실행 불가 사유 입력하기 (예: 고객 동의 거절, 시간 부족 등)'), findsOneWidget);
+    expect(find.text('고객 답변 입력하기'), findsNothing);
+
+    // Tapping "진행" switches straight back to the 169:3683 state.
+    await tester.tap(find.text('추가 상담 진행').last);
+    await tester.pump();
+    expect(find.text('요청 접수 완료'), findsOneWidget);
+  });
+
+  testWidgets('tapping the CTA calls execute() with RECONSULT and reaches completion', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final LastIntentSessionManager manager = LastIntentSessionManager(
+      repository: _AdditionalConsultationRepository(),
+    );
+    final CartItem item = cartItem();
+    final LastIntentSessionController session = manager.sessionFor(
+      customer: customer,
+      cartItem: item,
+    );
+    await session.structureIntent('그냥 비슷한 느낌이면 다 좋아요');
+    await session.decide();
+
+    await tester.pumpWidget(
+      LastIntentSessionScope(
+        manager: manager,
+        child: MaterialApp(
+          home: LastIntentAdditionalConsultationScreen(customer: customer, cartItem: item),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('요청 접수 완료'));
     await tester.pumpAndSettle();
 
     expect(find.byType(LastIntentCompletionScreen), findsOneWidget);
+    // execute() sends the real actionType/actionButtonLabel from
+    // decisionResult regardless of the toggle's display-only CTA label.
     expect(session.state.decisionResult!.actionType, DecisionActionType.reconsult);
+    expect(session.state.decisionResult!.actionButtonLabel, '조건 다시 확인하기');
     expect(session.state.executionStatus, ExecutionStatus.requested);
   });
 }

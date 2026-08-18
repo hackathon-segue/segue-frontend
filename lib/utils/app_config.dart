@@ -19,10 +19,35 @@ abstract final class AppConfig {
     defaultValue: 1,
   );
 
+  static const int defaultCustomerId = int.fromEnvironment(
+    'CUSTOMER_ID',
+    defaultValue: 1,
+  );
+
+  static const int apiTimeoutSeconds = int.fromEnvironment(
+    'API_TIMEOUT_SECONDS',
+    defaultValue: 10,
+  );
+
   static const bool useMockData = bool.fromEnvironment(
     'USE_MOCK_DATA',
-    defaultValue: true,
+    defaultValue: false,
   );
+
+  static const bool debugGeneralProductCheck = bool.fromEnvironment(
+    'DEBUG_GENERAL_PRODUCT_CHECK',
+    defaultValue: false,
+  );
+
+  /// Sent on every real HTTP request (JSON API calls in
+  /// `HttpSegueApiClient` and product photo loads in `SegueProductImage`).
+  /// Skips ngrok's free-tier browser-warning interstitial — an HTML page
+  /// with no CORS headers that a real backend never sends, so ngrok tunnels
+  /// used for `API_BASE_URL` during development work the same as a direct
+  /// URL. Non-ngrok backends simply ignore this header.
+  static const Map<String, String> ngrokSkipWarningHeader = <String, String>{
+    'ngrok-skip-browser-warning': 'true',
+  };
 }
 
 abstract final class AppRoutes {

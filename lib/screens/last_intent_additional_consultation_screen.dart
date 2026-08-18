@@ -9,21 +9,17 @@ import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
 import 'last_intent_completion_screen.dart';
 
-/// Figma node 169:3683/169:3821 "추가 상담 진행" (ADDITIONAL_CONSULTATION).
-///
-/// Figma's own frame shows a 진행/미진행 toggle + free-text input + two
-/// different completion labels ("요청 접수 완료" / "해당 제품 상담 중단") — none of
-/// that has a backing field anywhere in API.md/SCHEMA.md (no endpoint takes
-/// free-text "고객 답변"/"실행 불가 사유" at this step), and it conflicts with
-/// this issue's own explicit written rule: "CTA는 하나: 조건 다시 확인하기"
-/// and "사용자에게 4개 결과 중 하나를 선택하게 함" 로직을 만들지 마.
-/// Same precedent as this issue's "결과4 디자인이 비슷한 제품" instruction
-/// (override stale/conflicting Figma example content with the written
-/// project rule) — so this screen keeps Figma's layout/cards but replaces
-/// the toggle panel with the single real `actionButtonLabel` CTA, which
-/// calls the SAME `execute()`/completion flow every other resultType uses
-/// (RECONSULT is just another `actionType` per API.md's `/execute` table —
-/// no special-cased second flow, satisfying "기존 route/state 재사용").
+/// Figma node 169:3683 ("진행" checked) / 169:3821 ("미진행" checked) —
+/// "추가 상담 진행" (ADDITIONAL_CONSULTATION). Both nodes are the SAME screen
+/// state-toggled, not separate pages — [_inProgress] is a local UI-only
+/// toggle (no backing field anywhere in API.md/SCHEMA.md; no endpoint takes
+/// free-text "고객 답변"/"실행 불가 사유" at this step either, so
+/// [_noteController]'s text isn't sent anywhere). Only the checkbox
+/// pair/hint text/CTA label+arrow change with the toggle — the CTA still
+/// calls the SAME real `execute()`/completion flow every other resultType
+/// uses (RECONSULT is just another `actionType` per API.md's `/execute`
+/// table): the Figma-literal labels are a display-only override, same
+/// pattern as the result-detail screens' `_figmaCtaLabel`.
 class LastIntentAdditionalConsultationScreen extends StatefulWidget {
   const LastIntentAdditionalConsultationScreen({
     required this.customer,
@@ -43,7 +39,20 @@ class _LastIntentAdditionalConsultationScreenState
     extends State<LastIntentAdditionalConsultationScreen> {
   bool _executing = false;
 
+  // Figma 169:3683 ("진행" checked) vs 169:3821 ("미진행" checked) — a single
+  // local UI toggle, not a backend field (confirmed: no such field exists on
+  // StructuredIntent/DecisionResult per API.md/SCHEMA.md). Defaults to the
+  // "진행" state, matching 169:3683's checked default.
+  bool _inProgress = true;
+  final TextEditingController _noteController = TextEditingController();
+
   static const Duration _minExecutingDuration = Duration(milliseconds: 600);
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleExecute(LastIntentSessionController session) {
     return _runAndMaybeNavigate(session, session.execute);
@@ -143,7 +152,12 @@ class _LastIntentAdditionalConsultationScreenState
         }
 
         return _Scaffold(
-          ctaLabel: result.actionButtonLabel,
+          // Figma-literal display override (169:3724/169:3972), same
+          // established pattern as the result-detail screens' CTA label —
+          // execute() below still sends the real actionType/actionButtonLabel
+          // from decisionResult, only the on-screen text/arrow toggle here.
+          ctaLabel: _inProgress ? '요청 접수 완료' : '해당 제품 상담 중단',
+          ctaShowArrow: _inProgress,
           onCta: () => _handleExecute(session),
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
@@ -196,9 +210,37 @@ class _LastIntentAdditionalConsultationScreenState
               final Widget right = SegueInfoCard(
                 title: '후속 행동 처리',
                 backgroundColor: SegueCardColors.panelBg,
-                child: Text(
-                  '고객과 함께 핵심 조건을 다시 확인한 뒤 상담을 재개합니다.',
-                  style: SegueCardText.body18.copyWith(color: SegueCardColors.subtitleMuted),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      '고객과 함께 핵심 조건을 다시 확인한 뒤 상담을 재개합니다.',
+                      style: SegueCardText.body18.copyWith(color: SegueCardColors.subtitleMuted),
+                    ),
+                    // Figma: subtitle bottom 322+24=346 → first checkbox row
+                    // top 372 = 26px.
+                    const SizedBox(height: 26),
+                    _ToggleCheckboxRow(
+                      label: '추가 상담 미진행',
+                      checked: !_inProgress,
+                      onTap: () => setState(() => _inProgress = false),
+                    ),
+                    _ToggleCheckboxRow(
+                      label: '추가 상담 진행',
+                      checked: _inProgress,
+                      onTap: () => setState(() => _inProgress = true),
+                    ),
+                    // Figma: 2nd checkbox row bottom 402+30=432 → input box
+                    // top 443 = 11px.
+                    const SizedBox(height: 11),
+                    _NoteInput(
+                      controller: _noteController,
+                      hintText: _inProgress
+                          ? '고객 답변 입력하기'
+                          : '실행 불가 사유 입력하기 (예: 고객 동의 거절, 시간 부족 등)',
+                    ),
+                  ],
                 ),
               );
 
@@ -225,22 +267,113 @@ class _LastIntentAdditionalConsultationScreenState
 }
 
 class _Scaffold extends StatelessWidget {
-  const _Scaffold({required this.child, this.ctaLabel, this.onCta});
+  const _Scaffold({required this.child, this.ctaLabel, this.onCta, this.ctaShowArrow = true});
 
   final Widget child;
   final String? ctaLabel;
   final VoidCallback? onCta;
+  final bool ctaShowArrow;
 
   @override
   Widget build(BuildContext context) {
     return SegueCardShell(
-      step: '3/5',
-      title: '추가 상담 진행',
+      pageTitle: 'CURRENT SESSION',
+      activeMenuItem: TabletMenuItem.currentSession,
+      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      stepBadge: '3/5',
+      screenTitle: '추가 상담 진행',
       subtitle: '보다 정확한 제안을 위해 추가 상담이 필요합니다. Client Advisor가 고객님과 더 깊이 있는 상담을 진행하겠습니다.',
       body: child,
       bottomBar: SegueBottomActionRow(
         onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
-        cta: ctaLabel != null ? SegueCtaButton(label: ctaLabel!, onPressed: onCta) : null,
+        cta: ctaLabel != null
+            ? SegueCtaButton(label: ctaLabel!, onPressed: onCta, showArrow: ctaShowArrow)
+            : null,
+      ),
+    );
+  }
+}
+
+/// Figma (169:3805/169:3816 / 169:3874/169:3875)'s "추가 상담 진행/미진행"
+/// toggle checkbox — 15×15 box, 2px ink border, filled+check icon when
+/// checked (same checked-state visual language as [SegueCheckboxRow], no
+/// bespoke SVG asset in either). 11px label gap and
+/// [SegueCardText.toggleCheckLabel18] are this screen's own measured
+/// values — [SegueCheckboxRow]'s 28px gap/19px-Bold label are the consent
+/// screen's own spec, not reused here since they don't match this Figma.
+class _ToggleCheckboxRow extends StatelessWidget {
+  const _ToggleCheckboxRow({required this.label, required this.checked, required this.onTap});
+
+  final String label;
+  final bool checked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 15,
+              height: 15,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: checked ? SegueCardColors.ink : Colors.white,
+                border: Border.all(color: SegueCardColors.ink, width: 2),
+              ),
+              child: checked ? const Icon(Icons.check, size: 11, color: Colors.white) : null,
+            ),
+            const SizedBox(width: 11),
+            Text(label, style: SegueCardText.toggleCheckLabel18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Figma (169:3802/169:3872)'s free-text box — 501×215 (this screen's own
+/// measured size, distinct from [_AnswerInput]'s 239-tall box on the
+/// follow-up-question screen), white bg, 2px border, hint text only (no
+/// backing API field at this step — same rationale as this file's class
+/// doc comment — so its content isn't sent anywhere, purely matching
+/// Figma's input affordance).
+class _NoteInput extends StatelessWidget {
+  const _NoteInput({required this.controller, required this.hintText});
+
+  final TextEditingController controller;
+  final String hintText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 215,
+      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: SegueCardColors.border, width: 2)),
+      child: TextField(
+        controller: controller,
+        maxLines: null,
+        expands: true,
+        textAlignVertical: TextAlignVertical.top,
+        style: SegueCardText.detailValue16,
+        cursorColor: SegueCardColors.ink,
+        decoration: InputDecoration(
+          isCollapsed: true,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          filled: false,
+          contentPadding: const EdgeInsets.fromLTRB(18, 19, 18, 19),
+          hintText: hintText,
+          hintStyle: SegueCardText.inputPlaceholder14,
+        ),
       ),
     );
   }

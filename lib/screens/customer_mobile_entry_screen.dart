@@ -4,6 +4,7 @@ import '../exceptions/app_exception.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../repositories/repositories.dart';
+import '../utils/app_config.dart';
 import '../utils/app_design_tokens.dart';
 import '../utils/execution_status_display.dart';
 import '../widgets/app_state_view.dart';
@@ -69,7 +70,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   CartItem? _lastSavedCartItem;
   final List<CartItem> _cartItems = <CartItem>[];
   bool _isSavingCart = false;
+  bool _isLoadingCart = false;
   String? _cartSaveError;
+  String? _cartError;
   final List<ConsultationResult> _consultationResults = <ConsultationResult>[];
   ConsultationResult? _selectedConsultationResult;
   bool _isLoadingResults = false;
@@ -140,6 +143,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       ),
       _MobileScreen.cart => _CartListScreen(
         cartItems: _cartItems,
+        isLoading: _isLoadingCart,
+        errorMessage: _cartError,
+        onRetry: () => _loadCartItems(force: true),
         onBackToProducts: _returnToProducts,
         onTabSelected: _openTab,
       ),
@@ -247,6 +253,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _openResults();
       return;
     }
+    if (tab == CustomerMobileTab.cart) {
+      _openCart();
+      return;
+    }
 
     setState(() {
       _screen = switch (tab) {
@@ -260,6 +270,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
   void _openCart() {
     setState(() => _screen = _MobileScreen.cart);
+    if (!_isLoadingCart) {
+      _loadCartItems(force: true);
+    }
   }
 
   void _openDetailFromCartAdded() {
@@ -304,7 +317,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     try {
       final List<ConsultationResult> results = await RepositoryScope.of(
         context,
-      ).fetchConsultationResults(1);
+      ).fetchConsultationResults(AppConfig.defaultCustomerId);
       results.sort(
         (ConsultationResult a, ConsultationResult b) =>
             b.consultedAt.compareTo(a.consultedAt),
@@ -333,6 +346,45 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     }
   }
 
+  Future<void> _loadCartItems({bool force = false}) async {
+    if (_isLoadingCart || (_cartItems.isNotEmpty && !force)) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingCart = true;
+      _cartError = null;
+    });
+
+    try {
+      final List<CartItem> items = await RepositoryScope.of(context).fetchCart(
+        customerId: AppConfig.defaultCustomerId,
+        storeId: AppConfig.defaultStoreId,
+      );
+      items.sort((CartItem a, CartItem b) => b.savedAt.compareTo(a.savedAt));
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _cartItems
+          ..clear()
+          ..addAll(items);
+        _isLoadingCart = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingCart = false;
+        _cartError = _errorMessage(
+          error,
+          fallback: '장바구니를 불러오지 못했습니다. 다시 시도해 주세요.',
+        );
+      });
+    }
+  }
+
   Future<void> _saveSelectedCartItem() async {
     final MobileSkuOption? selectedSku = _selectedProduct.skuFor(
       color: _selectedColor,
@@ -350,7 +402,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     try {
       final CartItem cartItem = await RepositoryScope.of(context).saveCartItem(
         CartSaveRequest(
-          customerId: 1,
+          customerId: AppConfig.defaultCustomerId,
           productId: _selectedProduct.id,
           color: selectedSku.color,
           size: selectedSku.size,
@@ -364,6 +416,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         _lastSavedCartItem = cartItem;
         _cartItems.removeWhere((CartItem item) => item.skuId == cartItem.skuId);
         _cartItems.insert(0, cartItem);
+        _cartError = null;
         _screen = _MobileScreen.cartAdded;
       });
     } catch (error) {
@@ -1977,11 +2030,17 @@ class _CartAddedScreen extends StatelessWidget {
 class _CartListScreen extends StatelessWidget {
   const _CartListScreen({
     required this.cartItems,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onRetry,
     required this.onBackToProducts,
     required this.onTabSelected,
   });
 
   final List<CartItem> cartItems;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onRetry;
   final VoidCallback onBackToProducts;
   final ValueChanged<CustomerMobileTab> onTabSelected;
 
@@ -2001,37 +2060,62 @@ class _CartListScreen extends StatelessWidget {
             ),
             const Divider(height: 1, color: Color(0xFFE5E5E5)),
             Expanded(
-              child: cartItems.isEmpty
-                  ? const Center(
+              child: Builder(
+                builder: (BuildContext context) {
+                  if (isLoading) {
+                    return const Center(
+                      child: AppStateView.loading(title: '장바구니를 불러오는 중입니다'),
+                    );
+                  }
+
+                  if (errorMessage != null) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.xl),
+                        child: AppStateView.error(
+                          title: '장바구니를 불러오지 못했습니다',
+                          message: errorMessage,
+                          onAction: onRetry,
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (cartItems.isEmpty) {
+                    return const Center(
                       child: _McmEmptyState(
                         message: '쇼핑백이 비어 있습니다.\n로그인 후 쇼핑백 확인하러 가기',
                       ),
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                      children: <Widget>[
-                        Text(
-                          '나의 쇼핑백(${cartItems.length}개 품목)',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
+                    );
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                    children: <Widget>[
+                      Text(
+                        '나의 쇼핑백(${cartItems.length}개 품목)',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                         ),
-                        const SizedBox(height: 22),
-                        for (final CartItem cartItem in cartItems) ...<Widget>[
-                          _ShoppingBagLineItem(item: cartItem),
-                          const _McmSectionDivider(),
-                        ],
-                        const SizedBox(height: 10),
-                        _ShoppingBagSummary(
-                          itemCount: cartItems.length,
-                          totalPrice: totalPrice,
-                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      for (final CartItem cartItem in cartItems) ...<Widget>[
+                        _ShoppingBagLineItem(item: cartItem),
+                        const _McmSectionDivider(),
                       ],
-                    ),
+                      const SizedBox(height: 10),
+                      _ShoppingBagSummary(
+                        itemCount: cartItems.length,
+                        totalPrice: totalPrice,
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
-            if (cartItems.isNotEmpty)
+            if (!isLoading && errorMessage == null && cartItems.isNotEmpty)
               _ShoppingBagActionPanel(
                 totalLabel: '예상 합계',
                 totalPrice: totalPrice,
@@ -2211,6 +2295,16 @@ class _OnlinePurchaseScreen extends StatelessWidget {
                           label: '상담 날짜',
                           value: _formatKoreanDateTime(
                             currentResult.consultedAt,
+                          ),
+                        ),
+                        _McmResultBlock(
+                          label: '처리 상태',
+                          value: _executionStatusMessage(currentResult),
+                        ),
+                        _McmResultBlock(
+                          label: '처리 갱신',
+                          value: _formatKoreanDateTime(
+                            currentResult.executionUpdatedAt,
                           ),
                         ),
                       ],

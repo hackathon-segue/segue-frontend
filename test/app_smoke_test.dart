@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
+import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
 
 Future<void> _openStaffHome(WidgetTester tester) async {
-  await tester.pumpWidget(const SegueApp());
-  Navigator.of(
-    tester.element(find.text('LXXVI')),
-  ).pushNamed(AppRoutes.staffHome);
+  await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+  // The mobile customer entry screen no longer has a "직원 웹" button (it's
+  // now the real customer-facing app) — reach staff routes via a direct
+  // named push instead, same as the app's own wireframe QA does.
+  Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
   await tester.pumpAndSettle();
 }
 
 Future<void> _goToCustomerLookup(WidgetTester tester) async {
-  await tester.tap(find.text('고객 조회 시작'));
+  await tester.tap(find.text('START SEGUE'));
   await tester.pumpAndSettle();
 }
 
@@ -32,12 +34,11 @@ void main() {
   testWidgets('renders the initial customer mobile route', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const SegueApp());
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
 
-    expect(find.text('MCM'), findsOneWidget);
+    // Root now lands on the real customer-facing mobile app (not the old
+    // route-group placeholder screen).
     expect(find.text('LXXVI'), findsOneWidget);
-    expect(find.text('1976'), findsOneWidget);
-    expect(find.byTooltip('메뉴 열기'), findsOneWidget);
   });
 
   testWidgets(
@@ -50,12 +51,37 @@ void main() {
 
       await _openStaffHome(tester);
 
-      expect(find.text('MCM 상담 지원'), findsOneWidget);
-      expect(find.text('고객 조회 시작'), findsOneWidget);
+      expect(find.text('SEGUE HOME'), findsOneWidget);
+      expect(find.text('START SEGUE'), findsOneWidget);
     },
   );
 
-  testWidgets('looking up a consented customer shows the cart preview', (
+  testWidgets(
+    'looking up a consented customer shows the result card and consent CTA',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _openStaffHome(tester);
+
+      expect(find.text('SEGUE HOME'), findsOneWidget);
+      expect(find.text('START SEGUE'), findsOneWidget);
+
+      await _goToCustomerLookup(tester);
+      await _searchCustomer(tester, '010-1234-5678');
+
+      // Issue #48 (89:1001): the result card itself has no cart-preview
+      // list — that now lives only on CartInventoryScreen — but the
+      // customer identity and consent CTA are still real, live-looked-up
+      // data/state, not fabricated.
+      expect(find.text('김세계'), findsOneWidget);
+      expect(find.text('상담 데이터 이용 동의 확인'), findsOneWidget);
+    },
+  );
+
+  testWidgets('customer lookup input fields match the Figma field sizing', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 900);
@@ -64,17 +90,16 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await _openStaffHome(tester);
-
-    expect(find.text('MCM 상담 지원'), findsOneWidget);
-    expect(find.text('고객 조회 시작'), findsOneWidget);
-
     await _goToCustomerLookup(tester);
-    await _searchCustomer(tester, '010-1234-5678');
 
-    expect(find.text('김세계'), findsOneWidget);
-    // Already-consented test customer: cart preview should auto-load.
-    expect(find.text('MCM 백팩 미디움'), findsOneWidget);
-    expect(find.text('MCM 숄더백 미니'), findsOneWidget);
+    final Rect memberField = tester.getRect(find.byType(TextFormField).at(0));
+    final Rect phoneField = tester.getRect(find.byType(TextFormField).at(1));
+
+    expect(memberField.width, 335);
+    expect(memberField.height, 42);
+    expect(phoneField.width, 335);
+    expect(phoneField.height, 42);
+    expect(phoneField.top - memberField.bottom, 16);
   });
 
   testWidgets(
@@ -90,9 +115,8 @@ void main() {
       await _searchCustomer(tester, '010-9876-5432');
 
       expect(find.text('이수현'), findsOneWidget);
-      expect(find.text('데이터 이용 동의가 필요합니다'), findsOneWidget);
 
-      await tester.tap(find.text('데이터 이용 동의 확인'));
+      await tester.tap(find.text('상담 데이터 이용 동의 확인'));
       await tester.pumpAndSettle();
 
       expect(find.text('상담 데이터 이용 동의'), findsOneWidget);
@@ -104,25 +128,26 @@ void main() {
     },
   );
 
-  testWidgets('switching to a new customer lookup resets prior cart state', (
-    WidgetTester tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'switching to a new customer lookup shows the new customer, not the old one',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await _openStaffHome(tester);
-    await _goToCustomerLookup(tester);
-    await _searchCustomer(tester, '010-1234-5678');
-    expect(find.text('MCM 백팩 미디움'), findsOneWidget);
+      await _openStaffHome(tester);
+      await _goToCustomerLookup(tester);
+      await _searchCustomer(tester, '010-1234-5678');
+      expect(find.text('김세계'), findsOneWidget);
 
-    await _searchCustomer(tester, '010-9876-5432');
+      await _searchCustomer(tester, '010-9876-5432');
 
-    expect(find.text('이수현'), findsOneWidget);
-    // The previous customer's already-loaded cart items must not leak into
-    // the new, unconsented customer's view.
-    expect(find.text('MCM 백팩 미디움'), findsNothing);
-    expect(find.text('데이터 이용 동의가 필요합니다'), findsOneWidget);
-  });
+      // StaffWebSessionController.lookupCustomer() resets prior state before
+      // looking up the new customer — the previous customer's card must not
+      // linger once the new one is found.
+      expect(find.text('이수현'), findsOneWidget);
+      expect(find.text('김세계'), findsNothing);
+    },
+  );
 }
