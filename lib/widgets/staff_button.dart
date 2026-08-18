@@ -85,16 +85,17 @@ class StaffButton extends StatelessWidget {
   }
 
   Widget _tappable({required Widget child, VoidCallback? onPressed}) {
-    // `type: transparency` is required — the default `MaterialType.canvas`
-    // expands to fill all available space instead of hugging `child`,
-    // which was silently stretching every StaffButton (e.g. the "데이터
-    // 이용 동의 확인" button inside `Align`) to its parent's width.
+    // Keep the hit area sized to the button content instead of filling
+    // the parent constraints.
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(StaffRadii.button),
-        child: child,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Center(widthFactor: 1, heightFactor: 1, child: child),
+        ),
       ),
     );
   }
