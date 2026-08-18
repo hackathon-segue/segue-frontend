@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../exceptions/app_exception.dart';
 import '../models/models.dart';
 import '../repositories/repositories.dart';
 import '../utils/app_config.dart';
@@ -366,8 +367,16 @@ class LastIntentSessionController extends ChangeNotifier {
         customerId: customer.id,
         result: result,
       );
+      final ConsultationResult savedResult =
+          await _fetchSavedConsultationResult(
+            customerId: customer.id,
+            consultationResultId: response.consultationResultId,
+          );
       _state = _state.copyWith(
-        resultSaveState: AsyncValue<ConsultationResult>.data(result),
+        executionStatus: savedResult.executionStatus,
+        executionNote: savedResult.executionNote,
+        clearExecutionNote: savedResult.executionNote == null,
+        resultSaveState: AsyncValue<ConsultationResult>.data(savedResult),
       );
     } catch (error, stackTrace) {
       _state = _state.copyWith(
@@ -378,6 +387,23 @@ class LastIntentSessionController extends ChangeNotifier {
       );
     }
     notifyListeners();
+  }
+
+  Future<ConsultationResult> _fetchSavedConsultationResult({
+    required int customerId,
+    required int consultationResultId,
+  }) async {
+    final List<ConsultationResult> results = await _repository
+        .fetchConsultationResults(customerId);
+    for (final ConsultationResult result in results) {
+      if (result.id == consultationResultId) {
+        return result;
+      }
+    }
+    throw const AppException(
+      '상담 결과 저장 확인에 실패했습니다. 모바일 결과 조회를 다시 시도해 주세요.',
+      code: 'CONSULTATION_RESULT_NOT_FOUND',
+    );
   }
 
   Future<void> updateExecutionStatus(

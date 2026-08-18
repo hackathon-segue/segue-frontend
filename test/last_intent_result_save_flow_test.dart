@@ -27,6 +27,57 @@ class _SpyRepository extends MockSegueRepository {
   }
 }
 
+class _ServerResultRepository extends MockSegueRepository {
+  int executeCallCount = 0;
+  int recordCallCount = 0;
+  int fetchResultsCallCount = 0;
+  bool includeSavedResult = true;
+
+  @override
+  Future<ExecuteConsultationResponse> executeConsultation(
+    ExecuteConsultationRequest request,
+  ) async {
+    executeCallCount++;
+    return const ExecuteConsultationResponse(
+      consultationResultId: 777,
+      completionMessage: '요청이 접수되었습니다. CA가 실제 재고를 확인합니다',
+    );
+  }
+
+  @override
+  Future<void> recordConsultationResult({
+    required int customerId,
+    required ConsultationResult result,
+  }) async {
+    recordCallCount++;
+  }
+
+  @override
+  Future<List<ConsultationResult>> fetchConsultationResults(
+    int customerId,
+  ) async {
+    fetchResultsCallCount++;
+    if (!includeSavedResult) {
+      return const <ConsultationResult>[];
+    }
+    return <ConsultationResult>[
+      ConsultationResult(
+        id: 777,
+        skuId: 1,
+        productName: '서버 저장 제품',
+        imageUrl: 'https://example.com/server.png',
+        resultType: DecisionResultType.exactProduct,
+        recommendedPath: '서버 저장 경로',
+        coreConditions: '서버 저장 핵심 조건',
+        consultedAt: DateTime(2026, 8, 16, 17, 30),
+        executionStatus: ExecutionStatus.requested,
+        executionNote: null,
+        executionUpdatedAt: DateTime(2026, 8, 16, 17, 30),
+      ),
+    ];
+  }
+}
+
 void main() {
   late _SpyRepository repository;
   late LastIntentSessionManager manager;
@@ -86,6 +137,70 @@ void main() {
     expect(stored, hasLength(1));
     expect(stored.first.productName, 'MCM 백팩');
   });
+
+  test(
+    'execute() success verifies the server-saved result and stores that exact mobile payload',
+    () async {
+      final _ServerResultRepository serverRepository =
+          _ServerResultRepository();
+      final LastIntentSessionManager serverManager = LastIntentSessionManager(
+        repository: serverRepository,
+      );
+      addTearDown(serverManager.dispose);
+      final LastIntentSessionController session = serverManager.sessionFor(
+        customer: customer,
+        cartItem: cartItem(1, '로컬 카드 제품'),
+      );
+      await session.structureIntent('편한 느낌이면 좋겠어요');
+      await session.decide();
+
+      await session.execute();
+
+      expect(serverRepository.executeCallCount, 1);
+      expect(serverRepository.recordCallCount, 1);
+      expect(serverRepository.fetchResultsCallCount, 1);
+      expect(session.state.resultSaveState.hasData, isTrue);
+      final ConsultationResult saved = session.state.resultSaveState.data!;
+      expect(saved.id, 777);
+      expect(saved.productName, '서버 저장 제품');
+      expect(saved.recommendedPath, '서버 저장 경로');
+      expect(saved.coreConditions, '서버 저장 핵심 조건');
+      expect(saved.executionStatus, ExecutionStatus.requested);
+    },
+  );
+
+  test(
+    'missing server-saved result is retryable without re-running execute',
+    () async {
+      final _ServerResultRepository serverRepository = _ServerResultRepository()
+        ..includeSavedResult = false;
+      final LastIntentSessionManager serverManager = LastIntentSessionManager(
+        repository: serverRepository,
+      );
+      addTearDown(serverManager.dispose);
+      final LastIntentSessionController session = serverManager.sessionFor(
+        customer: customer,
+        cartItem: cartItem(1, 'MCM 백팩'),
+      );
+      await session.structureIntent('편한 느낌이면 좋겠어요');
+      await session.decide();
+
+      await session.execute();
+
+      expect(session.state.executionResponse, isNotNull);
+      expect(session.state.resultSaveState.hasError, isTrue);
+      expect(serverRepository.executeCallCount, 1);
+      expect(serverRepository.fetchResultsCallCount, 1);
+
+      serverRepository.includeSavedResult = true;
+      await session.retrySaveConsultationResult();
+
+      expect(serverRepository.executeCallCount, 1);
+      expect(serverRepository.fetchResultsCallCount, 2);
+      expect(session.state.resultSaveState.hasData, isTrue);
+      expect(session.state.resultSaveState.data!.id, 777);
+    },
+  );
 
   test(
     'a failed save surfaces an error, keeps execute()/Card data, and retry saves without duplicating',
