@@ -21,7 +21,10 @@ Install dependencies first.
 flutter pub get
 ```
 
-Run Web.
+Run Web — swap `API_BASE_URL` for whatever backend you're pointing at
+(a local server, an ngrok tunnel, a deployed URL). This runs against
+the **real** `/api/...` endpoints by default (see [Environment
+Values](#environment-values)); no other flag is needed.
 
 ```powershell
 flutter run -d chrome --web-port 5173 --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
@@ -41,22 +44,14 @@ flutter devices
 flutter run -d <ios-device-id> --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
 ```
 
-### Running against the real backend
+### Running against mock data instead
 
-The commands above default to `USE_MOCK_DATA=true` (see [Environment
-Values](#environment-values)), so they run against `MockSegueRepository`
-with no backend required. To exercise the real `/api/...` endpoints
-instead, add `--dart-define=USE_MOCK_DATA=false` and point
-`API_BASE_URL` at a running backend:
+To develop screens without a backend, add `--dart-define=USE_MOCK_DATA=true`
+to switch `RepositoryScope` to `MockSegueRepository`:
 
 ```powershell
-flutter run -d chrome --web-port 5173 --dart-define=USE_MOCK_DATA=false --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
+flutter run -d chrome --web-port 5173 --dart-define=USE_MOCK_DATA=true --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
 ```
-
-`RealSegueRepository`/`HttpSegueApiClient` implement every method on
-`SegueRepository` (see `lib/repositories/real_segue_repository.dart`) —
-no code change is needed to switch over, only this flag. Test with the
-demo accounts in [Demo Accounts](#demo-accounts) once the backend is up.
 
 ## Build
 
@@ -78,10 +73,6 @@ Build iOS on macOS.
 flutter build ios --release --dart-define=API_BASE_URL=https://api.example.com --dart-define=APP_ENV=production
 ```
 
-Release builds should always add `--dart-define=USE_MOCK_DATA=false`
-alongside the real `API_BASE_URL` — otherwise the shipped build still
-runs against `MockSegueRepository`.
-
 ## Routes
 
 - `/` redirects to the customer mobile entry screen for now.
@@ -96,7 +87,7 @@ Runtime configuration is read through Dart compile-time defines.
 | --- | --- | --- |
 | `APP_ENV` | `local` | Current frontend environment name |
 | `API_BASE_URL` | `http://localhost:8080` | Backend API base URL |
-| `USE_MOCK_DATA` | `true` | `false` switches `RepositoryScope` to `RealSegueRepository` (real HTTP calls) instead of `MockSegueRepository` |
+| `USE_MOCK_DATA` | `false` | `true` switches `RepositoryScope` to `MockSegueRepository` instead of the real `RealSegueRepository` (HTTP calls to `API_BASE_URL`) |
 | `STORE_ID` | `1` | Store id sent with cart/consultation requests |
 
 ## Project Contracts
@@ -128,7 +119,7 @@ Runtime configuration is read through Dart compile-time defines.
 - Cart save requests use `customerId`, `productId`, `color`, and `size`; the backend resolves `skuId`.
 - Inventory UI models expose only API booleans. Reliability fields such as `confirmed` and `checked_at` stay backend decision-engine inputs.
 - Repository contracts live in `lib/repositories`; `MockSegueRepository` supports screen work before final API integration.
-- `RepositoryScope` switches between mock and real repositories with `--dart-define=USE_MOCK_DATA=false`.
+- `RepositoryScope` switches between mock and real repositories with `--dart-define=USE_MOCK_DATA=true` (real backend is the default).
 - Session state lives in `lib/providers`, so screens consume controllers instead of HTTP details.
 
 ## Folder Structure

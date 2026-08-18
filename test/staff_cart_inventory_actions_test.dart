@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/providers/providers.dart';
+import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/widgets/segue_card_shell.dart';
 import 'package:segue_frontend/widgets/segue_info_card.dart';
 import 'package:segue_frontend/widgets/segue_product_image.dart';
@@ -16,7 +17,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const SegueApp());
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
     final Finder staffWebButton = find.widgetWithText(FilledButton, '직원 웹');
     await tester.ensureVisible(staffWebButton);
     await tester.tap(staffWebButton);
@@ -153,6 +154,19 @@ void main() {
       );
       expect(actionButton.filled, isFalse);
       expect(actionButton.onPressed, isNull);
+
+      final Rect actionButtonRect = tester.getRect(
+        find.widgetWithText(SegueLargeButton, '제품 확인하기'),
+      );
+      final Rect actionLabelRect = tester.getRect(find.text('제품 확인하기'));
+      expect(
+        actionLabelRect.center.dx,
+        closeTo(actionButtonRect.center.dx, 0.5),
+      );
+      expect(
+        actionLabelRect.center.dy,
+        closeTo(actionButtonRect.center.dy, 0.5),
+      );
     },
   );
 

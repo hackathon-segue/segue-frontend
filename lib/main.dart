@@ -17,7 +17,13 @@ void main() {
 }
 
 class SegueApp extends StatefulWidget {
-  const SegueApp({super.key});
+  const SegueApp({this.repository, super.key});
+
+  /// Overrides [AppConfig.useMockData]'s repository choice — tests inject
+  /// `MockSegueRepository()` explicitly here instead of relying on the
+  /// compile-time default (which now defaults to the real HTTP repository,
+  /// see [AppConfig.useMockData]).
+  final SegueRepository? repository;
 
   @override
   State<SegueApp> createState() => _SegueAppState();
@@ -28,9 +34,11 @@ class _SegueAppState extends State<SegueApp> {
   // lifetime of the app so the CA's lookup/consent/cart state survives
   // navigation across the staff/tablet route stack (home → customer lookup
   // → consent), mirroring how RepositoryScope is already shared.
-  late final SegueRepository _repository = AppConfig.useMockData
-      ? MockSegueRepository()
-      : RealSegueRepository(apiClient: HttpSegueApiClient());
+  late final SegueRepository _repository =
+      widget.repository ??
+      (AppConfig.useMockData
+          ? MockSegueRepository()
+          : RealSegueRepository(apiClient: HttpSegueApiClient()));
   late final StaffWebSessionController _staffSessionController =
       StaffWebSessionController(repository: _repository)
         ..onNewLookup = () => _lastIntentSessionManager.reset();

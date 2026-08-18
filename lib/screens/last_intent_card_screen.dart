@@ -179,7 +179,7 @@ class _ProductSummaryCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const SegueProductImage(width: 100, height: 108),
+          SegueProductImage(imageUrl: cartItem.imageUrl, width: 100, height: 108),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -228,7 +228,7 @@ class _NextStepPreviewCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const SegueProductImage(width: 100, height: 108),
+                SegueProductImage(imageUrl: recommended.imageUrl, width: 100, height: 108),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(result.difference, style: SegueCardText.body18),

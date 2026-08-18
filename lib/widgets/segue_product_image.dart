@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 
 /// Product photo widget matching Figma's "image 14/16/17" instances (same
@@ -17,16 +18,33 @@ class SegueProductImage extends StatelessWidget {
   final double width;
   final double height;
 
+  /// API.md documents `imageUrl` as an absolute `https://...` URL, but the
+  /// real backend has been observed returning a path-only value (e.g.
+  /// `/images/products/bag1.png`) — resolving that against the frontend's
+  /// own origin (Image.network's default for a relative URL) would always
+  /// 404 since the API and the web app run on different origins. Resolving
+  /// against [AppConfig.apiBaseUrl] instead makes both shapes work; already-
+  /// absolute URLs (including mock data's `https://example.com/...`) pass
+  /// through [Uri.resolve] unchanged.
+  static String _resolve(String url) {
+    final Uri parsed = Uri.parse(url);
+    if (parsed.hasScheme) {
+      return url;
+    }
+    return Uri.parse(AppConfig.apiBaseUrl).resolve(url).toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (imageUrl == null || imageUrl!.isEmpty) {
       return _placeholder();
     }
     return Image.network(
-      imageUrl!,
+      _resolve(imageUrl!),
       width: width,
       height: height,
       fit: BoxFit.cover,
+      headers: AppConfig.ngrokSkipWarningHeader,
       errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) => _placeholder(),
     );
   }

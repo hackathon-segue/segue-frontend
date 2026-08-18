@@ -395,7 +395,7 @@ class _CartItemRow extends StatelessWidget {
       }
     }
 
-    const Widget image = SegueProductImage(width: 228, height: 247);
+    final Widget image = SegueProductImage(imageUrl: item.imageUrl, width: 228, height: 247);
     final Widget description = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -441,6 +441,8 @@ class _CartItemRow extends StatelessWidget {
       // Figma (98:1725): "SEGUE 진행"'s outline border measures 2px, not
       // this shared widget's unverified 1px default used elsewhere.
       borderWidth: 2,
+      horizontalPadding: 14,
+      centerContent: true,
     );
     const double rowContentWidth = 1340;
     const double rowContentHeight = 247;
@@ -448,7 +450,7 @@ class _CartItemRow extends StatelessWidget {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const SizedBox(
+          SizedBox(
             width: 298,
             child: Align(alignment: Alignment.centerLeft, child: image),
           ),

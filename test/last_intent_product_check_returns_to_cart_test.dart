@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
+import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// "해당 제품 상담 완료" (COMPARISON_EXPERIENCE/TODAY_PURCHASE's
@@ -17,7 +18,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(const SegueApp());
+      await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
       await tester.tap(find.widgetWithText(FilledButton, '직원 웹'));
       await tester.pumpAndSettle();
 

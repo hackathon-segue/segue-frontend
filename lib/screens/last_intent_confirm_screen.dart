@@ -327,7 +327,7 @@ class _SummaryCards extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const _ProductImage(),
+              _ProductImage(imageUrl: cartItem.imageUrl),
               // Figma: image right edge 21+165=186 → product text left
               // 204 = 18px.
               const SizedBox(width: 18),
@@ -368,16 +368,17 @@ class _SummaryCards extends StatelessWidget {
 
 /// Figma (110:2038)'s "image 14" product photo, sized to spec (165×179) —
 /// this screen's cart item is always the SKU the CA started the Last
-/// Intent flow with, and its real photo comes from the backend later, so
-/// this stays the app's usual gray "Image" placeholder rather than the
-/// bundled Figma-authored asset (per explicit direction, unlike
-/// 89:1559/98:1933 where no per-SKU photo will ever exist at all).
+/// Intent flow with, so its real backend `imageUrl` renders here (falling
+/// back to the usual gray "Image" placeholder if it's missing/fails to
+/// load, same as every other product photo in the app).
 class _ProductImage extends StatelessWidget {
-  const _ProductImage();
+  const _ProductImage({required this.imageUrl});
+
+  final String imageUrl;
 
   @override
   Widget build(BuildContext context) {
-    return const SegueProductImage(width: 165, height: 179);
+    return SegueProductImage(imageUrl: imageUrl, width: 165, height: 179);
   }
 }
 

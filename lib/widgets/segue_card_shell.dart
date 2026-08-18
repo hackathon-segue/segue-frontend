@@ -855,6 +855,8 @@ class SegueLargeButton extends StatelessWidget {
     required this.filled,
     required this.onPressed,
     this.borderWidth = 1,
+    this.horizontalPadding = 24,
+    this.centerContent = false,
     super.key,
   });
 
@@ -866,6 +868,8 @@ class SegueLargeButton extends StatelessWidget {
   /// outline buttons); 98:1725's "SEGUE 진행" cart-row button measures a
   /// confirmed 2px border instead.
   final double borderWidth;
+  final double horizontalPadding;
+  final bool centerContent;
 
   @override
   Widget build(BuildContext context) {
@@ -876,7 +880,8 @@ class SegueLargeButton extends StatelessWidget {
         onTap: onPressed,
         child: Container(
           height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          alignment: centerContent ? Alignment.center : null,
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           decoration: filled
               ? null
               : BoxDecoration(
@@ -885,13 +890,10 @@ class SegueLargeButton extends StatelessWidget {
                     width: borderWidth,
                   ),
                 ),
-          // Container(alignment: center) expands to fill any available
-          // width (Align's default behavior when unconstrained) instead of
-          // shrink-wrapping the label — Row(mainAxisSize.min), the pattern
-          // every other button in this file uses, avoids that. Flexible
-          // around the Text is what actually lets it ellipsize instead of
-          // overflowing once a caller (e.g. an Expanded column) gives this
-          // button a tight width narrower than the label's natural size.
+          // Row(mainAxisSize.min) keeps the button shrink-wrapped when
+          // unconstrained. [centerContent] is only for fixed-width call sites
+          // such as cart row action columns; keeping it false by default
+          // preserves consent buttons' natural width inside Wrap.
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[

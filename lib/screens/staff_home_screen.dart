@@ -284,9 +284,13 @@ class _InProgressConsultationCard extends StatelessWidget {
             ),
           ),
           // Figma: image right edge 986+411=1397 → box right 294+1112=1406 = 9px.
-          const Padding(
-            padding: EdgeInsets.only(right: 9),
-            child: SegueProductImage(width: 411, height: 231),
+          Padding(
+            padding: const EdgeInsets.only(right: 9),
+            child: SegueProductImage(
+              imageUrl: recommended?.imageUrl ?? cartItem.imageUrl,
+              width: 411,
+              height: 231,
+            ),
           ),
         ],
       ),

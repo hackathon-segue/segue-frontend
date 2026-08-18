@@ -5,6 +5,7 @@ import '../providers/providers.dart';
 import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/segue_card_shell.dart';
+import '../widgets/segue_product_image.dart';
 import 'last_intent_utterance_screen.dart';
 
 /// Figma node 89:1559 "상담 시작 - 1단계" — reused shell ([SegueCardShell],
@@ -52,7 +53,7 @@ class LastIntentIntroScreen extends StatelessWidget {
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              const Widget image = _ProductImage(width: 296, height: 321);
+              final Widget image = SegueProductImage(imageUrl: cartItem.imageUrl, width: 296, height: 321);
               final Widget buttons = Wrap(
                 alignment: WrapAlignment.end,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -148,27 +149,6 @@ class LastIntentIntroScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Figma (89:1559)'s "image 14" product photo — this specific screen's spec
-/// explicitly calls for the real Figma-authored asset (not this app's usual
-/// gray "Image" placeholder box), since no per-SKU photo exists in the data
-/// layer to swap in instead.
-class _ProductImage extends StatelessWidget {
-  const _ProductImage({required this.width, required this.height});
-
-  final double width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border)),
-      child: Image.asset('assets/images/last_intent_product.png', fit: BoxFit.cover),
     );
   }
 }

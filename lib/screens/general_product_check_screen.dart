@@ -40,7 +40,7 @@ class GeneralProductCheckScreen extends StatelessWidget {
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              final Widget image = const SegueProductImage(width: 296, height: 321);
+              final Widget image = SegueProductImage(imageUrl: cartItem.imageUrl, width: 296, height: 321);
               final Widget button = SegueCtaButton(
                 label: '해당 제품 상담 완료',
                 showArrow: false,

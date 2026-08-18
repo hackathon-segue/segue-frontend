@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
+import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 
 Future<void> _openStaffHome(WidgetTester tester) async {
-  await tester.pumpWidget(const SegueApp());
+  await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
   final Finder staffWebButton = find.widgetWithText(FilledButton, '직원 웹');
   await tester.ensureVisible(staffWebButton);
   await tester.tap(staffWebButton);
@@ -31,7 +32,7 @@ void main() {
   testWidgets('renders the initial customer mobile route', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const SegueApp());
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
 
     expect(find.text('고객 모바일'), findsOneWidget);
     expect(find.text('MCM Last Intent'), findsOneWidget);
