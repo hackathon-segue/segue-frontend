@@ -10,7 +10,6 @@ import 'screens/customer_mobile_entry_screen.dart';
 import 'screens/general_product_check_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'screens/staff_home_screen.dart';
-import 'screens/staff_login_screen.dart';
 import 'utils/app_config.dart';
 import 'utils/app_theme.dart';
 
@@ -28,8 +27,8 @@ class SegueApp extends StatefulWidget {
 class _SegueAppState extends State<SegueApp> {
   // A single repository + staff session controller instance is kept for the
   // lifetime of the app so the CA's lookup/consent/cart state survives
-  // navigation across the staff/tablet route stack (login → home → customer
-  // lookup → consent), mirroring how RepositoryScope is already shared.
+  // navigation across the staff/tablet route stack (home → customer lookup
+  // → consent), mirroring how RepositoryScope is already shared.
   late final SegueRepository _repository = AppConfig.useMockData
       ? MockSegueRepository()
       : RealSegueRepository(apiClient: HttpSegueApiClient());
@@ -62,7 +61,6 @@ class _SegueAppState extends State<SegueApp> {
             routes: <String, WidgetBuilder>{
               AppRoutes.root: (_) => const CustomerMobileEntryScreen(),
               AppRoutes.customerMobile: (_) => const CustomerMobileEntryScreen(),
-              AppRoutes.staffWeb: (_) => const StaffLoginScreen(),
               AppRoutes.staffHome: (_) => const StaffHomeScreen(),
               AppRoutes.customerLookup: (_) => const CustomerLookupScreen(),
               AppRoutes.customerConsent: (_) => const ConsentScreen(),

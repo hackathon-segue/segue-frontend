@@ -28,7 +28,6 @@ abstract final class AppConfig {
 abstract final class AppRoutes {
   static const String root = '/';
   static const String customerMobile = '/mobile';
-  static const String staffWeb = '/staff';
   static const String staffHome = '/staff/home';
   static const String customerLookup = '/staff/customers';
   static const String customerConsent = '/staff/consent';

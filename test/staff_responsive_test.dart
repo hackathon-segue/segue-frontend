@@ -28,14 +28,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      await tester.enterText(find.byType(TextFormField).at(0), 'ca@example.com');
-      await tester.enterText(find.byType(TextFormField).at(1), 'password');
-      FocusManager.instance.primaryFocus?.unfocus();
-      await tester.pump();
-      await tester.tap(find.text('로그인'));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-
       await tester.tap(find.text('고객 조회 시작'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -72,6 +64,47 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
+
+      // Issue #46: continue through the redesigned ("MCM SEGUE") Last
+      // Intent flow — Card, its EXACT_PRODUCT result-detail screen, and the
+      // completion screen — none of which the pre-#46 version of this test
+      // reached, so none of it was actually checked for overflow at
+      // smaller tablet widths.
+      await tester.tap(find.text('Last Intent 시작').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('고객 의도 입력 시작'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.enterText(find.byType(TextFormField), '편한 느낌이면 좋겠어요');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      await tester.tap(find.text('제출'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.text('맞아요, 다음 단계로'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('SEGUE CARD'), findsOneWidget);
+
+      Finder cta = find.text('타 매장 확인 요청');
+      await tester.ensureVisible(cta);
+      await tester.pumpAndSettle();
+      await tester.tap(cta);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('정확한 제품 확인'), findsOneWidget);
+
+      // Detail screen (159:2295) CTA label is a Figma-literal override, not
+      // the same real actionButtonLabel text the Card screen's CTA uses.
+      cta = find.text('타 매장 확인 요청 접수');
+      await tester.ensureVisible(cta);
+      await tester.pumpAndSettle();
+      await tester.tap(cta);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('요청 접수 완료'), findsOneWidget);
     });
   }
 }

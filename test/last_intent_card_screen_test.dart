@@ -3,7 +3,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/providers/providers.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
+import 'package:segue_frontend/screens/last_intent_additional_consultation_screen.dart';
 import 'package:segue_frontend/screens/last_intent_card_screen.dart';
+
+/// Issue #46: ADDITIONAL_CONSULTATION must route to
+/// [LastIntentAdditionalConsultationScreen], never treated as a 4th
+/// product-recommendation result.
+class _AdditionalConsultationRepository extends MockSegueRepository {
+  @override
+  Future<DecisionResult> decide(DecisionRequest request) async {
+    return const DecisionResult(
+      resultType: DecisionResultType.additionalConsultation,
+      coreConditions: '복수의 조건이 명확하지 않습니다.',
+      nextAction: '고객과 함께 핵심 조건을 다시 확인합니다.',
+      reason: '필수 조건과 선호 조건이 상충됩니다.',
+      difference: '',
+      recommendedProduct: null,
+      pathDescription: '',
+      actionType: DecisionActionType.reconsult,
+      actionButtonLabel: '조건 다시 확인하기',
+    );
+  }
+}
 
 /// Issue #14: a decide() response containing forbidden language must never
 /// render as-is — MockSegueRepository's real decide() never produces this,
@@ -109,9 +130,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Issue #46: Card's summary card shows a "제안 제품" line (populated with
+    // the recommended product's name) when recommendedProduct exists —
+    // deeper 제안 제품 vs 확보 경로 rendering now lives on the result-detail
+    // screen this CTA navigates to.
     expect(find.text('제안 제품'), findsOneWidget);
     expect(find.text('MCM 백팩 미디움 (블랙)'), findsOneWidget);
-    expect(find.text('확보 경로'), findsNothing);
     expect(find.text('비교 체험 제품 확인하기'), findsOneWidget);
     // Exactly one CTA — no alternate/second button anywhere on the card.
     expect(find.text('타 매장 확인 요청'), findsNothing);
@@ -209,7 +233,7 @@ void main() {
   );
 
   testWidgets(
-    'tapping the single CTA calls execute() and reaches the 요청 접수 완료 screen with the right message',
+    'tapping the single CTA navigates by resultType instead of calling execute() directly',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
@@ -241,17 +265,46 @@ void main() {
       await tester.tap(cta);
       await tester.pumpAndSettle();
 
-      expect(find.text('요청 접수 완료'), findsOneWidget);
-      expect(find.text('접수됨'), findsOneWidget); // REQUESTED status label
-      // Figma node 14:2301 "접수 내용" — the actual request type, sourced from
-      // the same actionButtonLabel the Card's single CTA showed.
-      expect(find.text('타 매장 확인 요청'), findsOneWidget);
-      // AC: never implies the real-world action itself is done.
-      expect(find.textContaining('완료'), findsWidgets); // only in "요청 접수 완료"/disclaimer, not "구매 완료" etc.
-      expect(find.textContaining('구매 완료'), findsNothing);
-      expect(find.textContaining('예약 완료'), findsNothing);
-      expect(find.textContaining('제품 이동 완료'), findsNothing);
-      expect(session.state.executionStatus, ExecutionStatus.requested);
+      // Issue #46: Card's CTA only navigates — EXACT_PRODUCT goes to the
+      // shared result-detail screen (159:2295), which shows its own real
+      // execute() CTA. execute() itself hasn't been called yet.
+      expect(find.text('정확한 제품 확인'), findsOneWidget);
+      expect(session.state.executionResponse, isNull);
+      expect(session.state.executionStatus, isNull);
     },
   );
+
+  testWidgets('ADDITIONAL_CONSULTATION routes to the additional-consultation screen, not a product screen', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final LastIntentSessionManager manager = LastIntentSessionManager(
+      repository: _AdditionalConsultationRepository(),
+    );
+    final CartItem item = cartItem(1, 'MCM 백팩 미디움');
+    final LastIntentSessionController session = manager.sessionFor(
+      customer: customer,
+      cartItem: item,
+    );
+    await session.structureIntent('그냥 비슷한 느낌이면 다 좋아요');
+    await session.decide();
+
+    await tester.pumpWidget(
+      LastIntentSessionScope(
+        manager: manager,
+        child: MaterialApp(home: LastIntentCardScreen(customer: customer, cartItem: item)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('조건 다시 확인하기'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LastIntentAdditionalConsultationScreen), findsOneWidget);
+    expect(find.text('추가 상담 진행'), findsOneWidget);
+  });
 }

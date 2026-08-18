@@ -23,25 +23,37 @@ class StaffHomeScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 16,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 4,
-                  children: <Widget>[
-                    Text('MCM 상담 지원', style: StaffText.title20Bold),
-                    Text('고객이 앱에서 선택한 제품과 조건을 매장 상담으로 연결합니다.', style: StaffText.body12),
-                  ],
-                ),
-              ),
-              StaffButton(
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final Widget titleColumn = const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 4,
+                children: <Widget>[
+                  Text('MCM 상담 지원', style: StaffText.title20Bold),
+                  Text('고객이 앱에서 선택한 제품과 조건을 매장 상담으로 연결합니다.', style: StaffText.body12),
+                ],
+              );
+              final Widget button = StaffButton(
                 label: '고객 조회 시작',
                 variant: StaffButtonVariant.primary,
                 onPressed: () => Navigator.of(context).pushNamed(AppRoutes.customerLookup),
-              ),
-            ],
+              );
+              // A plain Row here overflows once the title/description column
+              // and the button no longer both fit on one line (e.g. narrow
+              // tablet portrait widths) — the button drops below the title
+              // instead of forcing an overflow.
+              if (constraints.maxWidth < 360) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 12,
+                  children: <Widget>[titleColumn, button],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[Expanded(child: titleColumn), button],
+              );
+            },
           ),
           // IntrinsicHeight gives the stretch-aligned Row a bounded height to
           // stretch to (it would otherwise be infinite inside the shell's
@@ -169,7 +181,15 @@ class _ActiveConsultationRow extends StatelessWidget {
             ],
           ),
         ),
-        Text(status, style: StaffText.meta11),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            status,
+            style: StaffText.meta11,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+          ),
+        ),
       ],
     );
   }

@@ -20,13 +20,6 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '직원 웹'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'ca@example.com');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password');
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pump();
-    await tester.tap(find.text('로그인'));
-    await tester.pumpAndSettle();
-
     await tester.tap(find.text('고객 조회 시작'));
     await tester.pumpAndSettle();
 
