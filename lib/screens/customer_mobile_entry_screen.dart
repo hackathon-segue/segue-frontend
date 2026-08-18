@@ -123,7 +123,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onColorSelected: (String color) {
           setState(() {
             _selectedColor = color;
-            _selectedSize = null;
+            _selectedSize = _selectedProduct.sizes.first;
           });
         },
         onSizeSelected: (String size) => setState(() => _selectedSize = size),
@@ -133,6 +133,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       ),
       _MobileScreen.cartAdded => _CartAddedScreen(
         cartItem: _lastSavedCartItem,
+        cartItems: _cartItems,
         onBack: _openDetailFromCartAdded,
         onOpenCart: _openCart,
         onContinueShopping: _returnToProducts,
@@ -236,7 +237,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     setState(() {
       _selectedProduct = product;
       _selectedColor = product.colors.first;
-      _selectedSize = null;
+      _selectedSize = product.sizes.first;
       _screen = _MobileScreen.detail;
     });
   }
@@ -1283,170 +1284,138 @@ class _ProductDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final Color selectedVisualColor = selectedColor == null
         ? Color(product.visualValue)
         : Color(product.optionForColor(selectedColor!).swatchValue);
+    final String colorLabel = selectedColor ?? product.colors.first;
+    final String sizeLabel = selectedSize ?? 'M';
 
-    return MobileScreenScaffold(
-      title: '제품 상세 화면',
-      showBackButton: true,
-      onBack: onBack,
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              AspectRatio(
-                aspectRatio: 1,
-                child: MobileProductVisual(
-                  product: product,
-                  colorOverride: selectedVisualColor,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _McmTopBar(onLeadingPressed: onBack, onProfilePressed: onBack),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
                 children: <Widget>[
-                  for (final String color in product.colors) ...<Widget>[
-                    Expanded(
-                      child: AspectRatio(
-                        aspectRatio: 1.2,
-                        child: MobileProductVisual(
-                          product: product,
-                          colorOverride: Color(
-                            product.optionForColor(color).swatchValue,
-                          ),
-                          compact: true,
-                        ),
-                      ),
-                    ),
-                    if (color != product.colors.last)
-                      const SizedBox(width: AppSpacing.xs),
-                  ],
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(product.name, style: theme.textTheme.headlineMedium),
-              const SizedBox(height: AppSpacing.xxs),
-              Text(product.collection, style: theme.textTheme.bodyMedium),
-              const SizedBox(height: AppSpacing.lg),
-              Text('컬러 선택', style: theme.textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.xs),
-              Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: <Widget>[
-                  for (final String color in product.colors)
-                    ChoiceChip(
-                      avatar: CircleAvatar(
-                        backgroundColor: Color(
-                          product.optionForColor(color).swatchValue,
-                        ),
-                      ),
-                      label: Text(color),
-                      selected: selectedColor == color,
-                      onSelected: (_) => onColorSelected(color),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('사이즈 선택', style: theme.textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.xs),
-              Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: <Widget>[
-                  for (final String size in product.sizes)
-                    ChoiceChip(
-                      label: Text(size),
-                      selected: selectedSize == size,
-                      onSelected: (_) => onSizeSelected(size),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              _ProductInfoCard(product: product),
-              const SizedBox(height: AppSpacing.md),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text('구매 안내', style: theme.textTheme.titleMedium),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        '장바구니에 저장된 제품과 컬러 정보는 매장 상담 시 Client Advisor가 확인하며 예약 또는 구매 완료가 아닙니다.',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (cartSaveError != null) ...<Widget>[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        const Icon(
-                          Icons.error_outline,
-                          color: AppColors.danger,
-                          size: 20,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
-                            cartSaveError!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.danger,
+                            '신규 컬렉션',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Color(0xFF6D6D6D),
                             ),
                           ),
                         ),
+                        Icon(Icons.shopping_bag_outlined, size: 14),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
-              FilledButton(
-                onPressed: selectedSku == null || isSavingCart
-                    ? null
-                    : onAddToCart,
-                child: Text(isSavingCart ? '저장 중' : '장바구니 담기'),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(48, 46, 48, 30),
+                    child: AspectRatio(
+                      aspectRatio: 0.92,
+                      child: MobileProductVisual(
+                        product: product,
+                        colorOverride: selectedVisualColor,
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE5E5E5)),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          product.name,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          _formatWon(product.price),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        Text(
+                          '색상: $colorLabel',
+                          style: const TextStyle(fontSize: 12, height: 1.3),
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          '사이즈: $sizeLabel',
+                          style: const TextStyle(fontSize: 12, height: 1.3),
+                        ),
+                        const SizedBox(height: 22),
+                        if (product.colors.length > 1)
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              for (final String color in product.colors)
+                                _McmOptionChip(
+                                  label: color,
+                                  selected: selectedColor == color,
+                                  onTap: () => onColorSelected(color),
+                                ),
+                            ],
+                          ),
+                        if (product.sizes.length > 1) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              for (final String size in product.sizes)
+                                _McmOptionChip(
+                                  label: size,
+                                  selected: selectedSize == size,
+                                  onTap: () => onSizeSelected(size),
+                                ),
+                            ],
+                          ),
+                        ],
+                        if (cartSaveError != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          Text(
+                            cartSaveError!,
+                            style: const TextStyle(
+                              color: AppColors.danger,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        _McmPrimaryButton(
+                          label: isSavingCart ? '저장 중' : '쇼핑백에 추가',
+                          onPressed: selectedSku == null || isSavingCart
+                              ? null
+                              : onAddToCart,
+                        ),
+                        const SizedBox(height: 18),
+                        const _McmFinePrint(
+                          '이 제품으로 SEGUE 상담을 받고 싶으신가요? 쇼핑백에 추가해 보세요.',
+                        ),
+                        const SizedBox(height: 6),
+                        const _McmUnderlinedText('SEGUE 상담이 무엇인가요?'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProductInfoCard extends StatelessWidget {
-  const _ProductInfoCard({required this.product});
-
-  final MobileProduct product;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('소재 및 상세 정보', style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.md),
-            _InfoRow(label: '소재', value: product.material),
-            _InfoRow(label: '사이즈', value: product.dimensions),
-            _InfoRow(label: '원산지', value: product.origin),
-            _InfoRow(label: '시즌', value: product.season),
+            ),
           ],
         ),
       ),
@@ -1454,32 +1423,467 @@ class _ProductInfoCard extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+class _McmOptionChip extends StatelessWidget {
+  const _McmOptionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 28,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        constraints: const BoxConstraints(minWidth: 42),
+        decoration: BoxDecoration(
+          color: selected ? Colors.black : Colors.white,
+          border: Border.all(color: Colors.black),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.black,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _McmPrimaryButton extends StatelessWidget {
+  const _McmPrimaryButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF8A8A8A),
+          shape: const RoundedRectangleBorder(),
+          textStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(label),
+      ),
+    );
+  }
+}
+
+class _McmOutlinedButton extends StatelessWidget {
+  const _McmOutlinedButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.black,
+          side: const BorderSide(color: Colors.black),
+          shape: const RoundedRectangleBorder(),
+          textStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(label),
+      ),
+    );
+  }
+}
+
+class _McmFinePrint extends StatelessWidget {
+  const _McmFinePrint(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF777777),
+        fontSize: 9,
+        height: 1.45,
+      ),
+    );
+  }
+}
+
+class _McmUnderlinedText extends StatelessWidget {
+  const _McmUnderlinedText(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF4A4A4A),
+        fontSize: 9,
+        decoration: TextDecoration.underline,
+      ),
+    );
+  }
+}
+
+class _McmSectionDivider extends StatelessWidget {
+  const _McmSectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(height: 1, thickness: 1, color: Color(0xFFE8E8E8));
+  }
+}
+
+class _McmEmptyState extends StatelessWidget {
+  const _McmEmptyState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      message,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 12, height: 1.45),
+    );
+  }
+}
+
+class _ShoppingBagLineItem extends StatelessWidget {
+  const _ShoppingBagLineItem({required this.item});
+
+  final CartItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final MobileProduct product = MobileProductCatalog.productById(
+      item.productId,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 108,
+            height: 108,
+            child: MobileProductVisual(product: product, compact: true),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  item.productName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _formatWon(product.price),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(item.color, style: const TextStyle(fontSize: 10)),
+                const SizedBox(height: 5),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        item.size,
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                    ),
+                    const Text('수량 1', style: TextStyle(fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShoppingBagSummary extends StatelessWidget {
+  const _ShoppingBagSummary({
+    required this.itemCount,
+    required this.totalPrice,
+  });
+
+  final int itemCount;
+  final int totalPrice;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _McmAmountRow(
+          label: '소계 ($itemCount개 품목)',
+          value: _formatWon(totalPrice),
+        ),
+        const _McmAmountRow(label: '배송비', value: '무료'),
+        _McmAmountRow(
+          label: '예상 합계',
+          value: _formatWon(totalPrice),
+          bold: true,
+        ),
+      ],
+    );
+  }
+}
+
+class _ShoppingBagActionPanel extends StatelessWidget {
+  const _ShoppingBagActionPanel({
+    required this.totalLabel,
+    required this.totalPrice,
+    required this.primaryLabel,
+    required this.onPrimary,
+    this.secondaryLabel,
+    this.onSecondary,
+  });
+
+  final String totalLabel;
+  final int totalPrice;
+  final String primaryLabel;
+  final VoidCallback onPrimary;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE5E5E5))),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _McmAmountRow(label: totalLabel, value: _formatWon(totalPrice)),
+            const SizedBox(height: 12),
+            _McmPrimaryButton(label: primaryLabel, onPressed: onPrimary),
+            if (secondaryLabel != null && onSecondary != null) ...<Widget>[
+              const SizedBox(height: 7),
+              _McmOutlinedButton(
+                label: secondaryLabel!,
+                onPressed: onSecondary!,
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: _McmFinePrint('쇼핑백에 상품을 추가하면 SEGUE 상담을 손쉽게 받을 수 있어요.'),
+            ),
+            const SizedBox(height: 6),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: _McmUnderlinedText('SEGUE 상담이 무엇인가요?'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _McmAmountRow extends StatelessWidget {
+  const _McmAmountRow({
+    required this.label,
+    required this.value,
+    this.bold = false,
+  });
+
+  final String label;
+  final String value;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegueHistoryRow extends StatelessWidget {
+  const _SegueHistoryRow({required this.result, required this.onTap});
+
+  final ConsultationResult result;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final MobileProduct product = MobileProductCatalog.productBySkuId(
+      result.skuId,
+    );
+    final MobileSkuOption? sku = MobileProductCatalog.skuById(result.skuId);
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SizedBox(
+                  width: 92,
+                  height: 76,
+                  child: MobileProductVisual(
+                    product: product,
+                    colorOverride: sku == null ? null : Color(sku.swatchValue),
+                    compact: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        color: const Color(0xFF2D2D2D),
+                        child: const Text(
+                          '상담 제품',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        result.productName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _formatWon(product.price),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${sku?.color ?? 'Black'}\n${sku?.size ?? 'M'}',
+                        style: const TextStyle(fontSize: 10, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                _formatKoreanDateTime(result.consultedAt),
+                style: const TextStyle(fontSize: 9, color: Color(0xFF777777)),
+              ),
+            ),
+            const _McmSectionDivider(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _McmResultBlock extends StatelessWidget {
+  const _McmResultBlock({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 17),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SizedBox(
-            width: 72,
-            child: Text(label, style: theme.textTheme.bodySmall),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: theme.textTheme.bodySmall?.copyWith(color: AppColors.ink),
-            ),
-          ),
+          const SizedBox(height: 7),
+          Text(value, style: const TextStyle(fontSize: 10, height: 1.45)),
         ],
       ),
     );
@@ -1489,132 +1893,79 @@ class _InfoRow extends StatelessWidget {
 class _CartAddedScreen extends StatelessWidget {
   const _CartAddedScreen({
     required this.cartItem,
+    required this.cartItems,
     required this.onBack,
     required this.onOpenCart,
     required this.onContinueShopping,
   });
 
   final CartItem? cartItem;
+  final List<CartItem> cartItems;
   final VoidCallback onBack;
   final VoidCallback onOpenCart;
   final VoidCallback onContinueShopping;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final List<CartItem> displayItems = cartItems.isEmpty
+        ? <CartItem>[if (cartItem != null) cartItem!]
+        : cartItems;
+    final int itemCount = displayItems.length;
+    final int totalPrice = displayItems.fold<int>(0, (int sum, CartItem item) {
+      return sum + MobileProductCatalog.productById(item.productId).price;
+    });
 
-    return MobileScreenScaffold(
-      title: '장바구니 추가 완료',
-      showBackButton: true,
-      onBack: onBack,
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        children: <Widget>[
-          Text(
-            '장바구니에 추가되었습니다',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '선택한 제품이 안전하게 저장되었어요',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          if (cartItem == null)
-            const AppStateView.empty(title: '저장된 항목이 없습니다')
-          else
-            _SavedCartItemCard(cartItem: cartItem!),
-          const SizedBox(height: AppSpacing.lg),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton(
-              onPressed: onOpenCart,
-              child: const Text('장바구니 보기'),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton(
-              onPressed: onContinueShopping,
-              child: const Text('계속 쇼핑하기'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SavedCartItemCard extends StatelessWidget {
-  const _SavedCartItemCard({required this.cartItem});
-
-  final CartItem cartItem;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final MobileProduct product = MobileProductCatalog.productById(
-      cartItem.productId,
-    );
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+    return _McmPhoneShell(
+      child: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('저장된 항목', style: theme.textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                SizedBox(
-                  width: 132,
-                  height: 92,
-                  child: MobileProductVisual(product: product, compact: true),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            _McmTopBar(
+              onLeadingPressed: onBack,
+              leadingIcon: Icons.close,
+              onProfilePressed: onBack,
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+                children: <Widget>[
+                  Row(
                     children: <Widget>[
+                      const Expanded(
+                        child: Text(
+                          '새로운 상품이 쇼핑백에 추가되었습니다!',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                       Text(
-                        cartItem.productName,
-                        style: theme.textTheme.bodyMedium?.copyWith(
+                        '($itemCount개 품목)',
+                        style: const TextStyle(
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xxs),
-                      Text(
-                        '선택 컬러 ${cartItem.color}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: AppSpacing.xxs),
-                      Text(
-                        '선택 사이즈 ${cartItem.size}',
-                        style: theme.textTheme.bodySmall,
-                      ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 18),
+                  if (displayItems.isEmpty)
+                    const _McmEmptyState(message: '저장된 항목이 없습니다')
+                  else
+                    for (final CartItem item in displayItems) ...<Widget>[
+                      _ShoppingBagLineItem(item: item),
+                      const _McmSectionDivider(),
+                    ],
+                ],
+              ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.all(AppSpacing.sm),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('수량: 1개'),
-                ),
-              ),
+            _ShoppingBagActionPanel(
+              totalLabel: '합계:',
+              totalPrice: totalPrice,
+              primaryLabel: '쇼핑백 확인하기',
+              onPrimary: onOpenCart,
+              secondaryLabel: '계속 쇼핑하기',
+              onSecondary: onContinueShopping,
             ),
           ],
         ),
@@ -1636,91 +1987,57 @@ class _CartListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final int totalPrice = cartItems.fold<int>(0, (int sum, CartItem item) {
+      return sum + MobileProductCatalog.productById(item.productId).price;
+    });
 
-    return MobileScreenScaffold(
-      title: '앱 장바구니 목록',
-      currentTab: CustomerMobileTab.cart,
-      onTabSelected: onTabSelected,
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        children: <Widget>[
-          Text('장바구니', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.xs),
-          Text('최근 담은 순서', style: theme.textTheme.bodySmall),
-          const SizedBox(height: AppSpacing.md),
-          if (cartItems.isEmpty)
-            const AppStateView.empty(
-              title: '장바구니가 비어 있습니다',
-              message: '마음에 드는 제품을 담아두면 매장 상담 시 함께 확인할 수 있습니다.',
-            )
-          else
-            for (final CartItem cartItem in cartItems) ...<Widget>[
-              _CartListItemCard(cartItem: cartItem),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '저장한 제품은 매장 상담 시 Client Advisor가 함께 확인합니다.',
-            style: theme.textTheme.bodySmall,
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: onBackToProducts,
-              child: const Text('이전 화면으로'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CartListItemCard extends StatelessWidget {
-  const _CartListItemCard({required this.cartItem});
-
-  final CartItem cartItem;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final MobileProduct product = MobileProductCatalog.productById(
-      cartItem.productId,
-    );
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Row(
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
           children: <Widget>[
-            SizedBox(
-              width: 132,
-              height: 92,
-              child: MobileProductVisual(product: product, compact: true),
+            _McmTopBar(
+              onLeadingPressed: onBackToProducts,
+              onProfilePressed: () => onTabSelected(CustomerMobileTab.results),
             ),
-            const SizedBox(width: AppSpacing.md),
+            const Divider(height: 1, color: Color(0xFFE5E5E5)),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    cartItem.productName,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    '${cartItem.color} · ${cartItem.size}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    _formatCartDate(cartItem.savedAt),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
+              child: cartItems.isEmpty
+                  ? const Center(
+                      child: _McmEmptyState(
+                        message: '쇼핑백이 비어 있습니다.\n로그인 후 쇼핑백 확인하러 가기',
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                      children: <Widget>[
+                        Text(
+                          '나의 쇼핑백(${cartItems.length}개 품목)',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        for (final CartItem cartItem in cartItems) ...<Widget>[
+                          _ShoppingBagLineItem(item: cartItem),
+                          const _McmSectionDivider(),
+                        ],
+                        const SizedBox(height: 10),
+                        _ShoppingBagSummary(
+                          itemCount: cartItems.length,
+                          totalPrice: totalPrice,
+                        ),
+                      ],
+                    ),
             ),
+            if (cartItems.isNotEmpty)
+              _ShoppingBagActionPanel(
+                totalLabel: '예상 합계',
+                totalPrice: totalPrice,
+                primaryLabel: '결제하기',
+                onPrimary: onBackToProducts,
+              ),
           ],
         ),
       ),
@@ -1751,162 +2068,84 @@ class _ConsultationResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return MobileScreenScaffold(
-      title: '앱 상담 결과 확인',
-      currentTab: CustomerMobileTab.results,
-      onTabSelected: onTabSelected,
-      body: Builder(
-        builder: (BuildContext context) {
-          if (isLoading) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.xl),
-                child: AppStateView.loading(title: '상담 결과를 불러오는 중입니다'),
-              ),
-            );
-          }
-
-          if (errorMessage != null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xl),
-                child: AppStateView.error(
-                  message: errorMessage,
-                  onAction: onRetry,
-                ),
-              ),
-            );
-          }
-
-          if (results.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.xl),
-                child: AppStateView.empty(
-                  title: '상담 결과가 없습니다',
-                  message: '매장 상담 후 저장된 결과가 이곳에 표시됩니다.',
-                ),
-              ),
-            );
-          }
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xl,
-              AppSpacing.xl,
-              AppSpacing.xxl,
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _McmTopBar(
+              onLeadingPressed: onBackToHome,
+              onProfilePressed: onBackToHome,
             ),
-            children: <Widget>[
-              Text('상담 결과', style: theme.textTheme.titleLarge),
-              const SizedBox(height: AppSpacing.md),
-              for (final ConsultationResult result in results) ...<Widget>[
-                _ConsultationResultSection(
-                  result: result,
-                  onOnlinePurchase: () => onOnlinePurchase(result),
-                  onStoreVisit: () => onStoreVisit(result),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: onBackToHome,
-                  child: const Text('이전 화면으로 돌아가기'),
-                ),
+            const SizedBox(height: 12),
+            const Text(
+              'SEGUE 내역',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+            Expanded(
+              child: Builder(
+                builder: (BuildContext context) {
+                  if (isLoading) {
+                    return const Center(
+                      child: AppStateView.loading(title: '상담 결과를 불러오는 중입니다'),
+                    );
+                  }
+
+                  if (errorMessage != null) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.xl),
+                        child: AppStateView.error(
+                          message: errorMessage,
+                          onAction: onRetry,
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (results.isEmpty) {
+                    return const Center(
+                      child: _McmEmptyState(message: '상담 결과가 없습니다'),
+                    );
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Text(
+                            '총 ${results.length}건의 상담 기록',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF565656),
+                            ),
+                          ),
+                          const Spacer(),
+                          const Text(
+                            '최근 상담순',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF565656),
+                            ),
+                          ),
+                          const Icon(Icons.keyboard_arrow_down, size: 13),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      for (final ConsultationResult result in results)
+                        _SegueHistoryRow(
+                          result: result,
+                          onTap: () => onOnlinePurchase(result),
+                        ),
+                    ],
+                  );
+                },
               ),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
       ),
-    );
-  }
-}
-
-class _ConsultationResultSection extends StatelessWidget {
-  const _ConsultationResultSection({
-    required this.result,
-    required this.onOnlinePurchase,
-    required this.onStoreVisit,
-  });
-
-  final ConsultationResult result;
-  final VoidCallback onOnlinePurchase;
-  final VoidCallback onStoreVisit;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                _ConsultationProductRow(result: result),
-                const SizedBox(height: AppSpacing.md),
-                _ResultField(label: '핵심 조건', value: result.coreConditions),
-                _ResultField(
-                  label: '결과 유형',
-                  value: _resultTypeLabel(result.resultType),
-                ),
-                _ResultField(label: '추천 경로', value: result.recommendedPath),
-                _ResultField(
-                  label: '처리 상태',
-                  value: _executionStatusMessage(result),
-                ),
-                _ResultField(
-                  label: '처리 갱신',
-                  value: _formatKoreanDateTime(result.executionUpdatedAt),
-                ),
-                _ResultField(
-                  label: '상담 시각',
-                  value: _formatKoreanDateTime(result.consultedAt),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('다음 행동 안내', style: theme.textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  _nextActionMessage(result),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton(
-            onPressed: onOnlinePurchase,
-            child: const Text('온라인 구매하기'),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            onPressed: onStoreVisit,
-            child: const Text('매장 재방문 안내 보기'),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1920,76 +2159,95 @@ class _OnlinePurchaseScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ConsultationResult? currentResult = result;
-    final ThemeData theme = Theme.of(context);
 
     if (currentResult == null) {
       return _MissingConsultationResultScreen(
-        title: '온라인 구매 화면',
+        title: 'SEGUE 결과',
         onBack: onBack,
       );
     }
 
-    return MobileScreenScaffold(
-      title: '온라인 구매 화면',
-      showBackButton: true,
-      onBack: onBack,
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        children: <Widget>[
-          Text('온라인 구매 안내', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.md),
-          _ConsultationProductCard(result: currentResult),
-          const SizedBox(height: AppSpacing.md),
-          _InfoCard(
-            title: '온라인 구매 가능 여부',
-            children: <Widget>[
-              Text(
-                '현재 온라인 스토어에서 구매 가능 여부를 확인할 수 있는 제품입니다.',
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text('재고 확인 기준 · 상담 결과', style: theme.textTheme.bodySmall),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const _InfoCard(
-            title: '다음 단계 안내',
-            children: <Widget>[
-              _InstructionLine(number: 1, text: '아래 버튼을 눌러 온라인 스토어로 이동하세요.'),
-              _InstructionLine(number: 2, text: '원하는 컬러와 수량을 선택한 뒤 구매를 진행하세요.'),
-              _InstructionLine(
-                number: 3,
-                text: '구매 완료 후 상담 결과 화면에서 진행 상태를 확인할 수 있습니다.',
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _InfoCard(
-            title: '상담 Client Advisor 안내',
-            children: <Widget>[
-              _StatusBar(result: currentResult),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                '궁금한 점은 매장 재방문 또는 고객센터를 통해 확인하실 수 있습니다.',
-                style: theme.textTheme.bodySmall,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('온라인 스토어 연결은 데모 범위에서 안내만 제공합니다.'),
-                  ),
-                );
-              },
-              child: const Text('온라인 스토어에서 구매하기'),
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _McmTopBar(onLeadingPressed: onBack, leadingIcon: Icons.close),
+            const Text(
+              'SEGUE 결과',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
             ),
-          ),
-        ],
+            const SizedBox(height: 14),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+                    child: _ConsultationProductRow(
+                      result: currentResult,
+                      showBadge: true,
+                    ),
+                  ),
+                  const _McmSectionDivider(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _McmResultBlock(
+                          label: '핵심 조건',
+                          value: currentResult.coreConditions,
+                        ),
+                        _McmResultBlock(
+                          label: '결과 유형',
+                          value: _resultTypeLabel(currentResult.resultType),
+                        ),
+                        _McmResultBlock(
+                          label: '추천 경로',
+                          value: currentResult.recommendedPath,
+                        ),
+                        _McmResultBlock(
+                          label: '상담 날짜',
+                          value: _formatKoreanDateTime(
+                            currentResult.consultedAt,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const _McmSectionDivider(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _ConsultationProductRow(
+                          result: currentResult,
+                          showBadge: true,
+                          recommended: true,
+                        ),
+                        const SizedBox(height: 22),
+                        const Text(
+                          '상담 완료',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '추천 제품은 Client Advisor와 함께 매장에서 확인했습니다. 또한 해당 매장에서 바로 구매가 진행되었습니다.',
+                          style: TextStyle(fontSize: 10, height: 1.45),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2117,42 +2375,32 @@ class _MissingConsultationResultScreen extends StatelessWidget {
   }
 }
 
-class _ConsultationProductCard extends StatelessWidget {
-  const _ConsultationProductCard({required this.result});
-
-  final ConsultationResult result;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: _ConsultationProductRow(result: result, showSku: true),
-      ),
-    );
-  }
-}
-
 class _ConsultationProductRow extends StatelessWidget {
-  const _ConsultationProductRow({required this.result, this.showSku = false});
+  const _ConsultationProductRow({
+    required this.result,
+    this.showBadge = false,
+    this.recommended = false,
+  });
 
   final ConsultationResult result;
-  final bool showSku;
+  final bool showBadge;
+  final bool recommended;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final MobileProduct product = MobileProductCatalog.productBySkuId(
       result.skuId,
     );
     final MobileSkuOption? sku = MobileProductCatalog.skuById(result.skuId);
+    final String color = sku?.color ?? 'Black';
+    final String size = sku?.size ?? 'M';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         SizedBox(
-          width: 132,
-          height: 92,
+          width: recommended ? 102 : 92,
+          height: recommended ? 74 : 86,
           child: MobileProductVisual(
             product: product,
             colorOverride: sku == null ? null : Color(sku.swatchValue),
@@ -2164,25 +2412,50 @@ class _ConsultationProductRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('상담 제품', style: theme.textTheme.bodySmall),
-              const SizedBox(height: AppSpacing.xs),
+              if (showBadge) ...<Widget>[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    color: const Color(0xFF2D2D2D),
+                    child: Text(
+                      recommended ? '추천 제품' : '상담 제품',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ] else
+                const Text(
+                  '상담 제품',
+                  style: TextStyle(fontSize: 10, color: Color(0xFF555555)),
+                ),
               Text(
                 result.productName,
-                style: theme.textTheme.bodyMedium?.copyWith(
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                _formatWon(product.price),
+                style: const TextStyle(
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (sku != null) ...<Widget>[
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  '${sku.color} · ${sku.size}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-              if (showSku) ...<Widget>[
-                const SizedBox(height: AppSpacing.xxs),
-                Text('SKU ${result.skuId}', style: theme.textTheme.bodySmall),
-              ],
+              const SizedBox(height: 7),
+              Text(color, style: const TextStyle(fontSize: 10, height: 1.25)),
+              Text(size, style: const TextStyle(fontSize: 10, height: 1.25)),
             ],
           ),
         ),
@@ -2244,75 +2517,6 @@ class _ResultField extends StatelessWidget {
   }
 }
 
-class _InstructionLine extends StatelessWidget {
-  const _InstructionLine({required this.number, required this.text});
-
-  final int number;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 20,
-            child: Text('$number', style: theme.textTheme.bodySmall),
-          ),
-          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusBar extends StatelessWidget {
-  const _StatusBar({required this.result});
-
-  final ConsultationResult result;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Row(
-          children: <Widget>[
-            Icon(executionStatusIcon(result.executionStatus), size: 18),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    _executionStatusMessage(result),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    '처리 갱신 ${_formatKoreanDateTime(result.executionUpdatedAt)}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _BulletPanel extends StatelessWidget {
   const _BulletPanel({required this.text});
 
@@ -2365,33 +2569,11 @@ String _executionStatusMessage(ConsultationResult result) {
   );
 }
 
-String _nextActionMessage(ConsultationResult result) {
-  final String statusText = _executionStatusMessage(result);
-  final String actionText = switch (result.resultType) {
-    DecisionResultType.exactProduct =>
-      '상담에서 확인된 제품을 온라인으로 확인하거나 가까운 매장 재방문을 준비할 수 있습니다.',
-    DecisionResultType.comparisonExperience =>
-      '비교 체험 제품을 확인한 뒤 매장에서 직접 비교해 볼 수 있습니다.',
-    DecisionResultType.todayPurchase =>
-      '오늘 구매 경로를 확인한 제품입니다. 온라인 안내와 매장 안내를 함께 확인해 주세요.',
-    DecisionResultType.additionalConsultation =>
-      '조건을 조금 더 확인한 뒤 Client Advisor와 추가 상담을 이어갈 수 있습니다.',
-  };
-  return '$actionText $statusText';
-}
-
 String _formatKoreanDateTime(DateTime date) {
   final String meridiem = date.hour < 12 ? '오전' : '오후';
   final int displayHour = date.hour % 12 == 0 ? 12 : date.hour % 12;
   final String minute = date.minute.toString().padLeft(2, '0');
   return '${date.year}년 ${date.month}월 ${date.day}일 $meridiem $displayHour:$minute';
-}
-
-String _formatCartDate(DateTime date) {
-  final String year = date.year.toString().padLeft(4, '0');
-  final String month = date.month.toString().padLeft(2, '0');
-  final String day = date.day.toString().padLeft(2, '0');
-  return '$year. $month. $day 추가';
 }
 
 String _formatWon(int price) {
