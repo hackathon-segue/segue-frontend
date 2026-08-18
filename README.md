@@ -41,6 +41,23 @@ flutter devices
 flutter run -d <ios-device-id> --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
 ```
 
+### Running against the real backend
+
+The commands above default to `USE_MOCK_DATA=true` (see [Environment
+Values](#environment-values)), so they run against `MockSegueRepository`
+with no backend required. To exercise the real `/api/...` endpoints
+instead, add `--dart-define=USE_MOCK_DATA=false` and point
+`API_BASE_URL` at a running backend:
+
+```powershell
+flutter run -d chrome --web-port 5173 --dart-define=USE_MOCK_DATA=false --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
+```
+
+`RealSegueRepository`/`HttpSegueApiClient` implement every method on
+`SegueRepository` (see `lib/repositories/real_segue_repository.dart`) —
+no code change is needed to switch over, only this flag. Test with the
+demo accounts in [Demo Accounts](#demo-accounts) once the backend is up.
+
 ## Build
 
 Build Web.
@@ -61,6 +78,10 @@ Build iOS on macOS.
 flutter build ios --release --dart-define=API_BASE_URL=https://api.example.com --dart-define=APP_ENV=production
 ```
 
+Release builds should always add `--dart-define=USE_MOCK_DATA=false`
+alongside the real `API_BASE_URL` — otherwise the shipped build still
+runs against `MockSegueRepository`.
+
 ## Routes
 
 - `/` redirects to the customer mobile entry screen for now.
@@ -75,6 +96,8 @@ Runtime configuration is read through Dart compile-time defines.
 | --- | --- | --- |
 | `APP_ENV` | `local` | Current frontend environment name |
 | `API_BASE_URL` | `http://localhost:8080` | Backend API base URL |
+| `USE_MOCK_DATA` | `true` | `false` switches `RepositoryScope` to `RealSegueRepository` (real HTTP calls) instead of `MockSegueRepository` |
+| `STORE_ID` | `1` | Store id sent with cart/consultation requests |
 
 ## Project Contracts
 
