@@ -200,6 +200,14 @@ class MockSegueRepository implements SegueRepository {
     required int customerId,
     required ConsultationResult result,
   }) async {
+    if (_consents[customerId] != true) {
+      throw const ApiException(
+        '고객 동의가 필요합니다. 장바구니 조회·상담 결과 저장 전에 데이터 이용 동의를 먼저 받아 주세요.',
+        statusCode: 403,
+        code: 'CONSENT_REQUIRED',
+      );
+    }
+
     final Map<int, ConsultationResult> forCustomer =
         _consultationResultsByCustomer.putIfAbsent(
           customerId,

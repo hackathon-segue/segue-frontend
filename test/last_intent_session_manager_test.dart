@@ -59,28 +59,37 @@ void main() {
 
     // Re-visiting SKU A returns the SAME instance with unchanged state —
     // starting SKU B did not reset or replace it.
-    expect(identical(manager.sessionFor(customer: customer, cartItem: itemA), sessionA), isTrue);
+    expect(
+      identical(
+        manager.sessionFor(customer: customer, cartItem: itemA),
+        sessionA,
+      ),
+      isTrue,
+    );
     expect(sessionA.state.selectedCartItem?.skuId, 1);
   });
 
-  test('mutating one SKU session does not leak into another SKU session', () async {
-    final CartItem itemA = cartItem(1, 'A');
-    final CartItem itemB = cartItem(2, 'B');
+  test(
+    'mutating one SKU session does not leak into another SKU session',
+    () async {
+      final CartItem itemA = cartItem(1, 'A');
+      final CartItem itemB = cartItem(2, 'B');
 
-    final LastIntentSessionController sessionA = manager.sessionFor(
-      customer: customer,
-      cartItem: itemA,
-    );
-    await sessionA.structureIntent('편한 느낌이면 좋겠어요');
-    expect(sessionA.state.structuredIntent, isNotNull);
+      final LastIntentSessionController sessionA = manager.sessionFor(
+        customer: customer,
+        cartItem: itemA,
+      );
+      await sessionA.structureIntent('편한 느낌이면 좋겠어요');
+      expect(sessionA.state.structuredIntent, isNotNull);
 
-    final LastIntentSessionController sessionB = manager.sessionFor(
-      customer: customer,
-      cartItem: itemB,
-    );
-    expect(sessionB.state.utterance, isEmpty);
-    expect(sessionB.state.structuredIntent, isNull);
-  });
+      final LastIntentSessionController sessionB = manager.sessionFor(
+        customer: customer,
+        cartItem: itemB,
+      );
+      expect(sessionB.state.utterance, isEmpty);
+      expect(sessionB.state.structuredIntent, isNull);
+    },
+  );
 
   test('reset clears every SKU session (new customer lookup)', () {
     manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
@@ -94,17 +103,41 @@ void main() {
     expect(manager.isStarted(2), isFalse);
   });
 
-  test('StaffWebSessionController.onNewLookup resets the manager on a new lookup', () async {
-    final StaffWebSessionController staffController = StaffWebSessionController(
-      repository: repository,
-    );
-    staffController.onNewLookup = manager.reset;
+  test(
+    'StaffWebSessionController.onNewLookup resets the manager on a new lookup',
+    () async {
+      final StaffWebSessionController staffController =
+          StaffWebSessionController(repository: repository);
+      staffController.onNewLookup = manager.reset;
 
-    manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
-    expect(manager.isStarted(1), isTrue);
+      manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
+      expect(manager.isStarted(1), isTrue);
 
-    await staffController.lookupCustomer('010-1234-5678');
+      await staffController.lookupCustomer('010-1234-5678');
 
-    expect(manager.isStarted(1), isFalse);
-  });
+      expect(manager.isStarted(1), isFalse);
+    },
+  );
+
+  test(
+    'StaffWebSessionController.onConsentChanged resets in-progress sessions',
+    () async {
+      final StaffWebSessionController staffController =
+          StaffWebSessionController(repository: repository);
+      staffController.onConsentChanged = manager.reset;
+
+      await staffController.lookupCustomer('010-1234-5678');
+      await staffController.loadCart();
+      manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
+      expect(manager.isStarted(1), isTrue);
+      expect(staffController.state.cartState.hasData, isTrue);
+
+      await staffController.submitConsent(false);
+
+      expect(manager.isStarted(1), isFalse);
+      expect(staffController.state.customer?.hasConsented, isFalse);
+      expect(staffController.state.cartItems, isEmpty);
+      expect(staffController.state.cartState.isIdle, isTrue);
+    },
+  );
 }

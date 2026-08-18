@@ -56,6 +56,11 @@ class StaffWebSessionController extends ChangeNotifier {
   /// inherits a previous customer's in-progress Last Intent sessions.
   VoidCallback? onNewLookup;
 
+  /// Fired after a consent record is changed. Consent controls access to the
+  /// customer cart and saved consultation results, so dependent Last Intent
+  /// session state must be discarded when the CA records agree/disagree.
+  VoidCallback? onConsentChanged;
+
   void setStoreId(int storeId) {
     _state = _state.copyWith(storeId: storeId);
     notifyListeners();
@@ -110,10 +115,17 @@ class StaffWebSessionController extends ChangeNotifier {
         customerId: customer.id,
         agreed: agreed,
       );
-      _state = _state.copyWith(
-        customer: customer.copyWith(hasConsented: consent.hasAgreed),
-        consentState: AsyncValue<CustomerConsent>.data(consent),
+      final Customer updatedCustomer = customer.copyWith(
+        hasConsented: consent.hasAgreed,
       );
+      _state = _state.copyWith(
+        customer: updatedCustomer,
+        lookupState: AsyncValue<Customer>.data(updatedCustomer),
+        consentState: AsyncValue<CustomerConsent>.data(consent),
+        cartItems: const <CartItem>[],
+        cartState: const AsyncValue<List<CartItem>>.idle(),
+      );
+      onConsentChanged?.call();
     } catch (error, stackTrace) {
       _state = _state.copyWith(
         consentState: AsyncValue<CustomerConsent>.error(error, stackTrace),
