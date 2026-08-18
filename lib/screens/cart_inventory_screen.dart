@@ -4,6 +4,7 @@ import '../exceptions/app_exception.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
+import '../utils/inventory_display.dart';
 import '../utils/staff_design_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/section_card.dart';
@@ -56,7 +57,9 @@ class CartInventoryScreen extends StatelessWidget {
               const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Expanded(child: Text('장바구니 · 재고 확인', style: StaffText.title20Bold)),
+                  Expanded(
+                    child: Text('장바구니 · 재고 확인', style: StaffText.title20Bold),
+                  ),
                   Flexible(
                     child: Text(
                       '재고 기준 시점: 오늘 업데이트 · 현재 매장 재고는 실시간 동기화가 아닙니다',
@@ -77,7 +80,7 @@ class CartInventoryScreen extends StatelessWidget {
                     Text('재고 안내', style: StaffText.meta11),
                     Text(
                       '현재 매장 재고 정보는 확인 기준 시점 이후 변동될 수 있습니다. '
-                      '재고 없음 제품은 Last Intent 상담을 통해 타 매장 확인 또는 입고 경로를 안내할 수 있습니다.',
+                      '타 매장 보유와 입고 예정은 확인 필요 상태일 때 구매 가능 경로로 확정하지 않습니다.',
                       style: StaffText.meta11,
                     ),
                   ],
@@ -102,7 +105,9 @@ class _CustomerSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final CustomerConsent? consent = state.consentState.data;
-    final String consentDate = consent != null ? formatDateTime(consent.consentedAt) : '-';
+    final String consentDate = consent != null
+        ? formatDateTime(consent.consentedAt)
+        : '-';
     final int itemCount = state.cartState.data?.length ?? 0;
 
     // Figma (14:1051 metadata) lays this out as 6 EQUAL-width flex columns
@@ -110,8 +115,15 @@ class _CustomerSummaryCard extends StatelessWidget {
     // 완료"), not a left-flowing Wrap — so the last two columns must land
     // flush against the card's right edge, not directly after "휴대전화".
     final List<Widget> columns = <Widget>[
-      _InfoColumn(label: '고객', value: customer.name, valueStyle: StaffText.header16SemiBold),
-      _InfoColumn(label: '회원번호', value: 'MCM-${customer.id.toString().padLeft(5, '0')}'),
+      _InfoColumn(
+        label: '고객',
+        value: customer.name,
+        valueStyle: StaffText.header16SemiBold,
+      ),
+      _InfoColumn(
+        label: '회원번호',
+        value: 'MCM-${customer.id.toString().padLeft(5, '0')}',
+      ),
       _InfoColumn(label: '휴대전화', value: customer.phoneNumber),
       const SizedBox.shrink(),
       _InfoColumn(label: '상담 동의 완료', value: consentDate, alignEnd: true),
@@ -130,7 +142,9 @@ class _CustomerSummaryCard extends StatelessWidget {
             return Row(
               spacing: 24,
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[for (final Widget column in columns) Expanded(child: column)],
+              children: <Widget>[
+                for (final Widget column in columns) Expanded(child: column),
+              ],
             );
           }
           // Narrow-viewport fallback (this app's own responsive addition,
@@ -140,13 +154,15 @@ class _CustomerSummaryCard extends StatelessWidget {
           return Wrap(
             spacing: 24,
             runSpacing: 12,
-            children: <Widget>[for (final Widget column in columns) if (column is! SizedBox) column],
+            children: <Widget>[
+              for (final Widget column in columns)
+                if (column is! SizedBox) column,
+            ],
           );
         },
       ),
     );
   }
-
 }
 
 String formatDateTime(DateTime dt) {
@@ -170,12 +186,137 @@ class _InfoColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       spacing: 4,
       children: <Widget>[
         Text(label, style: StaffText.meta11),
         Text(value, style: valueStyle),
       ],
+    );
+  }
+}
+
+class _InventoryCheckPanel extends StatelessWidget {
+  const _InventoryCheckPanel({required this.checks});
+
+  final List<InventoryCheckPresentation> checks;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasUnconfirmed = checks.any(
+      (InventoryCheckPresentation check) => check.needsVerification,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 8,
+      children: <Widget>[
+        const Divider(height: 1, color: StaffColors.cardBorder),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            const Text('재고/입고 확인 상태', style: StaffText.meta11),
+            if (hasUnconfirmed)
+              const Text('확인 필요 정보 포함', style: StaffText.meta11),
+          ],
+        ),
+        for (final InventoryCheckPresentation check in checks)
+          _InventoryCheckLine(check: check),
+        if (hasUnconfirmed)
+          const Text(
+            '확인 필요 또는 오래된 정보는 구매 가능 경로로 확정하지 않고 CA가 다시 확인합니다.',
+            style: StaffText.meta11,
+          ),
+      ],
+    );
+  }
+}
+
+class _InventoryCheckLine extends StatelessWidget {
+  const _InventoryCheckLine({required this.check});
+
+  final InventoryCheckPresentation check;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget meta = Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: <Widget>[
+        _InventoryStateBadge(state: check.state, label: check.stateLabel),
+        Text(check.referenceLabel, style: StaffText.meta11),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        if (constraints.maxWidth < 620) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 4,
+            children: <Widget>[
+              Text(check.label, style: StaffText.meta11),
+              Text(check.value, style: StaffText.body12),
+              meta,
+              Text(check.note, style: StaffText.meta11),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SizedBox(
+              width: 96,
+              child: Text(check.label, style: StaffText.meta11),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 4,
+                children: <Widget>[
+                  Text(check.value, style: StaffText.body12),
+                  Text(check.note, style: StaffText.meta11),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(width: 180, child: meta),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _InventoryStateBadge extends StatelessWidget {
+  const _InventoryStateBadge({required this.state, required this.label});
+
+  final InventoryCheckState state;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = switch (state) {
+      InventoryCheckState.confirmed => const Color(0xFF15803D),
+      InventoryCheckState.needsCheck => const Color(0xFFB45309),
+      InventoryCheckState.stale => const Color(0xFF92400E),
+      InventoryCheckState.unverified => StaffColors.muted,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(StaffRadii.chip),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(label, style: StaffText.meta11.copyWith(color: color)),
     );
   }
 }
@@ -199,7 +340,9 @@ class _CartList extends StatelessWidget {
     }
     if (cartState.hasError) {
       final Object? error = cartState.error;
-      final String message = error is AppException ? error.message : '장바구니를 불러오지 못했습니다.';
+      final String message = error is AppException
+          ? error.message
+          : '장바구니를 불러오지 못했습니다.';
       return AppStateView.error(message: message);
     }
     final List<CartItem> items = cartState.data ?? const <CartItem>[];
@@ -210,7 +353,8 @@ class _CartList extends StatelessWidget {
     return Column(
       spacing: 16,
       children: <Widget>[
-        for (final CartItem item in items) _CartInventoryRow(customer: customer, item: item),
+        for (final CartItem item in items)
+          _CartInventoryRow(customer: customer, item: item),
       ],
     );
   }
@@ -227,7 +371,9 @@ class _SessionStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = completed ? const Color(0xFF15803D) : const Color(0xFFB45309);
+    final Color color = completed
+        ? const Color(0xFF15803D)
+        : const Color(0xFFB45309);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -254,17 +400,23 @@ class _AllLastIntentCompleteBanner extends StatelessWidget {
     return ListenableBuilder(
       listenable: manager,
       builder: (BuildContext context, Widget? _) {
-        final List<CartItem> outOfStockItems = (cartState.data ?? const <CartItem>[])
-            .where((CartItem item) => !item.inventory.currentStoreInStock)
-            .toList();
+        final List<CartItem> outOfStockItems =
+            (cartState.data ?? const <CartItem>[])
+                .where((CartItem item) => !item.inventory.currentStoreInStock)
+                .toList();
         final bool allComplete =
             outOfStockItems.isNotEmpty &&
-            outOfStockItems.every((CartItem item) => manager.isCompleted(item.skuId));
+            outOfStockItems.every(
+              (CartItem item) => manager.isCompleted(item.skuId),
+            );
         if (!allComplete) {
           return const SizedBox.shrink();
         }
         return const SectionCard(
-          child: Text('미보유 제품의 Last Intent 상담이 모두 완료되었습니다.', style: StaffText.body12),
+          child: Text(
+            '미보유 제품의 Last Intent 상담이 모두 완료되었습니다.',
+            style: StaffText.body12,
+          ),
         );
       },
     );
@@ -287,7 +439,8 @@ class _CartInventoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LastIntentSessionManager lastIntentManager = LastIntentSessionScope.of(context);
+    final LastIntentSessionManager lastIntentManager =
+        LastIntentSessionScope.of(context);
 
     return ListenableBuilder(
       listenable: lastIntentManager,
@@ -297,8 +450,14 @@ class _CartInventoryRow extends StatelessWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, LastIntentSessionManager lastIntentManager) {
+  Widget _buildCard(
+    BuildContext context,
+    LastIntentSessionManager lastIntentManager,
+  ) {
     final bool inStock = item.inventory.currentStoreInStock;
+    final List<InventoryCheckPresentation> inventoryChecks = inventoryChecksFor(
+      item,
+    );
     // API.md/SCHEMA.md only expose a per-SKU currentStoreInStock boolean —
     // there is no field distinguishing "this color/size unavailable" from
     // "the whole product unavailable" (CLAUDE.md F2's two non-stock
@@ -312,8 +471,10 @@ class _CartInventoryRow extends StatelessWidget {
     // LastIntentSessionManager, so this row's badge only ever reflects THIS
     // item's own skuId — never a different row's in-progress/completed
     // session.
-    final bool sessionStarted = !inStock && lastIntentManager.isStarted(item.skuId);
-    final bool sessionCompleted = !inStock && lastIntentManager.isCompleted(item.skuId);
+    final bool sessionStarted =
+        !inStock && lastIntentManager.isStarted(item.skuId);
+    final bool sessionCompleted =
+        !inStock && lastIntentManager.isCompleted(item.skuId);
     final String? sessionStatusLabel = sessionCompleted
         ? '상담 완료'
         : sessionStarted
@@ -330,7 +491,11 @@ class _CartInventoryRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 4,
             children: <Widget>[
-              Text(item.productName, style: StaffText.body12, overflow: TextOverflow.ellipsis),
+              Text(
+                item.productName,
+                style: StaffText.body12,
+                overflow: TextOverflow.ellipsis,
+              ),
               Text(
                 '컬러: ${item.color} · 사이즈: ${item.size}',
                 style: StaffText.meta11,
@@ -358,13 +523,20 @@ class _CartInventoryRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: <Widget>[
             Text(statusLabel, style: StaffText.meta11),
-            StaffButton(label: chipLabel, variant: StaffButtonVariant.chip, onPressed: null),
+            StaffButton(
+              label: chipLabel,
+              variant: StaffButtonVariant.chip,
+              onPressed: null,
+            ),
             // Issue #9 AC: "상담 완료 여부 표시" — only ever reflects this row's
             // own SKU, never another out-of-stock row's session. No Figma
             // spec exists for this badge yet, so the colors here are a
             // placeholder pending final design.
             if (sessionStatusLabel != null)
-              _SessionStatusBadge(label: sessionStatusLabel, completed: sessionCompleted),
+              _SessionStatusBadge(
+                label: sessionStatusLabel,
+                completed: sessionCompleted,
+              ),
           ],
         ),
         StaffButton(
@@ -382,8 +554,11 @@ class _CartInventoryRow extends StatelessWidget {
               lastIntentManager.sessionFor(customer: customer, cartItem: item);
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => LastIntentIntroScreen(customer: customer, cartItem: item),
-                  settings: const RouteSettings(name: AppRoutes.lastIntentIntro),
+                  builder: (_) =>
+                      LastIntentIntroScreen(customer: customer, cartItem: item),
+                  settings: const RouteSettings(
+                    name: AppRoutes.lastIntentIntro,
+                  ),
                 ),
               );
             }
@@ -395,17 +570,34 @@ class _CartInventoryRow extends StatelessWidget {
     return SectionCard(
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
+          final Widget summary;
           if (constraints.maxWidth >= _rowBreakpoint) {
-            return Row(
+            summary = Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               spacing: 16,
-              children: <Widget>[Expanded(child: leading), trailing],
+              children: <Widget>[
+                Expanded(child: leading),
+                trailing,
+              ],
+            );
+          } else {
+            summary = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 8,
+              children: <Widget>[
+                leading,
+                Align(alignment: Alignment.centerRight, child: trailing),
+              ],
             );
           }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 8,
-            children: <Widget>[leading, Align(alignment: Alignment.centerRight, child: trailing)],
+            spacing: 12,
+            children: <Widget>[
+              summary,
+              _InventoryCheckPanel(checks: inventoryChecks),
+            ],
           );
         },
       ),

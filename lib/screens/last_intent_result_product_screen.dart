@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
+import '../utils/inventory_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
@@ -37,16 +38,22 @@ String _figmaCtaLabel(DecisionResult result) {
 }
 
 class LastIntentResultProductScreen extends StatefulWidget {
-  const LastIntentResultProductScreen({required this.customer, required this.cartItem, super.key});
+  const LastIntentResultProductScreen({
+    required this.customer,
+    required this.cartItem,
+    super.key,
+  });
 
   final Customer customer;
   final CartItem cartItem;
 
   @override
-  State<LastIntentResultProductScreen> createState() => _LastIntentResultProductScreenState();
+  State<LastIntentResultProductScreen> createState() =>
+      _LastIntentResultProductScreenState();
 }
 
-class _LastIntentResultProductScreenState extends State<LastIntentResultProductScreen> {
+class _LastIntentResultProductScreenState
+    extends State<LastIntentResultProductScreen> {
   bool _executing = false;
 
   // MockSegueRepository resolves near-instantly, so without an artificial
@@ -79,19 +86,26 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
       return;
     }
     setState(() => _executing = false);
-    if (session.state.executionResponse != null && session.state.resultSaveState.hasData) {
+    if (session.state.executionResponse != null &&
+        session.state.resultSaveState.hasData) {
       // "해당 제품 상담 완료" (COMPARISON_EXPERIENCE/TODAY_PURCHASE's
       // productCheckRequest CTA) skips the "요청 접수 완료" hand-off screen and
       // returns straight to the cart — that screen's row already reflects
       // this SKU's session via LastIntentSessionManager.isCompleted(), which
       // just flipped true because executionResponse is now set. Every other
       // actionType keeps going to the completion screen.
-      if (session.state.decisionResult?.actionType == DecisionActionType.productCheckRequest) {
-        Navigator.of(context).popUntil(ModalRoute.withName(AppRoutes.cartInventory));
+      if (session.state.decisionResult?.actionType ==
+          DecisionActionType.productCheckRequest) {
+        Navigator.of(
+          context,
+        ).popUntil(ModalRoute.withName(AppRoutes.cartInventory));
       } else {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => LastIntentCompletionScreen(customer: widget.customer, cartItem: widget.cartItem),
+            builder: (_) => LastIntentCompletionScreen(
+              customer: widget.customer,
+              cartItem: widget.cartItem,
+            ),
           ),
         );
       }
@@ -117,7 +131,10 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
           );
         }
 
-        final _ResultTypeConfig config = _ResultTypeConfig.of(result, widget.cartItem);
+        final _ResultTypeConfig config = _ResultTypeConfig.of(
+          result,
+          widget.cartItem,
+        );
 
         if (_executing || session.state.executionState.isLoading) {
           return _ResultScaffold(
@@ -125,7 +142,9 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
             title: config.title,
             subtitle: config.subtitle,
             child: AppStateView.loading(
-              title: session.state.executionState.isLoading ? '요청을 접수하고 있습니다' : '상담 결과를 저장하고 있습니다',
+              title: session.state.executionState.isLoading
+                  ? '요청을 접수하고 있습니다'
+                  : '상담 결과를 저장하고 있습니다',
             ),
           );
         }
@@ -162,14 +181,17 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
           ctaLabel: _figmaCtaLabel(result),
           // Figma (159:2213/169:4101): the "해당 제품 상담 완료" button has no
           // trailing arrow, unlike every other Continue Button in this flow.
-          ctaShowArrow: result.actionType != DecisionActionType.productCheckRequest,
+          ctaShowArrow:
+              result.actionType != DecisionActionType.productCheckRequest,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+                decoration: BoxDecoration(
+                  border: Border.all(color: SegueCardColors.border, width: 2),
+                ),
                 child: _ProductRow(
                   productName: config.productName,
                   color: config.color,
@@ -192,7 +214,10 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
                     SegueInfoCard(
                       title: '고객 핵심 조건',
                       height: cardHeight,
-                      child: Text(result.coreConditions, style: SegueCardText.body18),
+                      child: Text(
+                        result.coreConditions,
+                        style: SegueCardText.body18,
+                      ),
                     ),
                     SegueInfoCard(
                       title: config.card2Label,
@@ -219,7 +244,10 @@ class _LastIntentResultProductScreenState extends State<LastIntentResultProductS
                   }
                   return Column(
                     children: <Widget>[
-                      for (final Widget c in cards) ...<Widget>[c, const SizedBox(height: 16)],
+                      for (final Widget c in cards) ...<Widget>[
+                        c,
+                        const SizedBox(height: 16),
+                      ],
                     ],
                   );
                 },
@@ -259,9 +287,14 @@ class _ResultScaffold extends StatelessWidget {
       subtitle: subtitle,
       body: child,
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
+        onBackToStart: () =>
+            Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
         cta: ctaLabel != null
-            ? SegueCtaButton(label: ctaLabel!, onPressed: onCta, showArrow: ctaShowArrow)
+            ? SegueCtaButton(
+                label: ctaLabel!,
+                onPressed: onCta,
+                showArrow: ctaShowArrow,
+              )
             : null,
       ),
     );
@@ -367,6 +400,12 @@ class _ResultTypeConfig {
   factory _ResultTypeConfig.of(DecisionResult result, CartItem cartItem) {
     switch (result.resultType) {
       case DecisionResultType.exactProduct:
+        final List<InventoryCheckPresentation> checks = inventoryChecksFor(
+          cartItem,
+        );
+        final InventoryCheckPresentation currentStore = checks[0];
+        final InventoryCheckPresentation otherStoreCheck = checks[1];
+        final InventoryCheckPresentation restockCheck = checks[2];
         final bool otherStore = cartItem.inventory.otherStoreInStock;
         final bool restock = cartItem.inventory.restockPlanned;
         return _ResultTypeConfig(
@@ -375,31 +414,46 @@ class _ResultTypeConfig {
           productName: cartItem.productName,
           color: cartItem.color,
           size: cartItem.size,
-          chipLabel: otherStore ? '타 매장 보유' : (restock ? '입고 예정' : '확인 필요'),
+          chipLabel: otherStore
+              ? '타 매장 확인 필요'
+              : (restock ? '입고 재확인 필요' : '확인 필요'),
           card2Label: '제품 확보 정보',
           card2Content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               SegueLabelValueRow(
-                label: '현재 매장',
-                value: cartItem.inventory.currentStoreInStock ? '보유' : '미보유',
+                label: '현재 매장 재고',
+                value: _inventoryResultText(currentStore),
               ),
-              SegueLabelValueRow(label: '보유 매장', value: result.pathDescription),
-              SegueLabelValueRow(label: '입고 예정', value: restock ? '입고 예정 있음' : '확인 필요'),
+              SegueLabelValueRow(
+                label: '타 매장 보유',
+                value: _inventoryResultText(otherStoreCheck),
+              ),
+              if (otherStore)
+                SegueLabelValueRow(
+                  label: '확보 후보',
+                  value: '${result.pathDescription} · CA 재확인 필요',
+                ),
+              SegueLabelValueRow(
+                label: '입고 예정',
+                value: _inventoryResultText(restockCheck),
+              ),
             ],
           ),
         );
       case DecisionResultType.comparisonExperience:
       case DecisionResultType.todayPurchase:
-        final ProductSkuSummary product = result.recommendedProduct ?? cartItem.skuSummary;
+        final ProductSkuSummary product =
+            result.recommendedProduct ?? cartItem.skuSummary;
         return _ResultTypeConfig(
-          title: result.resultType == DecisionResultType.comparisonExperience ? '비교 체험 제품' : '오늘 구매 가능한 제품',
-          subtitle: '원제품의 소재와 시그니처 인상을 현재 매장에서 직접 확인할 수 있는 제품입니다.',
+          title: result.resultType == DecisionResultType.comparisonExperience
+              ? '비교 체험 제품'
+              : '오늘 구매 가능한 제품',
+          subtitle: 'Client Advisor가 현재 매장 재고를 다시 확인한 뒤 체험 또는 구매 경로를 안내합니다.',
           productName: product.productName,
           color: product.color,
           size: product.size,
-          // Figma (159:2173/159:3053) — confirmed both use "타 매장 보유".
-          chipLabel: '타 매장 보유',
+          chipLabel: '재고 확인 필요',
           card2Label: '원제품과의 차이',
           card2Content: Text(result.difference, style: SegueCardText.body18),
         );
@@ -427,4 +481,8 @@ class _ResultTypeConfig {
   final String chipLabel;
   final String card2Label;
   final Widget card2Content;
+}
+
+String _inventoryResultText(InventoryCheckPresentation check) {
+  return '${check.value} · ${check.stateLabel} · ${check.referenceLabel}';
 }
