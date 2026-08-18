@@ -85,7 +85,10 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
                 phonePattern: _phonePattern,
                 onSubmit: () => _submit(controller),
               );
-              final Widget result = _ResultPanel(state: state);
+              final Widget result = _ResultPanel(
+                state: state,
+                onRetryLookup: _phoneController.text.trim().isEmpty ? null : () => _submit(controller),
+              );
 
               // Figma: search column (335) → result card left 725, content
               // area left 294 → 725-294-335=96px gap.
@@ -175,9 +178,13 @@ class _SearchPanel extends StatelessWidget {
 }
 
 class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({required this.state});
+  const _ResultPanel({required this.state, required this.onRetryLookup});
 
   final StaffWebSessionState state;
+
+  /// Null when the phone field is empty (nothing to retry with yet), same
+  /// gating [_SearchPanel]'s submit button already applies.
+  final VoidCallback? onRetryLookup;
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +194,14 @@ class _ResultPanel extends StatelessWidget {
     if (state.lookupState.hasError) {
       final Object? error = state.lookupState.error;
       final String message = error is AppException ? error.message : '회원 정보를 다시 확인해 주세요.';
-      return AppStateView.error(message: message);
+      final bool notFound =
+          (error is ApiException && error.statusCode == 404) ||
+          (error is AppException && error.code == 'CUSTOMER_NOT_FOUND');
+      return AppStateView.error(
+        title: notFound ? '조회 결과가 없습니다' : '고객 조회에 실패했습니다',
+        message: message,
+        onAction: onRetryLookup,
+      );
     }
     final Customer? customer = state.customer;
     if (customer == null) {

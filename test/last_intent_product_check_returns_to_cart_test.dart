@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
+import 'package:segue_frontend/utils/app_config.dart';
 import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// "해당 제품 상담 완료" (COMPARISON_EXPERIENCE/TODAY_PURCHASE's
@@ -19,7 +20,10 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
-      await tester.tap(find.widgetWithText(FilledButton, '직원 웹'));
+      // The mobile customer entry screen no longer has a "직원 웹" button
+      // (it's now the real customer-facing app) — reach staff routes via a
+      // direct named push instead, same as the app's own wireframe QA does.
+      Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('START SEGUE'));

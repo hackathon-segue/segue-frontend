@@ -321,6 +321,18 @@ class _CartList extends StatelessWidget {
       final String message = error is AppException
           ? error.message
           : '장바구니를 불러오지 못했습니다.';
+      // A stale `hasConsented: true` on the looked-up Customer (consent
+      // revoked/expired server-side since lookup) surfaces here as a 403
+      // instead of the pre-check above — same messaging/redirect either way.
+      final bool consentRequired = error is ApiException && error.isConsentRequired;
+      if (consentRequired) {
+        return AppStateView.error(
+          title: '데이터 이용 동의가 필요합니다',
+          message: '동의 확인 후 장바구니 목록을 볼 수 있습니다.',
+          actionLabel: '동의 화면으로 이동',
+          onAction: () => Navigator.of(context).pushNamed(AppRoutes.customerConsent),
+        );
+      }
       return AppStateView.error(message: message);
     }
     final List<CartItem> items = cartState.data ?? const <CartItem>[];

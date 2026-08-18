@@ -37,11 +37,12 @@ class _SegueAppState extends State<SegueApp> {
   late final SegueRepository _repository =
       widget.repository ??
       (AppConfig.useMockData
-          ? MockSegueRepository()
+          ? MockSegueRepository(seedDemoConsultationResults: true)
           : RealSegueRepository(apiClient: HttpSegueApiClient()));
   late final StaffWebSessionController _staffSessionController =
       StaffWebSessionController(repository: _repository)
-        ..onNewLookup = () => _lastIntentSessionManager.reset();
+        ..onNewLookup = _lastIntentSessionManager.reset
+        ..onConsentChanged = _lastIntentSessionManager.reset;
   late final LastIntentSessionManager _lastIntentSessionManager =
       LastIntentSessionManager(repository: _repository);
 
@@ -64,14 +65,15 @@ class _SegueAppState extends State<SegueApp> {
             title: AppConfig.appName,
             debugShowCheckedModeBanner: false,
             theme: SegueTheme.light(),
-            initialRoute: AppRoutes.root,
             routes: <String, WidgetBuilder>{
               AppRoutes.root: (_) => const CustomerMobileEntryScreen(),
-              AppRoutes.customerMobile: (_) => const CustomerMobileEntryScreen(),
+              AppRoutes.customerMobile: (_) =>
+                  const CustomerMobileEntryScreen(),
               AppRoutes.staffHome: (_) => const StaffHomeScreen(),
               AppRoutes.customerLookup: (_) => const CustomerLookupScreen(),
               AppRoutes.customerConsent: (_) => const ConsentScreen(),
-              AppRoutes.customerConsentDeclined: (_) => const ConsentDeclinedScreen(),
+              AppRoutes.customerConsentDeclined: (_) =>
+                  const ConsentDeclinedScreen(),
               AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
             },
             onUnknownRoute: (RouteSettings settings) {

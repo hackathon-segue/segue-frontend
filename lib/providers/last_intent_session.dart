@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../exceptions/app_exception.dart';
 import '../models/models.dart';
 import '../repositories/repositories.dart';
 import '../utils/app_config.dart';
@@ -23,6 +24,8 @@ class LastIntentSessionState {
     this.decisionState = const AsyncValue<DecisionResult>.idle(),
     this.executionState = const AsyncValue<ExecuteConsultationResponse>.idle(),
     this.resultSaveState = const AsyncValue<ConsultationResult>.idle(),
+    this.executionStatusUpdateState =
+        const AsyncValue<ConsultationResult>.idle(),
   });
 
   final int storeId;
@@ -52,6 +55,7 @@ class LastIntentSessionState {
   // (and retry only the save, not re-execute) rather than treating "saved"
   // as implied by "executed".
   final AsyncValue<ConsultationResult> resultSaveState;
+  final AsyncValue<ConsultationResult> executionStatusUpdateState;
 
   LastIntentSessionState copyWith({
     int? storeId,
@@ -70,6 +74,8 @@ class LastIntentSessionState {
     AsyncValue<DecisionResult>? decisionState,
     AsyncValue<ExecuteConsultationResponse>? executionState,
     AsyncValue<ConsultationResult>? resultSaveState,
+    AsyncValue<ConsultationResult>? executionStatusUpdateState,
+    bool clearExecutionNote = false,
   }) {
     return LastIntentSessionState(
       storeId: storeId ?? this.storeId,
@@ -82,12 +88,16 @@ class LastIntentSessionState {
       decisionResult: decisionResult ?? this.decisionResult,
       executionResponse: executionResponse ?? this.executionResponse,
       executionStatus: executionStatus ?? this.executionStatus,
-      executionNote: executionNote ?? this.executionNote,
+      executionNote: clearExecutionNote
+          ? null
+          : executionNote ?? this.executionNote,
       intentState: intentState ?? this.intentState,
       followUpState: followUpState ?? this.followUpState,
       decisionState: decisionState ?? this.decisionState,
       executionState: executionState ?? this.executionState,
       resultSaveState: resultSaveState ?? this.resultSaveState,
+      executionStatusUpdateState:
+          executionStatusUpdateState ?? this.executionStatusUpdateState,
     );
   }
 }
@@ -314,12 +324,17 @@ class LastIntentSessionController extends ChangeNotifier {
     await _saveConsultationResult(response);
   }
 
-  Future<void> _saveConsultationResult(ExecuteConsultationResponse response) async {
+  Future<void> _saveConsultationResult(
+    ExecuteConsultationResponse response,
+  ) async {
     final Customer? customer = _state.customer;
     final CartItem? selectedCartItem = _state.selectedCartItem;
     final DecisionResult? decisionResult = _state.decisionResult;
     final ExecutionStatus? executionStatus = _state.executionStatus;
-    if (customer == null || selectedCartItem == null || decisionResult == null || executionStatus == null) {
+    if (customer == null ||
+        selectedCartItem == null ||
+        decisionResult == null ||
+        executionStatus == null) {
       return;
     }
 
@@ -348,11 +363,91 @@ class LastIntentSessionController extends ChangeNotifier {
     );
 
     try {
-      await _repository.recordConsultationResult(customerId: customer.id, result: result);
-      _state = _state.copyWith(resultSaveState: AsyncValue<ConsultationResult>.data(result));
+      await _repository.recordConsultationResult(
+        customerId: customer.id,
+        result: result,
+      );
+      final ConsultationResult savedResult =
+          await _fetchSavedConsultationResult(
+            customerId: customer.id,
+            consultationResultId: response.consultationResultId,
+          );
+      _state = _state.copyWith(
+        executionStatus: savedResult.executionStatus,
+        executionNote: savedResult.executionNote,
+        clearExecutionNote: savedResult.executionNote == null,
+        resultSaveState: AsyncValue<ConsultationResult>.data(savedResult),
+      );
     } catch (error, stackTrace) {
       _state = _state.copyWith(
-        resultSaveState: AsyncValue<ConsultationResult>.error(error, stackTrace),
+        resultSaveState: AsyncValue<ConsultationResult>.error(
+          error,
+          stackTrace,
+        ),
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<ConsultationResult> _fetchSavedConsultationResult({
+    required int customerId,
+    required int consultationResultId,
+  }) async {
+    final List<ConsultationResult> results = await _repository
+        .fetchConsultationResults(customerId);
+    for (final ConsultationResult result in results) {
+      if (result.id == consultationResultId) {
+        return result;
+      }
+    }
+    throw const AppException(
+      '상담 결과 저장 확인에 실패했습니다. 모바일 결과 조회를 다시 시도해 주세요.',
+      code: 'CONSULTATION_RESULT_NOT_FOUND',
+    );
+  }
+
+  Future<void> updateExecutionStatus(
+    ExecutionStatus status, {
+    String? note,
+  }) async {
+    final ExecuteConsultationResponse? response = _state.executionResponse;
+    if (response == null) {
+      return;
+    }
+
+    final String? trimmedNote = note?.trim();
+    _state = _state.copyWith(
+      executionStatusUpdateState:
+          const AsyncValue<ConsultationResult>.loading(),
+    );
+    notifyListeners();
+
+    try {
+      final ConsultationResult updated = await _repository
+          .updateExecutionStatus(
+            consultationResultId: response.consultationResultId,
+            request: ExecutionStatusUpdateRequest(
+              status: status,
+              note: trimmedNote == null || trimmedNote.isEmpty
+                  ? null
+                  : trimmedNote,
+            ),
+          );
+      _state = _state.copyWith(
+        executionStatus: updated.executionStatus,
+        executionNote: updated.executionNote,
+        clearExecutionNote: updated.executionNote == null,
+        resultSaveState: AsyncValue<ConsultationResult>.data(updated),
+        executionStatusUpdateState: AsyncValue<ConsultationResult>.data(
+          updated,
+        ),
+      );
+    } catch (error, stackTrace) {
+      _state = _state.copyWith(
+        executionStatusUpdateState: AsyncValue<ConsultationResult>.error(
+          error,
+          stackTrace,
+        ),
       );
     }
     notifyListeners();

@@ -13,7 +13,8 @@ import 'last_intent_session.dart';
 /// them) — this just keeps one controller instance per skuId instead of
 /// the single global instance Issue #8 wired up.
 class LastIntentSessionManager extends ChangeNotifier {
-  LastIntentSessionManager({required SegueRepository repository}) : _repository = repository;
+  LastIntentSessionManager({required SegueRepository repository})
+    : _repository = repository;
 
   final SegueRepository _repository;
   final Map<int, LastIntentSessionController> _sessionsBySkuId =
@@ -27,18 +28,20 @@ class LastIntentSessionManager extends ChangeNotifier {
     required Customer customer,
     required CartItem cartItem,
   }) {
-    final LastIntentSessionController? existing = _sessionsBySkuId[cartItem.skuId];
+    final LastIntentSessionController? existing =
+        _sessionsBySkuId[cartItem.skuId];
     if (existing != null) {
       return existing;
     }
-    final LastIntentSessionController created =
-        LastIntentSessionController(repository: _repository)
-          ..start(customer: customer, cartItem: cartItem)
-          // Widgets outside the session's own scope (e.g. the cart row's
-          // "상담 완료" badge, driven by isCompleted() below) listen to this
-          // manager, not to each individual session — without forwarding,
-          // execute() flipping executionResponse never reaches them.
-          ..addListener(notifyListeners);
+    final LastIntentSessionController created = LastIntentSessionController(
+      repository: _repository,
+    );
+    created.start(customer: customer, cartItem: cartItem);
+    // Widgets outside the session's own scope (e.g. the cart row's
+    // request-accepted badge, driven by isCompleted() below) listen to this
+    // manager, not to each individual session — without forwarding,
+    // execute() flipping executionResponse never reaches them.
+    created.addListener(notifyListeners);
     _sessionsBySkuId[cartItem.skuId] = created;
     notifyListeners();
     return created;
@@ -69,7 +72,8 @@ class LastIntentSessionManager extends ChangeNotifier {
   /// reusing the signal [LastIntentSessionController] already exposes
   /// rather than keeping a second "completed" flag that could drift out of
   /// sync with it.
-  bool isCompleted(int skuId) => _sessionsBySkuId[skuId]?.state.executionResponse != null;
+  bool isCompleted(int skuId) =>
+      _sessionsBySkuId[skuId]?.state.executionResponse != null;
 
   /// Clears every SKU's session for the current customer. Wired to
   /// [StaffWebSessionController]'s new-lookup hook so a different
@@ -79,7 +83,8 @@ class LastIntentSessionManager extends ChangeNotifier {
     if (_sessionsBySkuId.isEmpty) {
       return;
     }
-    for (final LastIntentSessionController controller in _sessionsBySkuId.values) {
+    for (final LastIntentSessionController controller
+        in _sessionsBySkuId.values) {
       controller.dispose();
     }
     _sessionsBySkuId.clear();
@@ -88,7 +93,8 @@ class LastIntentSessionManager extends ChangeNotifier {
 
   @override
   void dispose() {
-    for (final LastIntentSessionController controller in _sessionsBySkuId.values) {
+    for (final LastIntentSessionController controller
+        in _sessionsBySkuId.values) {
       controller.dispose();
     }
     super.dispose();

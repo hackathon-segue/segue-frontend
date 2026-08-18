@@ -70,7 +70,9 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final LastIntentSessionManager manager = LastIntentSessionManager(repository: repository);
+    final LastIntentSessionManager manager = LastIntentSessionManager(
+      repository: repository,
+    );
     final LastIntentSessionController session = manager.sessionFor(
       customer: customer,
       cartItem: item,
@@ -81,60 +83,85 @@ void main() {
     await tester.pumpWidget(
       LastIntentSessionScope(
         manager: manager,
-        child: MaterialApp(home: LastIntentResultProductScreen(customer: customer, cartItem: item)),
+        child: MaterialApp(
+          home: LastIntentResultProductScreen(
+            customer: customer,
+            cartItem: item,
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
     return session;
   }
 
-  testWidgets('EXACT_PRODUCT shows the ORIGINAL cart item and inventory-derived chip/card content', (
-    WidgetTester tester,
-  ) async {
-    final CartItem item = cartItem(1, 'MCM 백팩 미디움');
-    await pumpReady(tester, MockSegueRepository(), item);
+  testWidgets(
+    'EXACT_PRODUCT shows the ORIGINAL cart item and inventory-derived chip/card content',
+    (WidgetTester tester) async {
+      final CartItem item = cartItem(1, 'MCM 백팩 미디움');
+      await pumpReady(tester, MockSegueRepository(), item);
 
-    expect(find.text('정확한 제품 확인'), findsOneWidget);
-    expect(find.text('MCM 백팩 미디움'), findsOneWidget); // the ORIGINAL product, not a recommendation
-    expect(find.text('제품 확보 정보'), findsOneWidget);
-    expect(find.text('타 매장 보유'), findsOneWidget); // item.inventory.otherStoreInStock == true
-    // Figma-literal CTA label override (per explicit request) — the real
-    // actionButtonLabel ("타 매장 확인 요청") still drives execute()'s actual
-    // request payload, only the on-screen text differs.
-    expect(find.text('타 매장 확인 요청 접수'), findsOneWidget);
-  });
+      expect(find.text('정확한 제품 확인'), findsOneWidget);
+      expect(
+        find.text('MCM 백팩 미디움'),
+        findsOneWidget,
+      ); // the ORIGINAL product, not a recommendation
+      expect(find.text('제품 확보 정보'), findsOneWidget);
+      // otherStoreInStock: true on the fixture → this chip/card branch.
+      expect(find.text('타 매장 보유'), findsOneWidget);
+      expect(find.text('강남 신세계점 재고 확인'), findsOneWidget); // real pathDescription
+      // Figma-literal CTA label override (per explicit request) — the real
+      // actionButtonLabel ("타 매장 확인 요청") still drives execute()'s actual
+      // request payload, only the on-screen text differs.
+      expect(find.text('타 매장 확인 요청 접수'), findsOneWidget);
+    },
+  );
 
-  testWidgets('COMPARISON_EXPERIENCE shows the recommendedProduct and difference-based card', (
-    WidgetTester tester,
-  ) async {
-    final CartItem item = cartItem(1, 'MCM 백팩 미디움');
-    final LastIntentSessionController session = await pumpReady(tester, _ComparisonRepository(), item);
-    expect(session.state.decisionResult!.recommendedProduct, isNotNull);
+  testWidgets(
+    'COMPARISON_EXPERIENCE shows the recommendedProduct and difference-based card',
+    (WidgetTester tester) async {
+      final CartItem item = cartItem(1, 'MCM 백팩 미디움');
+      final LastIntentSessionController session = await pumpReady(
+        tester,
+        _ComparisonRepository(),
+        item,
+      );
+      expect(session.state.decisionResult!.recommendedProduct, isNotNull);
 
-    expect(find.text('비교 체험 제품'), findsOneWidget);
-    expect(find.text('MCM 백팩 미디움 (블랙)'), findsOneWidget); // the RECOMMENDED product
-    expect(find.text('원제품과의 차이'), findsOneWidget);
-    expect(find.text('컬러만 다르고 소재/사이즈 조건은 동일하게 충족합니다.'), findsOneWidget);
-    expect(find.text('타 매장 보유'), findsOneWidget);
-    // Figma-literal CTA label override (159:2173) — real actionButtonLabel
-    // is "이 제품 확인하기".
-    expect(find.text('해당 제품 상담 완료'), findsOneWidget);
-  });
+      expect(find.text('비교 체험 제품'), findsOneWidget);
+      expect(
+        find.text('MCM 백팩 미디움 (블랙)'),
+        findsOneWidget,
+      ); // the RECOMMENDED product
+      expect(find.text('원제품과의 차이'), findsOneWidget);
+      expect(find.text('컬러만 다르고 소재/사이즈 조건은 동일하게 충족합니다.'), findsOneWidget);
+      // Figma (159:2173/159:3053) — confirmed both use "타 매장 보유".
+      expect(find.text('타 매장 보유'), findsOneWidget);
+      // Figma-literal CTA label override (159:2173) — real actionButtonLabel
+      // is "이 제품 확인하기".
+      expect(find.text('해당 제품 상담 완료'), findsOneWidget);
+    },
+  );
 
-  testWidgets('tapping the CTA calls execute() and reaches the completion screen', (
-    WidgetTester tester,
-  ) async {
-    final CartItem item = cartItem(1, 'MCM 백팩 미디움');
-    final LastIntentSessionController session = await pumpReady(tester, MockSegueRepository(), item);
+  testWidgets(
+    'tapping the CTA calls execute() and reaches the completion screen',
+    (WidgetTester tester) async {
+      final CartItem item = cartItem(1, 'MCM 백팩 미디움');
+      final LastIntentSessionController session = await pumpReady(
+        tester,
+        MockSegueRepository(),
+        item,
+      );
 
-    final Finder cta = find.text('타 매장 확인 요청 접수');
-    await tester.ensureVisible(cta);
-    await tester.pumpAndSettle();
-    await tester.tap(cta);
-    await tester.pumpAndSettle();
+      final Finder cta = find.text('타 매장 확인 요청 접수');
+      await tester.ensureVisible(cta);
+      await tester.pumpAndSettle();
+      await tester.tap(cta);
+      await tester.pumpAndSettle();
 
-    expect(find.byType(LastIntentCompletionScreen), findsOneWidget);
-    expect(session.state.executionStatus, ExecutionStatus.requested);
-    expect(session.state.resultSaveState.hasData, isTrue);
-  });
+      expect(find.byType(LastIntentCompletionScreen), findsOneWidget);
+      expect(session.state.executionStatus, ExecutionStatus.requested);
+      expect(session.state.resultSaveState.hasData, isTrue);
+    },
+  );
 }

@@ -19,6 +19,16 @@ abstract final class AppConfig {
     defaultValue: 1,
   );
 
+  static const int defaultCustomerId = int.fromEnvironment(
+    'CUSTOMER_ID',
+    defaultValue: 1,
+  );
+
+  static const int apiTimeoutSeconds = int.fromEnvironment(
+    'API_TIMEOUT_SECONDS',
+    defaultValue: 10,
+  );
+
   static const bool useMockData = bool.fromEnvironment(
     'USE_MOCK_DATA',
     defaultValue: false,

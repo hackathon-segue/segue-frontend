@@ -57,6 +57,39 @@ void main() {
   });
 
   test(
+    'mock repository blocks consent-gated consultation result save',
+    () async {
+      final MockSegueRepository repository = MockSegueRepository();
+
+      await expectLater(
+        repository.recordConsultationResult(
+          customerId: 2,
+          result: ConsultationResult(
+            id: 1,
+            skuId: 1,
+            productName: 'MCM 백팩 미디움',
+            imageUrl: 'https://example.com/image.png',
+            resultType: DecisionResultType.exactProduct,
+            recommendedPath: '타 매장 확인',
+            coreConditions: '로고 위치와 각진 형태',
+            consultedAt: DateTime(2026, 8, 16),
+            executionStatus: ExecutionStatus.requested,
+            executionNote: null,
+            executionUpdatedAt: DateTime(2026, 8, 16),
+          ),
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException error) => error.isConsentRequired,
+            'isConsentRequired',
+            isTrue,
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
     'last intent session carries stateless backend payloads forward',
     () async {
       final MockSegueRepository repository = MockSegueRepository();
@@ -82,7 +115,10 @@ void main() {
       // records instead of colliding) rather than always returning the
       // same fixed literal — the exact value was never a meaningful
       // contract, just that one is present.
-      expect(controller.state.executionResponse?.consultationResultId, greaterThan(0));
+      expect(
+        controller.state.executionResponse?.consultationResultId,
+        greaterThan(0),
+      );
     },
   );
 }
