@@ -4,6 +4,7 @@ import '../exceptions/app_exception.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../repositories/repositories.dart';
+import '../utils/app_config.dart';
 import '../utils/app_design_tokens.dart';
 import '../utils/execution_status_display.dart';
 import '../widgets/app_state_view.dart';
@@ -69,7 +70,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   CartItem? _lastSavedCartItem;
   final List<CartItem> _cartItems = <CartItem>[];
   bool _isSavingCart = false;
+  bool _isLoadingCart = false;
   String? _cartSaveError;
+  String? _cartError;
   final List<ConsultationResult> _consultationResults = <ConsultationResult>[];
   ConsultationResult? _selectedConsultationResult;
   bool _isLoadingResults = false;
@@ -139,6 +142,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       ),
       _MobileScreen.cart => _CartListScreen(
         cartItems: _cartItems,
+        isLoading: _isLoadingCart,
+        errorMessage: _cartError,
+        onRetry: () => _loadCartItems(force: true),
         onBackToProducts: _returnToProducts,
         onTabSelected: _openTab,
       ),
@@ -246,6 +252,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _openResults();
       return;
     }
+    if (tab == CustomerMobileTab.cart) {
+      _openCart();
+      return;
+    }
 
     setState(() {
       _screen = switch (tab) {
@@ -259,6 +269,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
   void _openCart() {
     setState(() => _screen = _MobileScreen.cart);
+    if (!_isLoadingCart) {
+      _loadCartItems(force: true);
+    }
   }
 
   void _openDetailFromCartAdded() {
@@ -303,7 +316,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     try {
       final List<ConsultationResult> results = await RepositoryScope.of(
         context,
-      ).fetchConsultationResults(1);
+      ).fetchConsultationResults(AppConfig.defaultCustomerId);
       results.sort(
         (ConsultationResult a, ConsultationResult b) =>
             b.consultedAt.compareTo(a.consultedAt),
@@ -332,6 +345,45 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     }
   }
 
+  Future<void> _loadCartItems({bool force = false}) async {
+    if (_isLoadingCart || (_cartItems.isNotEmpty && !force)) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingCart = true;
+      _cartError = null;
+    });
+
+    try {
+      final List<CartItem> items = await RepositoryScope.of(context).fetchCart(
+        customerId: AppConfig.defaultCustomerId,
+        storeId: AppConfig.defaultStoreId,
+      );
+      items.sort((CartItem a, CartItem b) => b.savedAt.compareTo(a.savedAt));
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _cartItems
+          ..clear()
+          ..addAll(items);
+        _isLoadingCart = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingCart = false;
+        _cartError = _errorMessage(
+          error,
+          fallback: '장바구니를 불러오지 못했습니다. 다시 시도해 주세요.',
+        );
+      });
+    }
+  }
+
   Future<void> _saveSelectedCartItem() async {
     final MobileSkuOption? selectedSku = _selectedProduct.skuFor(
       color: _selectedColor,
@@ -349,7 +401,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     try {
       final CartItem cartItem = await RepositoryScope.of(context).saveCartItem(
         CartSaveRequest(
-          customerId: 1,
+          customerId: AppConfig.defaultCustomerId,
           productId: _selectedProduct.id,
           color: selectedSku.color,
           size: selectedSku.size,
@@ -363,6 +415,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         _lastSavedCartItem = cartItem;
         _cartItems.removeWhere((CartItem item) => item.skuId == cartItem.skuId);
         _cartItems.insert(0, cartItem);
+        _cartError = null;
         _screen = _MobileScreen.cartAdded;
       });
     } catch (error) {
@@ -1626,11 +1679,17 @@ class _SavedCartItemCard extends StatelessWidget {
 class _CartListScreen extends StatelessWidget {
   const _CartListScreen({
     required this.cartItems,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onRetry,
     required this.onBackToProducts,
     required this.onTabSelected,
   });
 
   final List<CartItem> cartItems;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onRetry;
   final VoidCallback onBackToProducts;
   final ValueChanged<CustomerMobileTab> onTabSelected;
 
@@ -1649,7 +1708,15 @@ class _CartListScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text('최근 담은 순서', style: theme.textTheme.bodySmall),
           const SizedBox(height: AppSpacing.md),
-          if (cartItems.isEmpty)
+          if (isLoading)
+            const AppStateView.loading(title: '장바구니를 불러오는 중입니다')
+          else if (errorMessage != null)
+            AppStateView.error(
+              title: '장바구니를 불러오지 못했습니다',
+              message: errorMessage,
+              onAction: onRetry,
+            )
+          else if (cartItems.isEmpty)
             const AppStateView.empty(
               title: '장바구니가 비어 있습니다',
               message: '마음에 드는 제품을 담아두면 매장 상담 시 함께 확인할 수 있습니다.',

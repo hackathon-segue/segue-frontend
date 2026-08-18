@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -27,22 +28,23 @@ class HttpSegueApiClient implements SegueApiClient {
   HttpSegueApiClient({
     http.Client? httpClient,
     String baseUrl = AppConfig.apiBaseUrl,
+    Duration timeout = const Duration(seconds: AppConfig.apiTimeoutSeconds),
   }) : _httpClient = httpClient ?? http.Client(),
-       _baseUri = Uri.parse(baseUrl);
+       _baseUri = Uri.parse(baseUrl),
+       _timeout = timeout;
 
   final http.Client _httpClient;
   final Uri _baseUri;
+  final Duration _timeout;
 
   @override
   Future<Object?> getJson(
     String path, {
     Map<String, Object?> queryParameters = const <String, Object?>{},
   }) async {
-    final http.Response response = await _httpClient.get(
-      _uri(path, queryParameters),
-      headers: _headers,
+    return _send(
+      _httpClient.get(_uri(path, queryParameters), headers: _headers),
     );
-    return _decode(response);
   }
 
   @override
@@ -50,12 +52,9 @@ class HttpSegueApiClient implements SegueApiClient {
     String path, {
     JsonMap body = const <String, Object?>{},
   }) async {
-    final http.Response response = await _httpClient.post(
-      _uri(path),
-      headers: _headers,
-      body: jsonEncode(body),
+    return _send(
+      _httpClient.post(_uri(path), headers: _headers, body: jsonEncode(body)),
     );
-    return _decode(response);
   }
 
   @override
@@ -63,12 +62,9 @@ class HttpSegueApiClient implements SegueApiClient {
     String path, {
     JsonMap body = const <String, Object?>{},
   }) async {
-    final http.Response response = await _httpClient.patch(
-      _uri(path),
-      headers: _headers,
-      body: jsonEncode(body),
+    return _send(
+      _httpClient.patch(_uri(path), headers: _headers, body: jsonEncode(body)),
     );
-    return _decode(response);
   }
 
   static const Map<String, String> _headers = <String, String>{
@@ -94,6 +90,27 @@ class HttpSegueApiClient implements SegueApiClient {
       path: '$basePath$normalizedPath',
       queryParameters: query.isEmpty ? null : query,
     );
+  }
+
+  Future<Object?> _send(Future<http.Response> request) async {
+    try {
+      final http.Response response = await request.timeout(_timeout);
+      return _decode(response);
+    } on TimeoutException catch (error) {
+      throw ApiException(
+        '서버 응답 시간이 초과되었습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
+        statusCode: 0,
+        code: 'REQUEST_TIMEOUT',
+        details: error.message,
+      );
+    } on http.ClientException catch (error) {
+      throw ApiException(
+        '서버에 연결할 수 없습니다. API_BASE_URL과 네트워크 상태를 확인해 주세요.',
+        statusCode: 0,
+        code: 'NETWORK_ERROR',
+        details: error.message,
+      );
+    }
   }
 
   Object? _decode(http.Response response) {
