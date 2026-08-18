@@ -138,6 +138,177 @@ void main() {
   });
 
   test(
+    'real repository posts staff utterance to the AI intent endpoint',
+    () async {
+      final _RecordingApiClient apiClient = _RecordingApiClient(
+        postResponse: _structureIntentResponseJson(needsFollowUp: true),
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: apiClient,
+      );
+
+      final StructureIntentResponse response = await repository.structureIntent(
+        const StructureIntentRequest(
+          storeId: 1,
+          skuId: 1,
+          utterance: '로고 위치와 각진 형태가 좋아요',
+        ),
+      );
+
+      expect(apiClient.lastPostPath, '/api/consultations/intent');
+      expect(apiClient.lastPostBody, <String, Object?>{
+        'storeId': 1,
+        'skuId': 1,
+        'utterance': '로고 위치와 각진 형태가 좋아요',
+      });
+      expect(response.needsFollowUp, isTrue);
+      expect(response.structuredIntent.essentialConditions, <String, String>{
+        'logoPosition': '정면중앙',
+        'silhouette': '각진',
+      });
+    },
+  );
+
+  test(
+    'real repository posts follow-up question and answer payloads',
+    () async {
+      final StructuredIntent currentIntent = StructuredIntent.fromJson(
+        asJsonMap(_structuredIntentJson(needsFollowUp: true)),
+      );
+      final _RecordingApiClient questionClient = _RecordingApiClient(
+        postResponse: <String, Object?>{'question': '오늘 바로 구매를 원하시나요?'},
+      );
+      final RealSegueRepository questionRepository = RealSegueRepository(
+        apiClient: questionClient,
+      );
+
+      final FollowUpQuestion question = await questionRepository
+          .requestFollowUpQuestion(
+            FollowUpQuestionRequest(
+              utterance: '비슷한 제품도 괜찮아요',
+              currentIntent: currentIntent,
+            ),
+          );
+
+      expect(
+        questionClient.lastPostPath,
+        '/api/consultations/followup-question',
+      );
+      expect(questionClient.lastPostBody?['utterance'], '비슷한 제품도 괜찮아요');
+      expect(
+        questionClient.lastPostBody?['currentIntent'],
+        currentIntent.toJson(),
+      );
+      expect(question.question, '오늘 바로 구매를 원하시나요?');
+
+      final _RecordingApiClient answerClient = _RecordingApiClient(
+        postResponse: _structureIntentResponseJson(needsFollowUp: false),
+      );
+      final RealSegueRepository answerRepository = RealSegueRepository(
+        apiClient: answerClient,
+      );
+
+      final StructureIntentResponse answerResponse = await answerRepository
+          .submitFollowUpAnswer(
+            const FollowUpAnswerRequest(
+              utterance: '비슷한 제품도 괜찮아요',
+              followUpQuestion: '오늘 바로 구매를 원하시나요?',
+              followUpAnswer: '오늘 살 필요는 없어요',
+            ),
+          );
+
+      expect(answerClient.lastPostPath, '/api/consultations/followup-answer');
+      expect(answerClient.lastPostBody, <String, Object?>{
+        'utterance': '비슷한 제품도 괜찮아요',
+        'followUpQuestion': '오늘 바로 구매를 원하시나요?',
+        'followUpAnswer': '오늘 살 필요는 없어요',
+      });
+      expect(answerResponse.needsFollowUp, isFalse);
+    },
+  );
+
+  test(
+    'real repository sends the confirmed StructuredIntent to decide',
+    () async {
+      final StructuredIntent confirmedIntent = StructuredIntent.fromJson(
+        asJsonMap(_structuredIntentJson()),
+      ).copyWith(purchaseUrgency: PurchaseUrgency.today);
+      final _RecordingApiClient apiClient = _RecordingApiClient(
+        postResponse: _decisionResultJson(),
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: apiClient,
+      );
+
+      final DecisionResult result = await repository.decide(
+        DecisionRequest(
+          storeId: 1,
+          skuId: 1,
+          structuredIntent: confirmedIntent,
+        ),
+      );
+
+      expect(apiClient.lastPostPath, '/api/consultations/decide');
+      expect(apiClient.lastPostBody, <String, Object?>{
+        'storeId': 1,
+        'skuId': 1,
+        'structuredIntent': confirmedIntent.toJson(),
+      });
+      expect(result.resultType, DecisionResultType.exactProduct);
+      expect(result.actionButtonLabel, '타 매장 확인 요청');
+    },
+  );
+
+  test(
+    'real AI/engine schema mismatches become retryable API errors',
+    () async {
+      final _RecordingApiClient missingKeyClient = _RecordingApiClient(
+        postResponse: <String, Object?>{'needsFollowUp': false},
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: missingKeyClient,
+      );
+
+      await expectLater(
+        repository.structureIntent(
+          const StructureIntentRequest(storeId: 1, skuId: 1, utterance: '테스트'),
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException error) => error.code,
+            'code',
+            'JSON_SCHEMA_MISMATCH',
+          ),
+        ),
+      );
+
+      final JsonMap invalidVocabularyResponse = _structureIntentResponseJson();
+      final JsonMap intent = asJsonMap(
+        invalidVocabularyResponse['structuredIntent'],
+      );
+      intent['essentialConditions'] = <String, Object?>{'glossLevel': '보통'};
+      final _RecordingApiClient invalidVocabularyClient = _RecordingApiClient(
+        postResponse: invalidVocabularyResponse,
+      );
+      final RealSegueRepository invalidVocabularyRepository =
+          RealSegueRepository(apiClient: invalidVocabularyClient);
+
+      await expectLater(
+        invalidVocabularyRepository.structureIntent(
+          const StructureIntentRequest(storeId: 1, skuId: 1, utterance: '테스트'),
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException error) => error.code,
+            'code',
+            'JSON_SCHEMA_MISMATCH',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
     'HTTP client converts slow backend responses into retryable timeout errors',
     () async {
       final HttpSegueApiClient apiClient = HttpSegueApiClient(
@@ -162,6 +333,45 @@ void main() {
       );
     },
   );
+}
+
+JsonMap _structureIntentResponseJson({bool needsFollowUp = false}) {
+  return <String, Object?>{
+    'structuredIntent': _structuredIntentJson(needsFollowUp: needsFollowUp),
+    'needsFollowUp': needsFollowUp,
+  };
+}
+
+JsonMap _structuredIntentJson({bool needsFollowUp = false}) {
+  return <String, Object?>{
+    'purpose': '',
+    'essentialConditions': <String, Object?>{
+      'logoPosition': '정면중앙',
+      'silhouette': '각진',
+    },
+    'preferredConditions': <String, Object?>{},
+    'negotiableConditions': <String, Object?>{},
+    'purchaseUrgency': 'FLEXIBLE',
+    'physicalCheckAttributes': <String>['logoPosition'],
+    'canWait': true,
+    'canVisitOtherStore': true,
+    'needsFollowUp': needsFollowUp,
+    'followUpReason': needsFollowUp ? '구매 시급성 확인 필요' : '',
+  };
+}
+
+JsonMap _decisionResultJson() {
+  return <String, Object?>{
+    'resultType': 'EXACT_PRODUCT',
+    'coreConditions': '로고가 정면 중앙에 오는 각진 실루엣을 중요하게 보고 계셨습니다.',
+    'nextAction': '강남 신세계점 재고를 확인해 안내해 드릴 수 있습니다.',
+    'reason': '언급된 로고 위치와 실루엣이 원제품의 특징과 일치합니다.',
+    'difference': '동일 제품을 타 매장에서 확보하는 경로를 우선 제안드립니다.',
+    'recommendedProduct': null,
+    'pathDescription': '강남 신세계점 재고 확인',
+    'actionType': 'OTHER_STORE_CHECK_REQUEST',
+    'actionButtonLabel': '타 매장 확인 요청',
+  };
 }
 
 class _RecordingApiClient implements SegueApiClient {

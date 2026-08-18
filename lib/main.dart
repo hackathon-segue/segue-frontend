@@ -58,7 +58,6 @@ class _SegueAppState extends State<SegueApp> {
             title: AppConfig.appName,
             debugShowCheckedModeBanner: false,
             theme: SegueTheme.light(),
-            initialRoute: AppRoutes.root,
             routes: <String, WidgetBuilder>{
               AppRoutes.root: (_) => const CustomerMobileEntryScreen(),
               AppRoutes.customerMobile: (_) =>
