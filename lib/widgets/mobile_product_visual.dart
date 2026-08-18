@@ -19,26 +19,44 @@ class MobileProductVisual extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color productColor = colorOverride ?? Color(product.visualValue);
     final Color accentColor = Color(product.accentValue);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(
-          productColor.withValues(alpha: 0.08),
-          AppColors.surface,
-        ),
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: CustomPaint(
-        painter: _ProductVisualPainter(
-          bodyColor: productColor,
-          accentColor: accentColor,
-          compact: compact,
-          isWallet: product.category == '지갑',
-          isBackpack: product.category == '백팩',
-        ),
+    final BorderRadius borderRadius = BorderRadius.circular(AppRadii.md);
+    final Widget paintedFallback = CustomPaint(
+      painter: _ProductVisualPainter(
+        bodyColor: productColor,
+        accentColor: accentColor,
+        compact: compact,
+        isWallet: product.category == '지갑',
+        isBackpack: product.category == '백팩',
       ),
     );
+    final BoxDecoration decoration = BoxDecoration(
+      color: Color.alphaBlend(
+        productColor.withValues(alpha: 0.08),
+        AppColors.surface,
+      ),
+      borderRadius: borderRadius,
+      border: Border.all(color: AppColors.border),
+    );
+
+    final String? assetImagePath = product.assetImagePath;
+    if (assetImagePath != null) {
+      return Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: decoration,
+        foregroundDecoration: BoxDecoration(
+          borderRadius: borderRadius,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Image.asset(
+          assetImagePath,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => paintedFallback,
+        ),
+      );
+    }
+
+    return DecoratedBox(decoration: decoration, child: paintedFallback);
   }
 }
 

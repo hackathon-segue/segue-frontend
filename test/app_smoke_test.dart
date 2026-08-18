@@ -8,8 +8,10 @@ void main() {
   ) async {
     await tester.pumpWidget(const SegueApp());
 
-    expect(find.text('앱 로그인 화면'), findsOneWidget);
-    expect(find.text('로그인'), findsWidgets);
+    expect(find.text('MCM'), findsOneWidget);
+    expect(find.text('LXXVI'), findsOneWidget);
+    expect(find.text('1976'), findsOneWidget);
+    expect(find.byTooltip('메뉴 열기'), findsOneWidget);
   });
 
   testWidgets('opens the staff web route group', (WidgetTester tester) async {
@@ -20,7 +22,7 @@ void main() {
 
     await tester.pumpWidget(const SegueApp());
 
-    Navigator.of(tester.element(find.text('앱 로그인 화면'))).pushNamed('/staff');
+    Navigator.of(tester.element(find.text('LXXVI'))).pushNamed('/staff');
     await tester.pumpAndSettle();
 
     expect(find.text('직원 웹'), findsWidgets);
