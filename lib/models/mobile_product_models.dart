@@ -32,6 +32,7 @@ class MobileProduct {
     required this.visualValue,
     required this.accentValue,
     required this.options,
+    this.assetImagePath,
   });
 
   final int id;
@@ -46,6 +47,7 @@ class MobileProduct {
   final int visualValue;
   final int accentValue;
   final List<MobileSkuOption> options;
+  final String? assetImagePath;
 
   List<String> get colors {
     return <String>{

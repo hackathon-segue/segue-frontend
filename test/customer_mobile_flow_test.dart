@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 
+Future<void> _openNewProducts(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('메뉴 열기'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('신상품').last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('customer mobile login opens home and product list', (
+  testWidgets('customer mobile start opens menu and product list', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -13,17 +20,19 @@ void main() {
 
     await tester.pumpWidget(const SegueApp());
 
-    await tester.tap(find.text('앱으로 계속하기'));
+    expect(find.text('LXXVI'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('앱 홈 화면'), findsOneWidget);
-    expect(find.text('MCM 월드'), findsOneWidget);
+    expect(find.text('쇼핑백'), findsOneWidget);
+    expect(find.text('토트백 & 쇼퍼백'), findsWidgets);
 
-    await tester.tap(find.text('제품 전체 보기'));
+    await tester.tap(find.text('모두보기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('제품 목록 화면'), findsOneWidget);
-    expect(find.text('Himmel Large Backpack'), findsOneWidget);
+    expect(find.text('AUTUMN WINTER 2026'), findsOneWidget);
+    expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
   });
 
   testWidgets('product detail requires a valid color and size SKU', (
@@ -35,12 +44,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const SegueApp());
-    await tester.tap(find.text('앱으로 계속하기'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('제품 전체 보기'));
-    await tester.pumpAndSettle();
+    await _openNewProducts(tester);
 
-    await tester.tap(find.text('Himmel Large Backpack').first);
+    await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
     await tester.pumpAndSettle();
 
     expect(find.text('제품 상세 화면'), findsOneWidget);
@@ -54,8 +60,8 @@ void main() {
     FilledButton button = tester.widget<FilledButton>(cartButton);
     expect(button.onPressed, isNull);
 
-    await tester.ensureVisible(find.text('라지'));
-    await tester.tap(find.text('라지'));
+    await tester.ensureVisible(find.text('스몰'));
+    await tester.tap(find.text('스몰'));
     await tester.pumpAndSettle();
 
     button = tester.widget<FilledButton>(cartButton);
@@ -71,15 +77,12 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const SegueApp());
-    await tester.tap(find.text('앱으로 계속하기'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('제품 전체 보기'));
-    await tester.pumpAndSettle();
+    await _openNewProducts(tester);
 
-    await tester.tap(find.text('Himmel Large Backpack').first);
+    await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('라지'));
-    await tester.tap(find.text('라지'));
+    await tester.ensureVisible(find.text('스몰'));
+    await tester.tap(find.text('스몰'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('장바구니 담기'));
@@ -87,15 +90,15 @@ void main() {
 
     expect(find.text('장바구니 추가 완료'), findsOneWidget);
     expect(find.text('장바구니에 추가되었습니다'), findsOneWidget);
-    expect(find.text('선택 컬러 코냑'), findsOneWidget);
-    expect(find.text('선택 사이즈 라지'), findsOneWidget);
+    expect(find.text('선택 컬러 오렌지'), findsOneWidget);
+    expect(find.text('선택 사이즈 스몰'), findsOneWidget);
 
     await tester.tap(find.text('장바구니 보기'));
     await tester.pumpAndSettle();
 
     expect(find.text('앱 장바구니 목록'), findsOneWidget);
     expect(find.text('최근 담은 순서'), findsOneWidget);
-    expect(find.text('코냑 · 라지'), findsOneWidget);
+    expect(find.text('오렌지 · 스몰'), findsOneWidget);
     expect(find.text('2026. 08. 16 추가'), findsOneWidget);
   });
 
@@ -108,10 +111,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const SegueApp());
-    await tester.tap(find.text('앱으로 계속하기'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('상담 결과').last);
+    await tester.tap(find.byTooltip('SEGUE 내역 확인'));
     await tester.pumpAndSettle();
 
     expect(find.text('앱 상담 결과 확인'), findsOneWidget);
