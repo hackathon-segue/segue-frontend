@@ -231,6 +231,39 @@ void main() {
   });
 
   test(
+    'updateExecutionStatus updates the existing local result without replacing product data',
+    () async {
+      final LastIntentSessionController session = await readySession(
+        1,
+        'MCM 백팩',
+      );
+      await session.execute();
+      final int resultId =
+          session.state.executionResponse!.consultationResultId;
+
+      final ConsultationResult updated = await repository.updateExecutionStatus(
+        consultationResultId: resultId,
+        request: const ExecutionStatusUpdateRequest(
+          status: ExecutionStatus.unable,
+          note: '타 매장 보유가 확인되지 않았습니다.',
+        ),
+      );
+
+      expect(updated.productName, 'MCM 백팩');
+      expect(updated.executionStatus, ExecutionStatus.unable);
+      expect(updated.executionNote, '타 매장 보유가 확인되지 않았습니다.');
+
+      final List<ConsultationResult> stored = await repository
+          .fetchConsultationResults(customer.id);
+      expect(stored, hasLength(1));
+      expect(stored.single.id, resultId);
+      expect(stored.single.productName, 'MCM 백팩');
+      expect(stored.single.executionStatus, ExecutionStatus.unable);
+      expect(stored.single.executionNote, '타 매장 보유가 확인되지 않았습니다.');
+    },
+  );
+
+  test(
     'the saved recommendedPath matches what the Card itself would show (recommendedProduct present)',
     () async {
       final LastIntentSessionController session = manager.sessionFor(
