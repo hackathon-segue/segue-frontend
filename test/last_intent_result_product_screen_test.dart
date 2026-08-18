@@ -107,9 +107,9 @@ void main() {
         findsOneWidget,
       ); // the ORIGINAL product, not a recommendation
       expect(find.text('제품 확보 정보'), findsOneWidget);
-      expect(find.text('타 매장 확인 필요'), findsOneWidget);
-      expect(find.textContaining('보유 가능성 있음 · 확인 필요 · 기준'), findsOneWidget);
-      expect(find.textContaining('CA 재확인 필요'), findsOneWidget);
+      // otherStoreInStock: true on the fixture → this chip/card branch.
+      expect(find.text('타 매장 보유'), findsOneWidget);
+      expect(find.text('강남 신세계점 재고 확인'), findsOneWidget); // real pathDescription
       // Figma-literal CTA label override (per explicit request) — the real
       // actionButtonLabel ("타 매장 확인 요청") still drives execute()'s actual
       // request payload, only the on-screen text differs.
@@ -135,7 +135,8 @@ void main() {
       ); // the RECOMMENDED product
       expect(find.text('원제품과의 차이'), findsOneWidget);
       expect(find.text('컬러만 다르고 소재/사이즈 조건은 동일하게 충족합니다.'), findsOneWidget);
-      expect(find.text('재고 확인 필요'), findsOneWidget);
+      // Figma (159:2173/159:3053) — confirmed both use "타 매장 보유".
+      expect(find.text('타 매장 보유'), findsOneWidget);
       // Figma-literal CTA label override (159:2173) — real actionButtonLabel
       // is "이 제품 확인하기".
       expect(find.text('해당 제품 상담 완료'), findsOneWidget);

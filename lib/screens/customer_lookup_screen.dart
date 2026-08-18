@@ -4,21 +4,25 @@ import '../exceptions/app_exception.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
-import '../utils/staff_design_tokens.dart';
+import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
-import '../widgets/section_card.dart';
-import '../widgets/staff_app_shell.dart';
-import '../widgets/staff_button.dart';
-import '../widgets/staff_image_placeholder.dart';
-import '../widgets/staff_text_field.dart';
+import '../widgets/segue_card_shell.dart';
 
-/// Figma node 14:859 "고객 조회 화면": phone-number lookup + inline cart
-/// preview.
+/// Figma node 89:928 "고객 조회 화면 - 조회하기 전" and 89:1001 "고객 조회 화면 -
+/// 조회하고 나서" (Issue #48 — this screen's own visual rebuild against the
+/// latest Figma, superseding the previous 14:859-based build). Uses the
+/// shared [SegueCardShell]/[TabletHeader]/[TabletNavSidebar]/
+/// [SegueTextField]/[SegueCompactButton] — no header/menu/input/button
+/// markup is built here.
 ///
-/// Scope note: only the search form, validation, mock lookup and the
-/// resulting customer/cart *preview* belong to Issue #7. The dedicated
-/// "장바구니·재고 확인" screen (Figma 14:1051, [CartInventoryScreen]) is a
-/// separate destination this screen's consent button leads toward.
+/// Business logic unchanged from the previous build: [StaffWebSessionController]
+/// still owns the lookup/validation/cart-preload flow — this screen only
+/// renders its result. Neither Figma node shows a cart-preview list (that
+/// UI now only exists on [CartInventoryScreen], reached after consent), so
+/// it's dropped here rather than kept as a 14:859-era leftover — but the
+/// `loadCart()` pre-fetch this screen used to trigger for that preview stays
+/// wired exactly as before, since [CartInventoryScreen] still benefits from
+/// the head start even though this screen no longer displays the result.
 class CustomerLookupScreen extends StatefulWidget {
   const CustomerLookupScreen({super.key});
 
@@ -51,73 +55,60 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
   Widget build(BuildContext context) {
     final StaffWebSessionController controller = StaffSessionScope.of(context);
 
-    return StaffAppShell(
-      currentRoute: AppRoutes.customerLookup,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 16,
-        children: <Widget>[
-          const Text('고객 조회', style: StaffText.title20Bold),
-          const Text(
-            '테스트 고객 계정 또는 가상 휴대전화 번호로 고객을 조회하세요.',
-            style: StaffText.body12,
-          ),
-          ListenableBuilder(
-            listenable: controller,
-            builder: (BuildContext context, Widget? _) {
-              final StaffWebSessionState state = controller.state;
+    return SegueCardShell(
+      pageTitle: 'CUSTOMER SEARCH',
+      activeMenuItem: TabletMenuItem.customerSearch,
+      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      subtitle: '고객님의 정보를 조회해 주세요.',
+      // Figma (89:928): subtitle bottom 146+21=167 → "고객 검색" title top
+      // 208 = 41px.
+      bodyTopGap: 41,
+      body: ListenableBuilder(
+        listenable: controller,
+        builder: (BuildContext context, Widget? _) {
+          final StaffWebSessionState state = controller.state;
 
-              if (state.customer != null &&
-                  state.customer!.hasConsented &&
-                  state.cartState.isIdle) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    controller.loadCart();
-                  }
-                });
+          if (state.customer != null && state.customer!.hasConsented && state.cartState.isIdle) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                controller.loadCart();
               }
+            });
+          }
 
-              return LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  final Widget search = _SearchPanel(
-                    formKey: _formKey,
-                    memberNumberController: _memberNumberController,
-                    phoneController: _phoneController,
-                    phonePattern: _phonePattern,
-                    onSubmit: () => _submit(controller),
-                  );
-                  final Widget result = _ResultPanel(
-                    state: state,
-                    onRetryLookup: _phoneController.text.trim().isEmpty
-                        ? null
-                        : () => _submit(controller),
-                    onRetryCart: controller.loadCart,
-                    onOpenConsent: () => Navigator.of(
-                      context,
-                    ).pushNamed(AppRoutes.customerConsent),
-                  );
+          return LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final Widget search = _SearchPanel(
+                formKey: _formKey,
+                memberNumberController: _memberNumberController,
+                phoneController: _phoneController,
+                phonePattern: _phonePattern,
+                onSubmit: () => _submit(controller),
+              );
+              final Widget result = _ResultPanel(
+                state: state,
+                onRetryLookup: _phoneController.text.trim().isEmpty ? null : () => _submit(controller),
+              );
 
-                  if (constraints.maxWidth < StaffSizes.twoPaneBreakpoint) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 16,
-                      children: <Widget>[search, result],
-                    );
-                  }
-
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 24,
-                    children: <Widget>[
-                      SizedBox(width: 380, child: search),
-                      Expanded(child: result),
-                    ],
-                  );
-                },
+              // Figma: search column (335) → result card left 725, content
+              // area left 294 → 725-294-335=96px gap.
+              if (constraints.maxWidth < 700) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[search, const SizedBox(height: 24), result],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  SizedBox(width: 335, child: search),
+                  const SizedBox(width: 96),
+                  Expanded(child: result),
+                ],
               );
             },
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -140,98 +131,60 @@ class _SearchPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 16,
-      children: <Widget>[
-        SectionCard(
-          child: Form(
-            key: formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 12,
-              children: <Widget>[
-                const Text('고객 검색', style: StaffText.header16SemiBold),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 12,
-                  children: <Widget>[
-                    StaffTextField(
-                      label: '회원 번호',
-                      controller: memberNumberController,
-                    ),
-                    StaffTextField(
-                      label: '휴대전화 번호',
-                      controller: phoneController,
-                      keyboardType: TextInputType.phone,
-                      validator: (String? value) {
-                        final String trimmed = value?.trim() ?? '';
-                        if (trimmed.isEmpty &&
-                            memberNumberController.text.trim().isEmpty) {
-                          return '휴대전화 번호를 입력해 주세요.';
-                        }
-                        if (trimmed.isNotEmpty &&
-                            !phonePattern.hasMatch(trimmed)) {
-                          return '010-0000-0000 형식으로 입력해 주세요.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const Text(
-                      '예: 010-0000-0000 (MVP 테스트 번호 사용)',
-                      style: StaffText.meta11,
-                    ),
-                    StaffButton(
-                      label: '고객 조회',
-                      variant: StaffButtonVariant.primary,
-                      onPressed: onSubmit,
-                    ),
-                  ],
-                ),
-              ],
-            ),
+    return Form(
+      key: formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('고객 검색', style: SegueCardText.sectionHeading20),
+          // Figma: title bottom 208+28=236 → divider 240 = 4px.
+          const SizedBox(height: 4),
+          // Figma "Line 2" asset: stroke #222222 (ink), NOT the muted border
+          // gray other dividers in this system use.
+          const Divider(height: 1, thickness: 1, color: SegueCardColors.ink),
+          // Figma: divider 240 → input1 top 261 = 21px.
+          const SizedBox(height: 21),
+          SegueTextField(hintText: '회원번호', controller: memberNumberController),
+          // Figma: input1 bottom 261+42=303 → input2 top 319 = 16px.
+          const SizedBox(height: 16),
+          SegueTextField(
+            hintText: '전화번호',
+            controller: phoneController,
+            keyboardType: TextInputType.phone,
+            validator: (String? value) {
+              final String trimmed = value?.trim() ?? '';
+              if (trimmed.isEmpty && memberNumberController.text.trim().isEmpty) {
+                return '휴대전화 번호를 입력해 주세요.';
+              }
+              if (trimmed.isNotEmpty && !phonePattern.hasMatch(trimmed)) {
+                return '010-0000-0000 형식으로 입력해 주세요.';
+              }
+              return null;
+            },
           ),
-        ),
-        const SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 12,
-            children: <Widget>[
-              Text('조회 안내', style: StaffText.header16SemiBold),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 8,
-                children: <Widget>[
-                  Text(
-                    'MVP 단계에서는 실제 개인정보 대신 테스트 고객 계정과 가상 번호를 사용합니다.',
-                    style: StaffText.body12,
-                  ),
-                  Text(
-                    '조회된 고객 정보는 상담 목적으로만 활용되며, 데이터 이용 동의 확인 후 진행됩니다.',
-                    style: StaffText.body12,
-                  ),
-                ],
-              ),
-            ],
+          // Figma: input2 bottom 319+42=361 → button top 382 = 21px.
+          const SizedBox(height: 21),
+          SegueCompactButton(
+            label: '고객 조회',
+            backgroundColor: SegueCardColors.ctaBg,
+            height: 32,
+            textStyle: SegueCardText.compactButtonLabel15.copyWith(fontSize: 14),
+            onPressed: onSubmit,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({
-    required this.state,
-    required this.onRetryLookup,
-    required this.onRetryCart,
-    required this.onOpenConsent,
-  });
+  const _ResultPanel({required this.state, required this.onRetryLookup});
 
   final StaffWebSessionState state;
+
+  /// Null when the phone field is empty (nothing to retry with yet), same
+  /// gating [_SearchPanel]'s submit button already applies.
   final VoidCallback? onRetryLookup;
-  final VoidCallback onRetryCart;
-  final VoidCallback onOpenConsent;
 
   @override
   Widget build(BuildContext context) {
@@ -240,9 +193,7 @@ class _ResultPanel extends StatelessWidget {
     }
     if (state.lookupState.hasError) {
       final Object? error = state.lookupState.error;
-      final String message = error is AppException
-          ? error.message
-          : '회원 정보를 다시 확인해 주세요.';
+      final String message = error is AppException ? error.message : '회원 정보를 다시 확인해 주세요.';
       final bool notFound =
           (error is ApiException && error.statusCode == 404) ||
           (error is AppException && error.code == 'CUSTOMER_NOT_FOUND');
@@ -254,230 +205,77 @@ class _ResultPanel extends StatelessWidget {
     }
     final Customer? customer = state.customer;
     if (customer == null) {
-      return const AppStateView.empty(
-        title: '조회된 고객이 없습니다',
-        message: '왼쪽에서 휴대전화 번호를 입력하고 고객을 조회하세요.',
-      );
+      // Figma (89:928): nothing renders on the right until a customer is
+      // found.
+      return const SizedBox.shrink();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 16,
-      children: <Widget>[
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 12,
-            children: <Widget>[
-              const Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text('고객 정보', style: StaffText.header16SemiBold),
-                  ),
-                  Text('조회 기준 시점: 방금 전', style: StaffText.meta11),
-                ],
-              ),
-              Row(
-                spacing: 16,
-                children: <Widget>[
-                  const StaffImagePlaceholder.avatar(),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: 4,
-                      children: <Widget>[
-                        Text(
-                          customer.name,
-                          style: StaffText.header16SemiBold,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          '회원번호 MCM-TEST-${customer.id.toString().padLeft(4, '0')}',
-                          style: StaffText.body12,
-                        ),
-                        const Text('가입일 정보 없음', style: StaffText.meta11),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 12,
-            children: <Widget>[
-              const Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      '장바구니 제품 목록',
-                      style: StaffText.header16SemiBold,
-                    ),
-                  ),
-                  Text('최근 담은 순', style: StaffText.meta11),
-                ],
-              ),
-              _CartPreview(
-                customer: customer,
-                cartState: state.cartState,
-                onRetry: onRetryCart,
-                onOpenConsent: onOpenConsent,
-              ),
-            ],
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: StaffButton(
-            label: '데이터 이용 동의 확인',
-            variant: StaffButtonVariant.primary,
-            onPressed: () =>
-                Navigator.of(context).pushNamed(AppRoutes.customerConsent),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CartPreview extends StatelessWidget {
-  const _CartPreview({
-    required this.customer,
-    required this.cartState,
-    required this.onRetry,
-    required this.onOpenConsent,
-  });
-
-  final Customer customer;
-  final AsyncValue<List<CartItem>> cartState;
-  final VoidCallback onRetry;
-  final VoidCallback onOpenConsent;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!customer.hasConsented) {
-      return const AppStateView.empty(
-        title: '데이터 이용 동의가 필요합니다',
-        message: '동의 확인 후 장바구니 목록을 볼 수 있습니다.',
-      );
-    }
-    if (cartState.isLoading || cartState.isIdle) {
-      return const AppStateView.loading(title: '장바구니를 불러오고 있습니다');
-    }
-    if (cartState.hasError) {
-      final Object? error = cartState.error;
-      final String message = error is AppException
-          ? error.message
-          : '장바구니를 불러오지 못했습니다.';
-      final bool consentRequired =
-          error is ApiException && error.isConsentRequired;
-      return AppStateView.error(
-        title: consentRequired ? '데이터 이용 동의가 필요합니다' : '장바구니를 불러오지 못했습니다',
-        message: message,
-        actionLabel: consentRequired ? '동의 화면으로 이동' : '다시 시도',
-        onAction: consentRequired ? onOpenConsent : onRetry,
-      );
-    }
-    final List<CartItem> items = cartState.data ?? const <CartItem>[];
-    if (items.isEmpty) {
-      return const AppStateView.empty(title: '장바구니가 비어 있습니다');
-    }
-
-    return Column(
-      spacing: 8,
-      children: <Widget>[
-        for (final CartItem item in items) _CartItemRow(item: item),
-      ],
-    );
-  }
-}
-
-class _CartItemRow extends StatelessWidget {
-  const _CartItemRow({required this.item});
-
-  final CartItem item;
-
-  // Below this width the image + a legible name column + the status/chip
-  // group can no longer share one row without the trailing group being
-  // squeezed to nothing (measured: overflows below ~420px). The Figma
-  // reference has no narrower variant, so stacking the trailing group under
-  // the leading content — instead of forcing it onto the same row — is this
-  // app's own responsive addition.
-  static const double _rowBreakpoint = 420;
-
-  @override
-  Widget build(BuildContext context) {
-    final String statusLabel = item.inventory.currentStoreInStock
-        ? '현재 매장 보유'
-        : '현재 매장 미보유';
-
-    final Widget leading = Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      spacing: 16,
-      children: <Widget>[
-        const StaffImagePlaceholder.square(size: 56),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 4,
-            children: <Widget>[
-              Text(
-                item.productName,
-                style: StaffText.body12,
+    return Container(
+      width: double.infinity,
+      // Figma: Details Container 626x159.
+      padding: const EdgeInsets.fromLTRB(27, 27, 27, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: SegueCardColors.border, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final Widget name = Text(
+                customer.name,
+                style: SegueCardText.customerName22,
                 overflow: TextOverflow.ellipsis,
-              ),
-              Text('컬러: ${item.color}', style: StaffText.meta11),
-            ],
+              );
+              final Widget cta = SegueCompactButton(
+                label: '상담 데이터 이용 동의 확인',
+                backgroundColor: SegueCardColors.ctaBg,
+                showArrow: true,
+                textStyle: SegueCardText.compactButtonLabel16,
+                onPressed: () => Navigator.of(context).pushNamed(AppRoutes.customerConsent),
+              );
+              // The button's auto-width label has no narrower Figma
+              // variant, so this app's own responsive fallback drops it
+              // below the name instead of overflowing.
+              if (constraints.maxWidth >= 500) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[Expanded(child: name), const SizedBox(width: 12), cta],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[name, const SizedBox(height: 12), cta],
+              );
+            },
           ),
-        ),
-      ],
-    );
-
-    final Widget trailing = Wrap(
-      alignment: WrapAlignment.end,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 16,
-      runSpacing: 8,
-      children: <Widget>[
-        Text(statusLabel, style: StaffText.meta11),
-        StaffButton(
-          label: item.actionButtonLabel,
-          variant: StaffButtonVariant.chip,
-          onPressed: () {},
-        ),
-      ],
-    );
-
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        if (constraints.maxWidth >= _rowBreakpoint) {
-          // Matches Figma exactly: Figma uses an invisible flex-fill spacer
-          // between the name column and the trailing group (14:859
-          // metadata, node 14:933 "Frame" h=1) — only the name column
-          // (Expanded) should compete for leftover space here. Wrapping
-          // `trailing` in Flexible/Expanded would instead split the
-          // remaining width 50/50 with it, stranding the group mid-row.
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            spacing: 16,
-            children: <Widget>[
-              Expanded(child: leading),
-              trailing,
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 8,
-          children: <Widget>[
-            leading,
-            Align(alignment: Alignment.centerRight, child: trailing),
-          ],
-        );
-      },
+          // Figma: name bottom 187+31=218 → details top 231 = 13px.
+          const SizedBox(height: 13),
+          Text.rich(
+            TextSpan(
+              children: <InlineSpan>[
+                const TextSpan(text: '회원번호', style: SegueCardText.detailLabel16),
+                const TextSpan(text: '   ', style: SegueCardText.detailLabel16),
+                TextSpan(text: '${customer.id}', style: SegueCardText.detailValue16),
+              ],
+            ),
+          ),
+          Text.rich(
+            TextSpan(
+              children: <InlineSpan>[
+                const TextSpan(text: '전화번호', style: SegueCardText.detailLabel16),
+                const TextSpan(text: '   ', style: SegueCardText.detailLabel16),
+                TextSpan(text: customer.phoneNumber, style: SegueCardText.detailValue16),
+              ],
+            ),
+          ),
+          // Figma: details block bottom 231+48=279 → box bottom 160+159=319,
+          // 40px slack at the bottom the box just leaves as breathing room.
+          const SizedBox(height: 40),
+        ],
+      ),
     );
   }
 }

@@ -24,7 +24,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const SegueApp());
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
 
     expect(find.text('LXXVI'), findsOneWidget);
 
@@ -49,7 +49,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const SegueApp());
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
     await _openNewProducts(tester);
 
     await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
@@ -82,7 +82,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const SegueApp());
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
     await _openNewProducts(tester);
 
     await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
@@ -197,7 +197,9 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const SegueApp());
+    await tester.pumpWidget(
+      SegueApp(repository: MockSegueRepository(seedDemoConsultationResults: true)),
+    );
     await tester.tap(find.byTooltip('SEGUE 내역 확인'));
     await tester.pumpAndSettle();
 

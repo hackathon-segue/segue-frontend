@@ -10,7 +10,7 @@ import 'package:segue_frontend/screens/consent_screen.dart';
 import 'package:segue_frontend/screens/customer_lookup_screen.dart';
 import 'package:segue_frontend/utils/app_config.dart';
 import 'package:segue_frontend/utils/app_theme.dart';
-import 'package:segue_frontend/widgets/staff_check_row.dart';
+import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 void main() {
   test(
@@ -83,26 +83,32 @@ void main() {
 
     await _lookupPhone(tester, '010-1234-5678');
 
-    expect(find.text('데이터 이용 동의가 필요합니다'), findsWidgets);
-    expect(find.text('동의 화면으로 이동'), findsOneWidget);
-
-    await tester.tap(find.text('동의 화면으로 이동'));
+    // The customer lookup screen no longer previews cart state at all (per
+    // 89:928/89:1001 — that UI now only exists on CartInventoryScreen), so
+    // the 403 from the background loadCart() prefetch doesn't surface here.
+    // The screen always shows the consent CTA once a customer is found.
+    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
+    await tester.ensureVisible(consentButton);
+    await tester.tap(consentButton);
     await tester.pumpAndSettle();
 
     for (int i = 0; i < 3; i++) {
-      await tester.tap(find.byType(StaffCheckRow).at(i));
+      await tester.tap(find.byType(SegueCheckboxRow).at(i));
       await tester.pump();
     }
 
-    final Finder agreeButton = find.text('동의하고 장바구니 확인');
+    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
     await tester.ensureVisible(agreeButton);
     await tester.tap(agreeButton);
     await tester.pumpAndSettle();
 
+    // submitConsent() resets cartState to idle on success, and the
+    // (still-mounted-underneath) lookup screen's own postFrameCallback
+    // re-triggers loadCart() — this time consentSubmitted is true, so the
+    // retried fetch succeeds without any explicit "재시도" action needed.
     expect(repository.fetchAttempts, 2);
     expect(repository.lastFetchCustomerId, 1);
     expect(repository.lastFetchStoreId, 1);
-    expect(find.text('장바구니 · 재고 확인'), findsOneWidget);
     expect(find.text('MCM 백팩 미디움'), findsOneWidget);
   });
 }

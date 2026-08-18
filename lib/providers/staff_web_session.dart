@@ -13,6 +13,7 @@ class StaffWebSessionState {
     this.lookupState = const AsyncValue<Customer>.idle(),
     this.consentState = const AsyncValue<CustomerConsent>.idle(),
     this.cartState = const AsyncValue<List<CartItem>>.idle(),
+    this.checkedInStockSkuIds = const <int>{},
   });
 
   final int storeId;
@@ -22,6 +23,12 @@ class StaffWebSessionState {
   final AsyncValue<CustomerConsent> consentState;
   final AsyncValue<List<CartItem>> cartState;
 
+  /// SKU ids of in-stock cart items the CA has confirmed via
+  /// [GeneralProductCheckScreen]'s "해당 제품 상담 완료" button. In-stock
+  /// items have no Last Intent session (no structureIntent/decide/execute),
+  /// so this is the only signal for their per-row "상담 완료" state.
+  final Set<int> checkedInStockSkuIds;
+
   StaffWebSessionState copyWith({
     int? storeId,
     Customer? customer,
@@ -29,6 +36,7 @@ class StaffWebSessionState {
     AsyncValue<Customer>? lookupState,
     AsyncValue<CustomerConsent>? consentState,
     AsyncValue<List<CartItem>>? cartState,
+    Set<int>? checkedInStockSkuIds,
   }) {
     return StaffWebSessionState(
       storeId: storeId ?? this.storeId,
@@ -37,6 +45,7 @@ class StaffWebSessionState {
       lookupState: lookupState ?? this.lookupState,
       consentState: consentState ?? this.consentState,
       cartState: cartState ?? this.cartState,
+      checkedInStockSkuIds: checkedInStockSkuIds ?? this.checkedInStockSkuIds,
     );
   }
 }
@@ -161,6 +170,16 @@ class StaffWebSessionController extends ChangeNotifier {
         cartState: AsyncValue<List<CartItem>>.error(error, stackTrace),
       );
     }
+    notifyListeners();
+  }
+
+  /// Marks an in-stock cart item's SKU as confirmed by the CA (98:1933's
+  /// "해당 제품 상담 완료" button) — the row on [CartInventoryScreen] reflects
+  /// this immediately since both screens share this controller.
+  void markProductChecked(int skuId) {
+    _state = _state.copyWith(
+      checkedInStockSkuIds: <int>{..._state.checkedInStockSkuIds, skuId},
+    );
     notifyListeners();
   }
 }

@@ -10,6 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_svg: ^2.3.0
   http: ^1.6.0
 
 dev_dependencies:
@@ -19,6 +20,8 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/icons/
+    - assets/images/
     - assets/images/mcm/
   fonts:
     - family: Montserrat

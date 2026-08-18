@@ -152,9 +152,12 @@ class _CardScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SegueCardShell(
-      step: '4/5',
-      title: 'SEGUE CARD',
-      titleStyle: SegueCardText.screenTitle24,
+      pageTitle: 'CURRENT SESSION',
+      activeMenuItem: TabletMenuItem.currentSession,
+      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      stepBadge: '4/5',
+      screenTitle: 'SEGUE CARD',
+      screenTitleStyle: SegueCardText.screenTitle24,
       body: child,
       bottomBar: SegueBottomActionRow(
         onBackToStart: () => Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst),
@@ -176,7 +179,7 @@ class _ProductSummaryCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const SegueProductImage(width: 100, height: 108),
+          SegueProductImage(imageUrl: cartItem.imageUrl, width: 100, height: 108),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -225,7 +228,7 @@ class _NextStepPreviewCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const SegueProductImage(width: 100, height: 108),
+                SegueProductImage(imageUrl: recommended.imageUrl, width: 100, height: 108),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(result.difference, style: SegueCardText.body18),

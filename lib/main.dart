@@ -7,7 +7,6 @@ import 'screens/consent_declined_screen.dart';
 import 'screens/consent_screen.dart';
 import 'screens/customer_lookup_screen.dart';
 import 'screens/customer_mobile_entry_screen.dart';
-import 'screens/general_product_check_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'screens/staff_home_screen.dart';
 import 'utils/app_config.dart';
@@ -18,7 +17,13 @@ void main() {
 }
 
 class SegueApp extends StatefulWidget {
-  const SegueApp({super.key});
+  const SegueApp({this.repository, super.key});
+
+  /// Overrides [AppConfig.useMockData]'s repository choice — tests inject
+  /// `MockSegueRepository()` explicitly here instead of relying on the
+  /// compile-time default (which now defaults to the real HTTP repository,
+  /// see [AppConfig.useMockData]).
+  final SegueRepository? repository;
 
   @override
   State<SegueApp> createState() => _SegueAppState();
@@ -29,9 +34,11 @@ class _SegueAppState extends State<SegueApp> {
   // lifetime of the app so the CA's lookup/consent/cart state survives
   // navigation across the staff/tablet route stack (home → customer lookup
   // → consent), mirroring how RepositoryScope is already shared.
-  late final SegueRepository _repository = AppConfig.useMockData
-      ? MockSegueRepository(seedDemoConsultationResults: true)
-      : RealSegueRepository(apiClient: HttpSegueApiClient());
+  late final SegueRepository _repository =
+      widget.repository ??
+      (AppConfig.useMockData
+          ? MockSegueRepository(seedDemoConsultationResults: true)
+          : RealSegueRepository(apiClient: HttpSegueApiClient()));
   late final StaffWebSessionController _staffSessionController =
       StaffWebSessionController(repository: _repository)
         ..onNewLookup = _lastIntentSessionManager.reset
@@ -68,8 +75,6 @@ class _SegueAppState extends State<SegueApp> {
               AppRoutes.customerConsentDeclined: (_) =>
                   const ConsentDeclinedScreen(),
               AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
-              AppRoutes.generalProductCheck: (_) =>
-                  const GeneralProductCheckScreen(),
             },
             onUnknownRoute: (RouteSettings settings) {
               return MaterialPageRoute<void>(
