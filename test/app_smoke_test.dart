@@ -2,20 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 
-Future<void> _openStaffLogin(WidgetTester tester) async {
+Future<void> _openStaffHome(WidgetTester tester) async {
   await tester.pumpWidget(const SegueApp());
   final Finder staffWebButton = find.widgetWithText(FilledButton, '직원 웹');
   await tester.ensureVisible(staffWebButton);
   await tester.tap(staffWebButton);
-  await tester.pumpAndSettle();
-}
-
-Future<void> _login(WidgetTester tester) async {
-  await tester.enterText(find.byType(TextFormField).at(0), 'ca@example.com');
-  await tester.enterText(find.byType(TextFormField).at(1), 'password');
-  FocusManager.instance.primaryFocus?.unfocus();
-  await tester.pump();
-  await tester.tap(find.text('로그인'));
   await tester.pumpAndSettle();
 }
 
@@ -44,7 +35,7 @@ void main() {
     expect(find.text('MCM Last Intent'), findsOneWidget);
   });
 
-  testWidgets('opens the staff route group at the login screen', (
+  testWidgets('opens the staff route group directly at the home screen (no login gate)', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(430, 932);
@@ -52,22 +43,21 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await _openStaffLogin(tester);
+    await _openStaffHome(tester);
 
     expect(find.text('MCM 상담 지원'), findsOneWidget);
-    expect(find.text('직원 로그인'), findsOneWidget);
+    expect(find.text('고객 조회 시작'), findsOneWidget);
   });
 
   testWidgets(
-    'logging in and looking up a consented customer shows the cart preview',
+    'looking up a consented customer shows the cart preview',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      await _openStaffLogin(tester);
-      await _login(tester);
+      await _openStaffHome(tester);
 
       expect(find.text('MCM 상담 지원'), findsOneWidget);
       expect(find.text('고객 조회 시작'), findsOneWidget);
@@ -90,8 +80,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      await _openStaffLogin(tester);
-      await _login(tester);
+      await _openStaffHome(tester);
       await _goToCustomerLookup(tester);
       await _searchCustomer(tester, '010-9876-5432');
 
@@ -118,8 +107,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await _openStaffLogin(tester);
-    await _login(tester);
+    await _openStaffHome(tester);
     await _goToCustomerLookup(tester);
     await _searchCustomer(tester, '010-1234-5678');
     expect(find.text('MCM 백팩 미디움'), findsOneWidget);

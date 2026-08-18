@@ -29,7 +29,7 @@ class CustomerMobileEntryScreen extends StatelessWidget {
             title: '직원 웹 화면',
             description: '직원 웹 route group으로 이동해 화면 분리를 확인합니다.',
             actionLabel: '직원 웹',
-            routeName: AppRoutes.staffWeb,
+            routeName: AppRoutes.staffHome,
           ),
         ],
       ),

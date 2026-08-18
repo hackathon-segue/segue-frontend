@@ -16,13 +16,6 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '직원 웹'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'ca@example.com');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password');
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pump();
-    await tester.tap(find.text('로그인'));
-    await tester.pumpAndSettle();
-
     await tester.tap(find.text('고객 조회 시작'));
     await tester.pumpAndSettle();
 
@@ -130,19 +123,23 @@ void main() {
     await tester.tap(find.text('맞아요, 다음 단계로'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Last Intent Card'), findsOneWidget);
-    expect(find.text('원제품 정보'), findsOneWidget);
-    expect(find.text('재고 및 입고 정보'), findsOneWidget);
+    // Issue #46: Card is now a lightweight summary (Figma node 164:3213) —
+    // deeper per-resultType content/CTA assertions moved to
+    // last_intent_card_screen_test.dart and
+    // last_intent_result_product_screen_test.dart, which exercise those
+    // screens directly instead of walking the full intent-capture flow.
+    expect(find.text('SEGUE CARD'), findsOneWidget);
+    expect(find.text('상담 제품 요약'), findsOneWidget);
+    expect(find.text('고객 핵심 조건'), findsOneWidget);
+    expect(find.text('판단 근거'), findsOneWidget);
     // MockSegueRepository.decide()'s canned response has
-    // recommendedProduct: null, so this must show the 확보 경로 section (not
-    // a 제안 제품 card), using pathDescription for both the path label and
-    // its detail — and exactly one CTA button, nothing else.
-    expect(find.text('확보 경로'), findsOneWidget);
+    // recommendedProduct: null, so the summary card must not claim a
+    // suggested product exists, and the single CTA uses the real
+    // actionButtonLabel.
     expect(find.text('제안 제품'), findsNothing);
-    expect(find.text('강남 신세계점 재고 확인'), findsOneWidget);
     expect(find.text('타 매장 확인 요청'), findsOneWidget);
-    // Issue #13 AC: never show result-type badges or multiple alternate
-    // actions/paths.
+    // Issue #13 AC (still holds): never show result-type badges or
+    // forbidden language anywhere on this screen.
     expect(find.text('정확한 제품 확인'), findsNothing);
     expect(find.text('오늘 구매 가능한 제품'), findsNothing);
     expect(find.text('추가 상담 필요'), findsNothing);

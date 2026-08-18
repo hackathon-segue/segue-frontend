@@ -33,7 +33,12 @@ class LastIntentSessionManager extends ChangeNotifier {
     }
     final LastIntentSessionController created =
         LastIntentSessionController(repository: _repository)
-          ..start(customer: customer, cartItem: cartItem);
+          ..start(customer: customer, cartItem: cartItem)
+          // Widgets outside the session's own scope (e.g. the cart row's
+          // "상담 완료" badge, driven by isCompleted() below) listen to this
+          // manager, not to each individual session — without forwarding,
+          // execute() flipping executionResponse never reaches them.
+          ..addListener(notifyListeners);
     _sessionsBySkuId[cartItem.skuId] = created;
     notifyListeners();
     return created;
