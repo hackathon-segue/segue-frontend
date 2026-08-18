@@ -305,6 +305,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LastIntentAdditionalConsultationScreen), findsOneWidget);
-    expect(find.text('추가 상담 진행'), findsOneWidget);
+    // Appears twice now: the screenTitle, and the "추가 상담 진행" toggle
+    // checkbox's own label (169:3683/169:3821's real 진행/미진행 toggle).
+    expect(find.text('추가 상담 진행'), findsWidgets);
   });
 }

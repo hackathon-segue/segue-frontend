@@ -25,12 +25,14 @@ abstract final class StructuredIntentVocabulary {
     'weightGrade': '무게감',
     'lockType': '잠금 방식',
     'internalStorageLevel': '내부 수납',
+    'handleType': '핸들 디자인',
     'laptopCompatible': '노트북 수납 가능 여부',
+    'laptopMaxInch': '노트북 수납 최대 인치',
   };
 
   /// Attribute key -> its allowed wire values, in table order.
   static const Map<String, List<String>> attributeValues = <String, List<String>>{
-    'colorFamily': <String>['블랙', '브라운', '베이지'],
+    'colorFamily': <String>['블랙', '브라운', '베이지', '꼬냑', '오렌지', '그린'],
     'colorTone': <String>['웜', '쿨', '뉴트럴'],
     'material': <String>['가죽', '캔버스', '패브릭'],
     'glossLevel': <String>['높음', '중간', '낮음'],
@@ -46,17 +48,24 @@ abstract final class StructuredIntentVocabulary {
     'weightGrade': <String>['가벼움', '보통', '무거움'],
     'lockType': <String>['지퍼', '플립', '마그네틱'],
     'internalStorageLevel': <String>['심플', '구획많음'],
+    // 다이아몬드컷아웃 = 핸들 디자인이 원제품과 같은 특징적인 컷아웃 형태인지 여부.
+    'handleType': <String>['다이아몬드컷아웃', '일반'],
     'laptopCompatible': <String>['true', 'false'],
+    // laptopCompatible이 "false"면 이 key는 조건에 쓰지 않는다.
+    'laptopMaxInch': <String>['13', '16'],
   };
 
   static String attributeLabel(String key) => attributeLabels[key] ?? key;
 
   /// Value display label — every attribute's values are already Korean
-  /// text except laptopCompatible, whose wire values are the literal
-  /// strings "true"/"false".
+  /// text except laptopCompatible (literal "true"/"false") and
+  /// laptopMaxInch (literal inch number, e.g. "13").
   static String attributeValueLabel(String key, String value) {
     if (key == 'laptopCompatible') {
       return value == 'true' ? '예' : '아니오';
+    }
+    if (key == 'laptopMaxInch') {
+      return '$value인치';
     }
     return value;
   }
