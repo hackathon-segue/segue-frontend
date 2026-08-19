@@ -11,7 +11,7 @@ abstract final class AppConfig {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://throat-bradford-blacks-yarn.trycloudflare.com',
+    defaultValue: 'https://genius-barrel-wilderness-olympic.trycloudflare.com',
   );
 
   static const int defaultStoreId = int.fromEnvironment(

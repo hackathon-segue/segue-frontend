@@ -16,7 +16,7 @@ void main() {
     final NetworkImage provider = _networkImageOf(image);
     expect(
       provider.url,
-      'https://throat-bradford-blacks-yarn.trycloudflare.com/images/products/bag1.png',
+      'https://genius-barrel-wilderness-olympic.trycloudflare.com/images/products/bag1.png',
     );
     expect(provider.headers, isNull);
   });
@@ -50,7 +50,7 @@ void main() {
     final NetworkImage provider = _networkImageOf(image);
     expect(
       provider.url,
-      'https://throat-bradford-blacks-yarn.trycloudflare.com/images/products/bag1.png',
+      'https://genius-barrel-wilderness-olympic.trycloudflare.com/images/products/bag1.png',
     );
   });
 

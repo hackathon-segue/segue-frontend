@@ -44,6 +44,8 @@ abstract final class _McmImageAssets {
       'assets/images/mcm/category_backpack.png';
   static const String categoryTopHandle =
       'assets/images/mcm/category_top_handle.png';
+  static const String wordmarkBlack =
+      'assets/images/mcm/mcm_wordmark_black.png';
 
   static String categoryHeroFor(String? category) {
     return switch (category ?? '가방') {
@@ -585,17 +587,23 @@ class _StartScreen extends StatelessWidget {
                         IconButton(
                           tooltip: '메뉴 열기',
                           onPressed: onOpenMenu,
-                          color: Colors.white,
-                          iconSize: 34,
-                          icon: const Icon(Icons.menu),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 48,
+                            height: 48,
+                          ),
+                          icon: const _StartMenuIcon(),
                         ),
                         const Spacer(),
                         IconButton(
                           tooltip: 'SEGUE 내역 확인',
                           onPressed: onOpenResults,
-                          color: Colors.white,
-                          iconSize: 33,
-                          icon: const Icon(Icons.person_outline),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 48,
+                            height: 48,
+                          ),
+                          icon: const _StartProfileIcon(),
                         ),
                       ],
                     ),
@@ -643,12 +651,15 @@ class _LoginScreen extends StatelessWidget {
                         icon: const Icon(Icons.close, size: 28),
                       ),
                     ),
-                    const Text(
-                      'MCM',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
+                    Semantics(
+                      label: 'MCM',
+                      image: true,
+                      child: Image.asset(
+                        _McmImageAssets.wordmarkBlack,
+                        width: 76,
+                        height: 22,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium,
                       ),
                     ),
                   ],
@@ -758,50 +769,137 @@ class _StartScreenLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              const Text(
-                'MCM',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 48,
-                  fontWeight: FontWeight.w900,
-                  height: 0.92,
-                  letterSpacing: 0,
+    return const SizedBox(
+      width: 318,
+      height: 86,
+      child: Stack(
+        alignment: Alignment.topCenter,
+        children: <Widget>[
+          Positioned(
+            top: 0,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(
+                  'MCM',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'Montserrat',
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
+                    height: 0.9,
+                    letterSpacing: 0,
+                  ),
                 ),
-              ),
-              Transform.translate(
-                offset: const Offset(-2, 0),
-                child: const _OutlinedText(
-                  'LXXVI',
-                  fontSize: 43,
-                  strokeWidth: 1.25,
-                ),
-              ),
-            ],
+                SizedBox(width: 4),
+                _OutlinedText('LXXVI', fontSize: 47, strokeWidth: 1.25),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 2),
-        const Text(
-          '1976',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            height: 0.9,
-            letterSpacing: 0,
+          Positioned(
+            top: 45,
+            child: Text(
+              '1976',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'Montserrat',
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                height: 0.9,
+                letterSpacing: 0,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+}
+
+class _StartMenuIcon extends StatelessWidget {
+  const _StartMenuIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 22,
+      height: 16,
+      child: CustomPaint(painter: _StartMenuIconPainter()),
+    );
+  }
+}
+
+class _StartMenuIconPainter extends CustomPainter {
+  const _StartMenuIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.square;
+
+    canvas.drawLine(const Offset(0, 1.1), Offset(size.width, 1.1), paint);
+    canvas.drawLine(
+      Offset(0, size.height / 2),
+      Offset(size.width, size.height / 2),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height - 1.1),
+      Offset(size.width, size.height - 1.1),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_StartMenuIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _StartProfileIcon extends StatelessWidget {
+  const _StartProfileIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 24,
+      height: 24,
+      child: CustomPaint(painter: _StartProfileIconPainter()),
+    );
+  }
+}
+
+class _StartProfileIconPainter extends CustomPainter {
+  const _StartProfileIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint linePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round;
+    final Paint dotPaint = Paint()
+      ..color = const Color(0xFFB7C79B)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(Offset(size.width / 2, 6.7), 5.1, linePaint);
+    canvas.drawCircle(Offset(size.width / 2, 6.7), 3.15, dotPaint);
+    canvas.drawArc(
+      Rect.fromLTWH(2.1, 12.2, size.width - 4.2, 17.5),
+      3.86,
+      1.98,
+      false,
+      linePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_StartProfileIconPainter oldDelegate) {
+    return false;
   }
 }
 
@@ -823,6 +921,7 @@ class _OutlinedText extends StatelessWidget {
       style: TextStyle(
         fontSize: fontSize,
         fontWeight: FontWeight.w300,
+        fontFamily: 'Montserrat',
         height: 0.92,
         letterSpacing: 0,
         foreground: Paint()
@@ -1049,12 +1148,15 @@ class _McmTopBar extends StatelessWidget {
               icon: Icon(leadingIcon, size: 22),
             ),
           ),
-          const Text(
-            'MCM',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 17,
-              letterSpacing: 0,
+          Semantics(
+            label: 'MCM',
+            image: true,
+            child: Image.asset(
+              _McmImageAssets.wordmarkBlack,
+              width: 69,
+              height: 20,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
             ),
           ),
           if (onProfilePressed != null)
