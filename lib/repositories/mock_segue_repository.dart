@@ -71,6 +71,11 @@ class MockSegueRepository implements SegueRepository {
   }
 
   @override
+  Future<List<MobileProduct>> fetchMobileProducts() async {
+    return MobileProductCatalog.products;
+  }
+
+  @override
   Future<CartItem> saveCartItem(CartSaveRequest request) async {
     final MobileProduct product = MobileProductCatalog.productById(
       request.productId,
