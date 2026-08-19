@@ -22,10 +22,20 @@ import 'segue_card_shell.dart';
 /// content) need to change — only the shared chrome swaps, per Issue #48's
 /// "이번 작업에서는 개별 화면 디자인 교체를 시작하지 않는다" scope limit.
 class StaffAppShell extends StatelessWidget {
-  const StaffAppShell({required this.currentRoute, required this.body, super.key});
+  const StaffAppShell({
+    required this.currentRoute,
+    required this.body,
+    this.guardedSession,
+    super.key,
+  });
 
   final String currentRoute;
   final Widget body;
+
+  /// See [SegueCardShell.guardedSession] — same navigation-guard wiring,
+  /// needed here too since [LastIntentEditScreen] is the one Last Intent
+  /// flow screen still using this shell instead of [SegueCardShell].
+  final LastIntentSessionController? guardedSession;
 
   static TabletMenuItem _menuItemFor(String route) {
     return switch (route) {
@@ -36,39 +46,66 @@ class StaffAppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(StaffRadii.shell),
-            border: Border.all(color: StaffColors.cardBorder),
-            boxShadow: StaffShadows.shell,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(StaffRadii.shell),
-            child: Column(
-              children: <Widget>[
-                const TabletHeader(),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      TabletNavSidebar(
-                        activeMenuItem: _menuItemFor(currentRoute),
-                        sessionCount: LastIntentSessionScope.of(context).activeCount,
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(24),
-                          child: body,
+    return GuardedSessionRegistrar(
+      controller: guardedSession,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(StaffRadii.shell),
+              border: Border.all(color: StaffColors.cardBorder),
+              boxShadow: StaffShadows.shell,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(StaffRadii.shell),
+              child: Column(
+                children: <Widget>[
+                  const TabletHeader(),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        TabletNavSidebar(
+                          activeMenuItem: _menuItemFor(currentRoute),
+                          sessionCount: LastIntentSessionScope.of(
+                            context,
+                          ).activeCount,
                         ),
-                      ),
-                    ],
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder:
+                                (
+                                  BuildContext context,
+                                  BoxConstraints constraints,
+                                ) {
+                                  return SingleChildScrollView(
+                                    padding: const EdgeInsets.all(24),
+                                    // Gives short content (loading/empty/
+                                    // error states, all of which Center
+                                    // themselves) a real height to center
+                                    // within — without this, a
+                                    // SingleChildScrollView's unbounded
+                                    // height means Center just collapses to
+                                    // the top instead of the middle of the
+                                    // visible pane. Taller content still
+                                    // scrolls normally past this floor.
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minHeight: constraints.maxHeight - 48,
+                                      ),
+                                      child: body,
+                                    ),
+                                  );
+                                },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

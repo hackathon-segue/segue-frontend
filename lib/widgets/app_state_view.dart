@@ -18,6 +18,10 @@ class AppStateView extends StatelessWidget {
     super.key,
   });
 
+  // [title]/[message] are kept as constructor params (existing call sites
+  // all pass a `title:`) but no longer rendered — the loading UI is now the
+  // one shared Figma 516:3915 mark ("Loading...") everywhere, not a
+  // per-screen message.
   const AppStateView.loading({
     this.title = '불러오는 중입니다',
     this.message,
@@ -82,6 +86,14 @@ class AppStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Figma 516:3915 — the one shared loading UI every screen in the app
+    // reuses (no per-screen title/spinner variants any more): a pulsing
+    // MCM logo + "Loading...", plain/centered, not boxed in the Card the
+    // other three states below still use.
+    if (isLoading) {
+      return const Center(child: _PulsingLoading());
+    }
+
     final ThemeData theme = Theme.of(context);
     final Color color = _toneColor();
 
@@ -91,15 +103,7 @@ class AppStateView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            if (isLoading)
-              const SizedBox.square(
-                dimension: AppSizes.loadingIndicator,
-                child: CircularProgressIndicator(
-                  strokeWidth: AppSizes.loadingStroke,
-                ),
-              )
-            else
-              Icon(icon, color: color, size: AppSizes.iconLarge),
+            Icon(icon, color: color, size: AppSizes.iconLarge),
             const SizedBox(height: AppSpacing.md),
             Text(
               title,
@@ -147,5 +151,63 @@ class AppStateView extends StatelessWidget {
       AppStateTone.warning => AppColors.warning,
       AppStateTone.danger => AppColors.danger,
     };
+  }
+}
+
+/// The Figma 516:3915 loading mark — MCM logo above "Loading...", both
+/// fading together between 40% and 100% opacity on a smooth, endless loop.
+class _PulsingLoading extends StatefulWidget {
+  const _PulsingLoading();
+
+  @override
+  State<_PulsingLoading> createState() => _PulsingLoadingState();
+}
+
+class _PulsingLoadingState extends State<_PulsingLoading>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  late final Animation<double> _opacity = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeInOut,
+  ).drive(Tween<double>(begin: 0.4, end: 1));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SizedBox(
+            width: 160,
+            height: 160,
+            child: Image.asset(
+              'assets/icons/mcm_crest_logo.png',
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
+            'Loading...',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

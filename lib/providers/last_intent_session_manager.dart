@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../models/models.dart';
 import '../repositories/repositories.dart';
@@ -35,6 +35,23 @@ class LastIntentSessionManager extends ChangeNotifier {
   final SegueRepository _repository;
   final Map<String, LastIntentSessionController> _sessionsByKey =
       <String, LastIntentSessionController>{};
+
+  // Issue: SEGUE Last Intent navigation guard (Figma 500:3875). Whichever
+  // Last Intent flow screen (utterance through completion) is currently
+  // mounted registers its own session controller here via
+  // [registerGuardedSession] — see `_GuardedSessionRegistrar` in
+  // segue_card_shell.dart, which every such screen opts into through
+  // SegueCardShell/StaffAppShell's `guardedSession` parameter. This is the
+  // ONE place [navigateToTabletRoute] (the shared sidebar/header nav
+  // handler) checks before honoring a tap, so the confirm-exit popup and
+  // its logic never needs duplicating per screen.
+  LastIntentSessionController? _guardedSession;
+
+  /// Keys ended via [endGuardedSession] but not yet actually removed from
+  /// [_sessionsByKey] — see that method's doc for why disposal is deferred.
+  /// Every "is this session active" getter below treats a key in here as
+  /// gone, same as if it had already been removed.
+  final Set<String> _endedKeys = <String>{};
 
   static const String _storageKey = 'segue.activeConsultations';
 
@@ -82,8 +99,9 @@ class LastIntentSessionManager extends ChangeNotifier {
   /// completed — drives the "CURRENT SESSION" sidebar badge (Figma
   /// 89:1196/159:2173 etc.).
   int get activeCount =>
-      _sessionsByKey.values.where((LastIntentSessionController c) {
-        return c.state.executionResponse == null;
+      _sessionsByKey.entries.where((MapEntry<String, LastIntentSessionController> e) {
+        return e.value.state.executionResponse == null &&
+            !_endedKeys.contains(e.key);
       }).length;
 
   /// Every started-but-not-completed session's state (across every
@@ -92,20 +110,23 @@ class LastIntentSessionManager extends ChangeNotifier {
   /// to hide a second customer's still-in-progress consultation just
   /// because Figma's mock only shows one). Empty when [activeCount] is 0,
   /// matching Home's empty-state variant (89:1196).
-  List<LastIntentSessionState> get activeSessions => _sessionsByKey.values
+  List<LastIntentSessionState> get activeSessions => _sessionsByKey.entries
       .where(
-        (LastIntentSessionController c) => c.state.executionResponse == null,
+        (MapEntry<String, LastIntentSessionController> e) =>
+            e.value.state.executionResponse == null &&
+            !_endedKeys.contains(e.key),
       )
-      .map((LastIntentSessionController c) => c.state)
+      .map((MapEntry<String, LastIntentSessionController> e) => e.value.state)
       .toList();
 
   /// The first started-but-not-completed session's state (across every
   /// customer). Null when [activeCount] is 0.
   LastIntentSessionState? get firstActiveSession {
-    for (final LastIntentSessionController controller
-        in _sessionsByKey.values) {
-      if (controller.state.executionResponse == null) {
-        return controller.state;
+    for (final MapEntry<String, LastIntentSessionController> entry
+        in _sessionsByKey.entries) {
+      if (entry.value.state.executionResponse == null &&
+          !_endedKeys.contains(entry.key)) {
+        return entry.value.state;
       }
     }
     return null;
@@ -127,6 +148,84 @@ class LastIntentSessionManager extends ChangeNotifier {
           ?.state
           .additionalConsultationDeclined ??
       false;
+
+  /// Marks [controller] as belonging to the currently-visible Last Intent
+  /// screen — called (only) by `_GuardedSessionRegistrar` while such a
+  /// screen is mounted. Harmless to call repeatedly with the same
+  /// controller (every screen in one SKU's flow shares the same instance
+  /// via [sessionFor]'s cache).
+  void registerGuardedSession(LastIntentSessionController controller) {
+    _guardedSession = controller;
+  }
+
+  /// Un-registers [controller] if it's still the current guarded session —
+  /// called on the registering screen's dispose. A no-op if a *different*
+  /// screen already registered its own session in the meantime, so an
+  /// out-of-order dispose (e.g. the previous screen in the Navigator stack
+  /// unmounting after the next one already registered) can't clobber it.
+  void unregisterGuardedSession(LastIntentSessionController controller) {
+    if (identical(_guardedSession, controller)) {
+      _guardedSession = null;
+    }
+  }
+
+  /// Whether the CA is currently mid-consultation on a Last Intent screen —
+  /// true only while a screen has registered its session AND that session
+  /// hasn't executed yet. False once execute() succeeds (the normal
+  /// "상담 완료"/hand-off navigation out of the flow must never trigger the
+  /// exit-confirmation popup), and false on every screen that never
+  /// registers one (Home, Customer Search, Requests, etc.).
+  bool get isConsultationInProgress =>
+      _guardedSession != null &&
+      _guardedSession!.state.executionResponse == null;
+
+  /// Ends the currently guarded session — used by the exit-consultation
+  /// popup's "상담 종료하고 나가기" button. Drops it from persisted storage and
+  /// every "active" getter above immediately (so it stops counting toward
+  /// [activeCount] and no longer resurfaces as "진행 중인 상담" on Home), the
+  /// same outcome [resetForCustomer] gets for a whole customer — but scoped
+  /// to just this one (customer, SKU) session.
+  ///
+  /// Actual removal from [_sessionsByKey] (and disposing the controller) is
+  /// deferred to a post-frame callback rather than done here: the screen
+  /// whose "상담 종료하고 나가기" button was just tapped is only now being
+  /// popped off the Navigator stack, and its route's exit transition can
+  /// still trigger one more of its own `build()` calls — which would
+  /// re-derive its session via [sessionFor] and, if the entry were already
+  /// gone, silently recreate a fresh one (and call notifyListeners() from
+  /// inside that build, which Flutter forbids). Marking the key ended
+  /// keeps [sessionFor] returning this same now-inert controller instead,
+  /// so that stale rebuild is harmless; the deferred callback then removes
+  /// it for real once nothing can still be reading it.
+  void endGuardedSession() {
+    final LastIntentSessionController? controller = _guardedSession;
+    if (controller == null) {
+      return;
+    }
+    _guardedSession = null;
+    String? key;
+    for (final MapEntry<String, LastIntentSessionController> entry
+        in _sessionsByKey.entries) {
+      if (identical(entry.value, controller)) {
+        key = entry.key;
+        break;
+      }
+    }
+    if (key == null) {
+      return;
+    }
+    _endedKeys.add(key);
+    _persistActiveConsultations();
+    notifyListeners();
+    final String endedKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _endedKeys.remove(endedKey);
+      if (identical(_sessionsByKey[endedKey], controller)) {
+        _sessionsByKey.remove(endedKey);
+      }
+      controller.dispose();
+    });
+  }
 
   /// Clears every session belonging to [customerId] — used when that
   /// specific customer's consent changes (agree or disagree), since a
@@ -197,12 +296,17 @@ class LastIntentSessionManager extends ChangeNotifier {
   /// structuredIntent/decisionResult/currentStep, and a completed session
   /// (executionResponse set) drops out on its very next notification.
   void _persistActiveConsultations() {
-    final List<JsonMap> entries = _sessionsByKey.values
+    final List<JsonMap> entries = _sessionsByKey.entries
         .where(
-          (LastIntentSessionController c) =>
-              c.state.executionResponse == null && c.state.isPersistable,
+          (MapEntry<String, LastIntentSessionController> e) =>
+              e.value.state.executionResponse == null &&
+              e.value.state.isPersistable &&
+              !_endedKeys.contains(e.key),
         )
-        .map((LastIntentSessionController c) => c.state.toPersistedJson())
+        .map(
+          (MapEntry<String, LastIntentSessionController> e) =>
+              e.value.state.toPersistedJson(),
+        )
         .toList();
     if (entries.isEmpty) {
       LocalStorage.removeItem(_storageKey);

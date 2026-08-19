@@ -95,6 +95,7 @@ class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
       sessionCount: manager.activeCount,
+      guardedSession: session,
       // Figma (110:2038): a literal "3/5" step badge, same convention as
       // every other screen in this flow.
       stepBadge: '3/5',

@@ -77,6 +77,7 @@ class _LastIntentCompletionScreenState
         pageTitle: 'CURRENT SESSION',
         activeMenuItem: TabletMenuItem.currentSession,
         sessionCount: LastIntentSessionScope.of(context).activeCount,
+        guardedSession: session,
         stepBadge: '5/5',
         screenTitle: '요청 접수 완료',
         body: const Text('접수된 요청 정보가 없습니다.', style: SegueCardText.body18),
@@ -91,6 +92,7 @@ class _LastIntentCompletionScreenState
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
       sessionCount: LastIntentSessionScope.of(context).activeCount,
+      guardedSession: session,
       stepBadge: '5/5',
       screenTitle: '요청 접수 완료',
       body: Column(

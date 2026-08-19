@@ -95,7 +95,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(currentRouteName(tester), AppRoutes.lastIntentEdit);
       // Back to confirm — a plain pop, unaffected by naming.
-      final Finder cancelButton = find.text('취소');
+      final Finder cancelButton = find.text('이전으로 돌아가기');
       await tester.ensureVisible(cancelButton);
       await tester.tap(cancelButton);
       await tester.pumpAndSettle();

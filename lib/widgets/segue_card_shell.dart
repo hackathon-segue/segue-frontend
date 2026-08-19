@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../models/models.dart';
+import '../providers/providers.dart';
 import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 
@@ -22,8 +24,8 @@ enum TabletMenuItem {
   final String label;
 
   /// The route each menu item navigates to when tapped — null means no
-  /// screen exists yet for it (Figma gives no reference for REQUESTS), so
-  /// that item stays visible but inert rather than fabricating a page.
+  /// screen exists yet for it, so that item stays visible but inert rather
+  /// than fabricating a page.
   String? get route {
     switch (this) {
       case TabletMenuItem.home:
@@ -36,7 +38,7 @@ enum TabletMenuItem {
       case TabletMenuItem.currentSession:
         return AppRoutes.cartInventory;
       case TabletMenuItem.requests:
-        return null;
+        return AppRoutes.requests;
       case TabletMenuItem.consultationHistory:
         return AppRoutes.consultationHistory;
     }
@@ -48,7 +50,27 @@ enum TabletMenuItem {
 /// otherwise. Safe to call from any tablet screen regardless of how deep in
 /// the navigation stack it is — never hangs even if [routeName] was never
 /// visited, since it always stops at the first route.
+///
+/// This is every sidebar/header tap's single entry point (see
+/// [TabletNavSidebar]/[TabletHeader] below), which makes it the right place
+/// for the SEGUE Last Intent exit-consultation guard (Figma 500:3875,
+/// "Navigation Guard" issue): if a Last Intent screen has registered itself
+/// as in-progress ([LastIntentSessionManager.isConsultationInProgress]),
+/// the tap is intercepted with a confirm popup instead of navigating
+/// immediately — implemented once here rather than duplicated in every
+/// Last Intent screen.
 void navigateToTabletRoute(BuildContext context, String routeName) {
+  final LastIntentSessionManager sessionManager = LastIntentSessionScope.of(
+    context,
+  );
+  if (sessionManager.isConsultationInProgress) {
+    _showExitConsultationDialog(context, routeName);
+    return;
+  }
+  _performTabletNavigation(context, routeName);
+}
+
+void _performTabletNavigation(BuildContext context, String routeName) {
   final NavigatorState navigator = Navigator.of(context);
   bool found = false;
   navigator.popUntil((Route<dynamic> route) {
@@ -61,6 +83,126 @@ void navigateToTabletRoute(BuildContext context, String routeName) {
   if (!found) {
     navigator.pushNamed(routeName);
   }
+}
+
+/// Shows the "상담 종료" popup (Figma 500:3875) and holds [pendingDestination]
+/// until the CA picks a button — never dismissible by tapping outside/back/
+/// ESC (scenario 5 of the issue), only by an explicit button choice.
+void _showExitConsultationDialog(
+  BuildContext context,
+  String pendingDestination,
+) {
+  final LastIntentSessionManager sessionManager = LastIntentSessionScope.of(
+    context,
+  );
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext dialogContext) {
+      return PopScope(
+        canPop: false,
+        child: _ExitConsultationDialog(
+          onExitAndLeave: () {
+            Navigator.of(dialogContext).pop();
+            _performTabletNavigation(context, pendingDestination);
+            sessionManager.endGuardedSession();
+          },
+          onReturnToConsultation: () => Navigator.of(dialogContext).pop(),
+        ),
+      );
+    },
+  );
+}
+
+/// Shows the "진행 중인 상담 없음" popup (Figma 500:3902) — CURRENT SESSION's
+/// sidebar row shows this instead of navigating when [sessionCount] is 0
+/// (see [TabletNavSidebar]). Dismissible the ordinary way (X, tapping the
+/// dim backdrop, ESC): unlike [_showExitConsultationDialog], nothing here
+/// needs protecting from an accidental dismiss.
+void _showNoActiveConsultationDialog(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return _NoActiveConsultationDialog(
+        onClose: () => Navigator.of(dialogContext).pop(),
+        onProceed: () {
+          Navigator.of(dialogContext).pop();
+          // Reuses StaffWebSessionController's own existing lookup state —
+          // no new API/state of its own — and the shared nav handler (which
+          // is a no-op guard-wise here: this popup only ever shows when
+          // there's no in-progress consultation to protect).
+          final Customer? currentCustomer = StaffSessionScope.of(
+            context,
+          ).state.currentCustomer;
+          navigateToTabletRoute(
+            context,
+            currentCustomer != null
+                ? AppRoutes.cartInventory
+                : AppRoutes.customerLookup,
+          );
+        },
+      );
+    },
+  );
+}
+
+/// Registers [controller] (if non-null) as the current
+/// [LastIntentSessionManager.isConsultationInProgress] session for as long
+/// as this widget stays mounted — the plumbing behind [SegueCardShell]/
+/// [StaffAppShell]'s `guardedSession` parameter. Every Last Intent flow
+/// screen passes its own session controller through that one parameter;
+/// this is the only place that actually talks to the manager, so none of
+/// those screens need their own register/unregister boilerplate.
+class GuardedSessionRegistrar extends StatefulWidget {
+  const GuardedSessionRegistrar({
+    required this.controller,
+    required this.child,
+    super.key,
+  });
+
+  final LastIntentSessionController? controller;
+  final Widget child;
+
+  @override
+  State<GuardedSessionRegistrar> createState() =>
+      _GuardedSessionRegistrarState();
+}
+
+class _GuardedSessionRegistrarState extends State<GuardedSessionRegistrar> {
+  LastIntentSessionManager? _manager;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _manager = LastIntentSessionScope.of(context);
+    if (widget.controller != null) {
+      _manager!.registerGuardedSession(widget.controller!);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant GuardedSessionRegistrar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      if (oldWidget.controller != null) {
+        _manager?.unregisterGuardedSession(oldWidget.controller!);
+      }
+      if (widget.controller != null) {
+        _manager?.registerGuardedSession(widget.controller!);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.controller != null) {
+      _manager?.unregisterGuardedSession(widget.controller!);
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Shared chrome for every tablet ("MCM SEGUE") screen — header, sidebar
@@ -87,6 +229,7 @@ class SegueCardShell extends StatelessWidget {
     this.sessionCount = 0,
     this.bodyTopGap = 28,
     this.bottomBar,
+    this.guardedSession,
     super.key,
   });
 
@@ -140,37 +283,48 @@ class SegueCardShell extends StatelessWidget {
   /// it never scrolls away or drifts up on short-content screens.
   final Widget? bottomBar;
 
+  /// The Last Intent session this screen represents, if it's one of the
+  /// flow's own screens (utterance through completion) — registers with
+  /// [LastIntentSessionManager] for as long as this shell is mounted, so
+  /// [navigateToTabletRoute]'s exit guard knows whether to intercept a
+  /// sidebar/header tap. Null (the default) for every other screen — Home,
+  /// Customer Search, Requests, Consultation History, etc. never guard
+  /// navigation.
+  final LastIntentSessionController? guardedSession;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: SegueCardColors.border),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0x14000000),
-                offset: Offset(0, 4),
-                blurRadius: 16,
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Column(
-              children: <Widget>[
-                const TabletHeader(),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      TabletNavSidebar(
-                        activeMenuItem: activeMenuItem,
-                        sessionCount: sessionCount,
-                      ),
+    return GuardedSessionRegistrar(
+      controller: guardedSession,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: SegueCardColors.border),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x14000000),
+                  offset: Offset(0, 4),
+                  blurRadius: 16,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Column(
+                children: <Widget>[
+                  const TabletHeader(),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        TabletNavSidebar(
+                          activeMenuItem: activeMenuItem,
+                          sessionCount: sessionCount,
+                        ),
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(31, 24, 31, 24),
@@ -264,7 +418,34 @@ class SegueCardShell extends StatelessWidget {
                               ],
                               SizedBox(height: bodyTopGap),
                               Expanded(
-                                child: SingleChildScrollView(child: body),
+                                child: LayoutBuilder(
+                                  builder:
+                                      (
+                                        BuildContext context,
+                                        BoxConstraints constraints,
+                                      ) {
+                                        return SingleChildScrollView(
+                                          // Gives short content (loading/
+                                          // empty/error states, all of
+                                          // which Center themselves) a real
+                                          // height to center within —
+                                          // without this, a
+                                          // SingleChildScrollView's
+                                          // unbounded height means Center
+                                          // just collapses to the top
+                                          // instead of the middle of the
+                                          // visible pane. Taller content
+                                          // still scrolls normally past
+                                          // this floor.
+                                          child: ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              minHeight: constraints.maxHeight,
+                                            ),
+                                            child: body,
+                                          ),
+                                        );
+                                      },
+                                ),
                               ),
                               if (bottomBar != null) bottomBar!,
                             ],
@@ -278,6 +459,7 @@ class SegueCardShell extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -373,7 +555,28 @@ class SegueHeaderOnlyShell extends StatelessWidget {
                             ],
                           ),
                         SizedBox(height: headingGap),
-                        Expanded(child: SingleChildScrollView(child: body)),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder:
+                                (
+                                  BuildContext context,
+                                  BoxConstraints constraints,
+                                ) {
+                                  return SingleChildScrollView(
+                                    // See SegueCardShell's own build() for
+                                    // why this floor is needed — same
+                                    // Center-collapses-to-the-top issue for
+                                    // loading/empty/error states.
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minHeight: constraints.maxHeight,
+                                      ),
+                                      child: body,
+                                    ),
+                                  );
+                                },
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -510,14 +713,14 @@ class TabletNavSidebar extends StatelessWidget {
                     // CURRENT SESSION has nowhere real to go when there's no
                     // active consultation (the cart hub it links to is about
                     // an in-progress session, not a generic destination) —
-                    // stays visible but inert at 0, same as REQUESTS having
-                    // no route at all.
-                    onTap:
-                        TabletMenuItem.values[i].route == null ||
-                            (TabletMenuItem.values[i] ==
-                                    TabletMenuItem.currentSession &&
-                                sessionCount == 0)
+                    // tapping it at 0 shows the "no active consultation"
+                    // popup (Figma 500:3902) instead of navigating.
+                    onTap: TabletMenuItem.values[i].route == null
                         ? null
+                        : TabletMenuItem.values[i] ==
+                                  TabletMenuItem.currentSession &&
+                              sessionCount == 0
+                        ? () => _showNoActiveConsultationDialog(context)
                         : () => navigateToTabletRoute(
                             context,
                             TabletMenuItem.values[i].route!,
@@ -910,6 +1113,14 @@ class SegueTextField extends StatelessWidget {
           borderRadius: BorderRadius.zero,
           borderSide: BorderSide(color: SegueCardColors.ink, width: 1.5),
         ),
+        // errorBorder/focusedErrorBorder are left at Flutter's default red
+        // so a failed validator still visibly flags the field. The
+        // `constraints` above pin the WHOLE decorator (box + error text) to
+        // exactly 42px, so displaying the message text inline here would
+        // squeeze the box itself thinner — zeroed out here, the caller
+        // shows the actual message as its own Text below the field instead
+        // (see CustomerLookupScreen's `_phoneError`).
+        errorStyle: const TextStyle(fontSize: 0, height: 0),
       ),
     );
   }
@@ -1048,6 +1259,179 @@ class SegueCheckboxRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The SEGUE Last Intent exit-consultation popup (Figma 500:3875) — shown
+/// by [_showExitConsultationDialog] when the CA taps a sidebar/header menu
+/// item while mid-consultation. Pixel-perfect per the issue: 582×249 white
+/// panel, no radius/shadow/border of its own (the dim barrier behind it is
+/// `showDialog`'s own default, not drawn here).
+class _ExitConsultationDialog extends StatelessWidget {
+  const _ExitConsultationDialog({
+    required this.onExitAndLeave,
+    required this.onReturnToConsultation,
+  });
+
+  final VoidCallback onExitAndLeave;
+  final VoidCallback onReturnToConsultation;
+
+  static const TextStyle _title24 = TextStyle(
+    fontFamily: 'Pretendard',
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    color: SegueCardColors.ink,
+    height: 1.4,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Colors.white,
+        child: SizedBox(
+          width: 582,
+          height: 249,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 55),
+                child: Text(
+                  '상담을 종료하시겠습니까? 화면에서 이탈할 시\n'
+                  '진행 중인 상담은 종료되지 않습니다.',
+                  textAlign: TextAlign.center,
+                  style: _title24,
+                ),
+              ),
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  _ExitDialogButton(
+                    label: '상담 종료하고 나가기',
+                    filled: false,
+                    onPressed: onExitAndLeave,
+                  ),
+                  const SizedBox(width: 12),
+                  _ExitDialogButton(
+                    label: '상담으로 돌아가기',
+                    filled: true,
+                    onPressed: onReturnToConsultation,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExitDialogButton extends StatelessWidget {
+  const _ExitDialogButton({
+    required this.label,
+    required this.filled,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool filled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: filled ? SegueCardColors.ink : Colors.white,
+      child: InkWell(
+        onTap: onPressed,
+        child: Container(
+          width: 215,
+          height: 43,
+          alignment: Alignment.center,
+          decoration: filled
+              ? null
+              : BoxDecoration(
+                  border: Border.all(color: SegueCardColors.ink, width: 1),
+                ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Pretendard',
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: filled ? Colors.white : SegueCardColors.ink,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The "진행 중인 상담 없음" popup (Figma 500:3902) — shown by
+/// [_showNoActiveConsultationDialog]. Pixel-perfect per the issue: 382×249
+/// white panel, no radius/shadow/border of its own, [SegueCtaButton] reused
+/// as-is for "SEGUE 진행하기 →" (same CTA every other tablet screen already
+/// uses) rather than inventing a new button style.
+class _NoActiveConsultationDialog extends StatelessWidget {
+  const _NoActiveConsultationDialog({
+    required this.onClose,
+    required this.onProceed,
+  });
+
+  final VoidCallback onClose;
+  final VoidCallback onProceed;
+
+  static const TextStyle _title24 = TextStyle(
+    fontFamily: 'Pretendard',
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    color: SegueCardColors.ink,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Colors.white,
+        child: SizedBox(
+          width: 382,
+          height: 249,
+          child: Stack(
+            children: <Widget>[
+              Positioned(
+                top: 24,
+                right: 24,
+                child: InkWell(
+                  onTap: onClose,
+                  child: const Icon(
+                    Icons.close,
+                    size: 20,
+                    color: SegueCardColors.ink,
+                  ),
+                ),
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Text(
+                      '현재 진행 중인 상담이 없습니다.',
+                      textAlign: TextAlign.center,
+                      style: _title24,
+                    ),
+                    const SizedBox(height: 40),
+                    SegueCtaButton(label: 'SEGUE 진행하기', onPressed: onProceed),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

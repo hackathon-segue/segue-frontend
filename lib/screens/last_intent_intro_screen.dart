@@ -65,12 +65,16 @@ class LastIntentIntroScreen extends StatelessWidget {
     final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
     // Starts (or resumes) this SKU's own session — a different SKU's
     // session, if one exists, is untouched.
-    manager.sessionFor(customer: customer, cartItem: cartItem);
+    final LastIntentSessionController session = manager.sessionFor(
+      customer: customer,
+      cartItem: cartItem,
+    );
 
     return SegueCardShell(
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
       sessionCount: manager.activeCount,
+      guardedSession: session,
       // Figma (89:1559): a literal "1/5" step badge, same convention as
       // every other screen in this flow.
       stepBadge: '1/5',
