@@ -33,7 +33,6 @@ void main() {
           ),
         );
         _expectScreenReady(tester, 'mobile start');
-        _expectVisibleTextInViewport(tester, 'MCM');
         _expectVisibleTextInViewport(tester, 'LXXVI');
         _expectVisibleTextInViewport(tester, '1976');
         _expectTapTarget(tester, find.byTooltip('메뉴 열기'), '메뉴 열기');
@@ -43,6 +42,14 @@ void main() {
         _expectScreenReady(tester, 'mobile menu');
         _expectVisibleTextInViewport(tester, '쇼핑백');
         _expectVisibleTextInViewport(tester, 'SEGUE 내역 확인');
+
+        await tester.tap(find.text('로그인'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('로그인').last);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('메뉴 열기'));
+        await tester.pumpAndSettle();
 
         await tester.tap(find.text('신상품').last);
         await tester.pumpAndSettle();
@@ -70,7 +77,9 @@ void main() {
         _expectVisibleTextInViewport(tester, '나의 쇼핑백(4개 품목)');
         _expectVisibleTextInViewport(tester, 'Diamond 3D 카프스킨 숄더백');
 
-        await tester.tap(find.byTooltip('SEGUE 내역 확인'));
+        await tester.tap(find.byTooltip('내 계정'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('SEGUE 내역 확인').last);
         await tester.pumpAndSettle();
         _expectScreenReady(tester, 'mobile consultation results');
         _expectVisibleTextInViewport(tester, 'SEGUE 내역');

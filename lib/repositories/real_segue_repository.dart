@@ -1,6 +1,5 @@
 import '../exceptions/app_exception.dart';
 import '../models/models.dart';
-import 'mobile_product_catalog.dart';
 import 'segue_api_client.dart';
 import 'segue_repository.dart';
 
@@ -42,7 +41,29 @@ class RealSegueRepository implements SegueRepository {
   @override
   Future<List<MobileProduct>> fetchMobileProducts() async {
     final Object? response = await _apiClient.getJson('/api/products');
-    return _mobileProductsFromResponse(response);
+    final List<MobileProduct> products = _mobileProductsFromResponse(response);
+    return Future.wait(products.map(_fetchProductDetailIfNeeded));
+  }
+
+  Future<MobileProduct> _fetchProductDetailIfNeeded(
+    MobileProduct product,
+  ) async {
+    if (_hasDisplayReadyProductDetail(product)) {
+      return product;
+    }
+
+    try {
+      final Object? response = await _apiClient.getJson(
+        '/api/products/${product.id}',
+      );
+      final MobileProduct detail = _mobileProductFromJson(response);
+      if (detail.id != product.id || detail.name.trim().isEmpty) {
+        return product;
+      }
+      return detail;
+    } catch (_) {
+      return product;
+    }
   }
 
   @override
@@ -197,6 +218,10 @@ List<MobileProduct> _mobileProductsFromResponse(Object? response) {
       .toList();
 }
 
+bool _hasDisplayReadyProductDetail(MobileProduct product) {
+  return product.price > 0 && product.options.isNotEmpty;
+}
+
 List<Object?> _extractProductList(Object? response) {
   if (response is List) {
     return response.cast<Object?>();
@@ -230,7 +255,6 @@ MobileProduct _mobileProductFromJson(Object? value) {
     'productId',
     defaultValue: intValue(json, 'id'),
   );
-  final MobileProduct? fallback = MobileProductCatalog.tryProductById(id);
   final String productName = stringValue(
     json,
     'productName',
@@ -241,10 +265,10 @@ MobileProduct _mobileProductFromJson(Object? value) {
     'categoryName',
     'category_name',
   ], defaultValue: '가방');
-  final List<MobileSkuOption> options = _mobileSkuOptionsFromJson(
-    json,
-    fallback: fallback,
-  );
+  final List<MobileSkuOption> options = _mobileSkuOptionsFromJson(json);
+  final int visualValue = options.isEmpty
+      ? 0xFF111827
+      : options.first.swatchValue;
 
   return MobileProduct(
     id: id,
@@ -267,7 +291,7 @@ MobileProduct _mobileProductFromJson(Object? value) {
         defaultValue: intValue(
           json,
           'unitPrice',
-          defaultValue: intValue(json, 'unit_price', defaultValue: 0),
+          defaultValue: intValue(json, 'unit_price'),
         ),
       ),
     ),
@@ -288,8 +312,8 @@ MobileProduct _mobileProductFromJson(Object? value) {
       'seasonName',
       'season_name',
     ]),
-    visualValue: fallback?.visualValue ?? 0xFF111827,
-    accentValue: fallback?.accentValue ?? 0xFFB87945,
+    visualValue: visualValue,
+    accentValue: 0xFFB87945,
     options: options,
     imageUrl: _stringValueAny(json, <String>[
       'imageUrl',
@@ -297,13 +321,11 @@ MobileProduct _mobileProductFromJson(Object? value) {
       'productImageUrl',
       'product_image_url',
     ]),
+    assetImagePath: null,
   );
 }
 
-List<MobileSkuOption> _mobileSkuOptionsFromJson(
-  JsonMap json, {
-  required MobileProduct? fallback,
-}) {
+List<MobileSkuOption> _mobileSkuOptionsFromJson(JsonMap json) {
   final List<Object?> skuItems = <Object?>[
     ...asJsonList(json['options']),
     ...asJsonList(json['skus']),
@@ -344,7 +366,7 @@ List<MobileSkuOption> _mobileSkuOptionsFromJson(
         skuId: intValue(json, 'skuId', defaultValue: intValue(json, 'id')),
         color: color,
         size: size,
-        swatchValue: fallback?.optionForColor(color).swatchValue ?? 0xFF111827,
+        swatchValue: _swatchValueFor(color),
         material:
             _nullableStringAny(json, <String>['material']) ??
             _nullableStringAny(attributeJson, <String>['material']),
@@ -411,7 +433,7 @@ List<MobileSkuOption> _mobileSkuOptionsFromJson(
           ),
           color: color,
           size: size,
-          swatchValue: _swatchValueFor(color, fallback: fallback),
+          swatchValue: _swatchValueFor(color),
           material:
               _nullableStringAny(skuJson, <String>['material']) ??
               _nullableStringAny(attributeJson, <String>['material']),
@@ -557,15 +579,7 @@ bool? _nullableBoolAny(JsonMap json, Iterable<String> keys) {
   return null;
 }
 
-int _swatchValueFor(String color, {required MobileProduct? fallback}) {
-  if (fallback != null) {
-    for (final MobileSkuOption option in fallback.options) {
-      if (option.color == color) {
-        return option.swatchValue;
-      }
-    }
-  }
-
+int _swatchValueFor(String color) {
   return switch (color.toLowerCase()) {
     'black' || '블랙' => 0xFF111827,
     'navy' || '네이비' => 0xFF1E3A5F,

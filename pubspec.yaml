@@ -18,12 +18,15 @@ dev_dependencies:
     sdk: flutter
 
 flutter:
-  uses-material-design: true
+  uses-material-design: false
   assets:
     - assets/icons/
     - assets/images/
     - assets/images/mcm/
   fonts:
+    - family: MaterialIcons
+      fonts:
+        - asset: assets/fonts/MaterialIcons-Regular.otf
     - family: Montserrat
       fonts:
         - asset: assets/fonts/Montserrat-Variable.ttf
