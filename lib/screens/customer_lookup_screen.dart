@@ -37,6 +37,27 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
 
   static final RegExp _phonePattern = RegExp(r'^01[0-9]-\d{3,4}-\d{4}$');
 
+  String? _phoneError;
+
+  // Shared by the Form's validator (drives the field's red border) and
+  // _submit (drives the visible message Text below the field) so the two
+  // never say different things.
+  static String? _phoneErrorMessage(String value, RegExp phonePattern) {
+    final String trimmed = value.trim();
+    // API.md: 고객 조회는 `GET /api/customers/lookup?phoneNumber=` 하나뿐이고
+    // 회원번호로 조회하는 API는 없다 — 회원번호만 입력하고 전화번호를 비워두면
+    // 예전엔 검증을 통과해 빈 전화번호로 조회를 시도해 항상 "조회 결과가
+    // 없습니다"로 실패했다. 전화번호를 항상 필수로 만들어 그 실패를 명확한
+    // 안내 문구로 바꾼다.
+    if (trimmed.isEmpty) {
+      return '휴대전화 번호를 입력해 주세요.';
+    }
+    if (!phonePattern.hasMatch(trimmed)) {
+      return '010-0000-0000 형식으로 입력해 주세요.';
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,7 +82,13 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
   }
 
   void _submit(StaffWebSessionController controller) {
-    if (_formKey.currentState?.validate() != true) {
+    final bool valid = _formKey.currentState?.validate() ?? false;
+    setState(() {
+      _phoneError = valid
+          ? null
+          : _phoneErrorMessage(_phoneController.text, _phonePattern);
+    });
+    if (!valid) {
       return;
     }
     controller.lookupCustomer(_phoneController.text.trim());
@@ -101,6 +128,7 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
                 memberNumberController: _memberNumberController,
                 phoneController: _phoneController,
                 phonePattern: _phonePattern,
+                phoneError: _phoneError,
                 onSubmit: () => _submit(controller),
               );
               final Widget result = _ResultPanel(
@@ -138,6 +166,7 @@ class _SearchPanel extends StatelessWidget {
     required this.memberNumberController,
     required this.phoneController,
     required this.phonePattern,
+    required this.phoneError,
     required this.onSubmit,
   });
 
@@ -145,6 +174,12 @@ class _SearchPanel extends StatelessWidget {
   final TextEditingController memberNumberController;
   final TextEditingController phoneController;
   final RegExp phonePattern;
+
+  /// Shown as a plain red Text below the phone field — kept outside
+  /// SegueTextField's own fixed-height decoration so a validation failure
+  /// never distorts the field's pixel-exact 42px box (see SegueTextField's
+  /// `errorStyle`).
+  final String? phoneError;
   final VoidCallback onSubmit;
 
   @override
@@ -169,22 +204,26 @@ class _SearchPanel extends StatelessWidget {
             hintText: '전화번호',
             controller: phoneController,
             keyboardType: TextInputType.phone,
-            validator: (String? value) {
-              final String trimmed = value?.trim() ?? '';
-              // API.md: 고객 조회는 `GET /api/customers/lookup?phoneNumber=`
-              // 하나뿐이고 회원번호로 조회하는 API는 없다 — 회원번호만 입력하고
-              // 전화번호를 비워두면 예전엔 검증을 통과해 빈 전화번호로 조회를
-              // 시도해 항상 "조회 결과가 없습니다"로 실패했다. 전화번호를 항상
-              // 필수로 만들어 그 실패를 명확한 안내 문구로 바꾼다.
-              if (trimmed.isEmpty) {
-                return '휴대전화 번호를 입력해 주세요.';
-              }
-              if (!phonePattern.hasMatch(trimmed)) {
-                return '010-0000-0000 형식으로 입력해 주세요.';
-              }
-              return null;
-            },
+            // Returns '' (not the real message) on failure: this only
+            // needs to flip the field into its error-border state — the
+            // actual message renders once, below, as `phoneError`. Reusing
+            // the real message here would duplicate it in the widget tree.
+            validator: (String? value) =>
+                _CustomerLookupScreenState._phoneErrorMessage(
+                      value ?? '',
+                      phonePattern,
+                    ) ==
+                    null
+                ? null
+                : '',
           ),
+          if (phoneError != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              phoneError!,
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
           // Figma: input2 bottom 319+42=361 → button top 382 = 21px.
           const SizedBox(height: 21),
           SegueCompactButton(
@@ -212,7 +251,9 @@ class _ResultPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.lookupState.isLoading) {
-      return const AppStateView.loading(title: '고객 정보를 조회하고 있습니다');
+      // No loading UI for customer lookup — stays blank until the result
+      // (or error) resolves.
+      return const SizedBox.shrink();
     }
     if (state.lookupState.hasError) {
       final Object? error = state.lookupState.error;

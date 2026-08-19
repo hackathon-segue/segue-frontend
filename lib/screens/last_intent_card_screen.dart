@@ -195,10 +195,17 @@ class _CardScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final LastIntentSessionManager manager = LastIntentSessionScope.of(
+      context,
+    );
     return SegueCardShell(
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
-      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      sessionCount: manager.activeCount,
+      guardedSession: manager.sessionFor(
+        customer: customer,
+        cartItem: cartItem,
+      ),
       stepBadge: '4/5',
       screenTitle: 'SEGUE CARD',
       screenTitleStyle: SegueCardText.screenTitle24,

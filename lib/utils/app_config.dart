@@ -11,7 +11,7 @@ abstract final class AppConfig {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://genius-barrel-wilderness-olympic.trycloudflare.com',
+    defaultValue: 'http://localhost:8080',
   );
 
   static const int defaultStoreId = int.fromEnvironment(
@@ -61,6 +61,7 @@ abstract final class AppRoutes {
   static const String generalProductCheck = '/staff/product-check';
   static const String lastIntentIntro = '/staff/last-intent';
   static const String consultationHistory = '/staff/consultation-history';
+  static const String requests = '/staff/requests';
 
   // The rest of the Last Intent flow (utterance onward) is reached via
   // Navigator.push with unnamed MaterialPageRoutes — this app has no

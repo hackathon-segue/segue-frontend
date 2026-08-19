@@ -9,6 +9,7 @@ import 'screens/consultation_history_screen.dart';
 import 'screens/customer_lookup_screen.dart';
 import 'screens/customer_mobile_entry_screen.dart';
 import 'screens/not_found_screen.dart';
+import 'screens/requests_screen.dart';
 import 'screens/staff_home_screen.dart';
 import 'utils/app_config.dart';
 import 'utils/app_theme.dart';
@@ -77,6 +78,7 @@ class _SegueAppState extends State<SegueApp> {
               AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
               AppRoutes.consultationHistory: (_) =>
                   const ConsultationHistoryScreen(),
+              AppRoutes.requests: (_) => const RequestsScreen(),
             },
             onUnknownRoute: (RouteSettings settings) {
               return MaterialPageRoute<void>(

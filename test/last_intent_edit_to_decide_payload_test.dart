@@ -10,9 +10,11 @@ import 'package:segue_frontend/screens/last_intent_confirm_screen.dart';
 /// Issue #12's most important guarantee: an edit made on
 /// [LastIntentEditScreen] must be the exact StructuredIntent that ends up
 /// inside the `/api/consultations/decide` request payload when the CA
-/// presses "맞아요, 다음 단계로" — not the original AI-generated one. This spies
-/// on the repository boundary (the same `DecisionRequest.toJson()` shape
-/// the real API will receive) rather than trusting internal state alone.
+/// presses the edit screen's own "다음 단계로" (which now calls decide()
+/// directly, the same call [LastIntentConfirmScreen]'s "맞아요, 다음 단계로"
+/// makes) — not the original AI-generated one. This spies on the
+/// repository boundary (the same `DecisionRequest.toJson()` shape the real
+/// API will receive) rather than trusting internal state alone.
 class _SpyRepository extends MockSegueRepository {
   DecisionRequest? lastDecisionRequest;
 
@@ -96,19 +98,15 @@ void main() {
       await tester.tap(find.text('오늘 구매 희망').last);
       await tester.pumpAndSettle();
 
-      final Finder saveButton = find.text('저장');
-      await tester.ensureVisible(saveButton);
-      await tester.tap(saveButton);
+      // The edit screen's own "다음 단계로" now saves AND calls decide()
+      // directly — no separate trip back to the summary screen's "맞아요"
+      // button needed.
+      final Finder nextButton = find.text('다음 단계로');
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
       await tester.pumpAndSettle();
 
-      // Back on the summary screen, the edit is already reflected.
-      expect(find.text('오늘 구매 희망'), findsOneWidget);
       expect(session.state.structuredIntent!.purchaseUrgency, PurchaseUrgency.today);
-
-      // "맞아요" -> decide() -> capture exactly what the repository/API
-      // boundary receives.
-      await tester.tap(find.text('맞아요, 다음 단계로'));
-      await tester.pumpAndSettle();
 
       final DecisionRequest? sent = repository.lastDecisionRequest;
       expect(sent, isNotNull, reason: 'decide() must actually have been called');

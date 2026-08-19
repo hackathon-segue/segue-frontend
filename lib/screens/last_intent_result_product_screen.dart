@@ -335,10 +335,17 @@ class _ResultScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final LastIntentSessionManager manager = LastIntentSessionScope.of(
+      context,
+    );
     return SegueCardShell(
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
-      sessionCount: LastIntentSessionScope.of(context).activeCount,
+      sessionCount: manager.activeCount,
+      guardedSession: manager.sessionFor(
+        customer: customer,
+        cartItem: cartItem,
+      ),
       stepBadge: step,
       screenTitle: title,
       subtitle: subtitle,
