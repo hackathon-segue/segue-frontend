@@ -138,6 +138,144 @@ void main() {
   });
 
   test(
+    'real repository fetches customer mobile products from /api/products',
+    () async {
+      final _RecordingApiClient apiClient = _RecordingApiClient(
+        getResponse: <String, Object?>{
+          'products': <Object?>[
+            <String, Object?>{
+              'productId': 6,
+              'productName': 'Diamond 3D 카프스킨 숄더백',
+              'imageUrl': '/images/products/diamond.png',
+              'category': '가방',
+              'price': 2050000,
+              'season': '2026 AW',
+              'skus': <Object?>[
+                <String, Object?>{
+                  'skuId': 14,
+                  'color': '오렌지',
+                  'size': '스몰',
+                  'material': '스페니시 레더',
+                  'storageStructure': '내부 포켓 2개',
+                  'wearStyle': '숄더',
+                  'laptopCompatible': false,
+                  'sizeGrade': '스몰',
+                },
+              ],
+            },
+          ],
+        },
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: apiClient,
+      );
+
+      final List<MobileProduct> products = await repository
+          .fetchMobileProducts();
+
+      expect(apiClient.lastGetPath, '/api/products');
+      expect(products.single.id, 6);
+      expect(products.single.name, 'Diamond 3D 카프스킨 숄더백');
+      expect(products.single.imageUrl, '/images/products/diamond.png');
+      expect(products.single.options.single.skuId, 14);
+      expect(products.single.options.single.material, '스페니시 레더');
+      expect(products.single.options.single.storageStructure, '내부 포켓 2개');
+      expect(products.single.options.single.wearStyle, '숄더');
+      expect(products.single.options.single.laptopCompatible, isFalse);
+      expect(products.single.material, '스페니시 레더');
+    },
+  );
+
+  test('real repository accepts backend product detail alias fields', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      getResponse: <String, Object?>{
+        'productList': <Object?>[
+          <String, Object?>{
+            'id': 77,
+            'name': '서버 별칭 토트',
+            'image_url': '/images/products/alias.png',
+            'category_name': '가방',
+            'unit_price': 1090000,
+            'season_name': '2026 AW',
+            'skuList': <Object?>[
+              <String, Object?>{
+                'id': 7701,
+                'color_name': '코냑',
+                'size_name': '미디움',
+                'weight_grams': 620,
+                'storage_structure': '내부 포켓 2개',
+                'wear_style': '토트',
+                'laptop_compatible': false,
+                'productAttribute': <String, Object?>{
+                  'material': '비세토스 캔버스',
+                  'color_family': '브라운',
+                  'color_tone': '웜',
+                  'size_grade': '미디움',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    );
+    final RealSegueRepository repository = RealSegueRepository(
+      apiClient: apiClient,
+    );
+
+    final List<MobileProduct> products = await repository.fetchMobileProducts();
+    final MobileSkuOption sku = products.single.options.single;
+
+    expect(products.single.id, 77);
+    expect(products.single.name, '서버 별칭 토트');
+    expect(products.single.imageUrl, '/images/products/alias.png');
+    expect(products.single.price, 1090000);
+    expect(sku.skuId, 7701);
+    expect(sku.color, '코냑');
+    expect(sku.size, '미디움');
+    expect(sku.material, '비세토스 캔버스');
+    expect(sku.weightGrams, 620);
+    expect(sku.storageStructure, '내부 포켓 2개');
+    expect(sku.wearStyle, '토트');
+    expect(sku.laptopCompatible, isFalse);
+    expect(sku.colorFamily, '브라운');
+    expect(sku.colorTone, '웜');
+    expect(sku.sizeGrade, '미디움');
+  });
+
+  test(
+    'real repository does not mix local catalog details into backend products',
+    () async {
+      final _RecordingApiClient apiClient = _RecordingApiClient(
+        getResponse: <Object?>[
+          <String, Object?>{
+            'productId': 1,
+            'productName': '백엔드 상품명',
+            'category': '백엔드 카테고리',
+            'skus': <Object?>[
+              <String, Object?>{'skuId': 1, 'color': '블랙', 'size': '미디움'},
+            ],
+          },
+        ],
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: apiClient,
+      );
+
+      final MobileProduct product =
+          (await repository.fetchMobileProducts()).single;
+
+      expect(product.name, '백엔드 상품명');
+      expect(product.category, '백엔드 카테고리');
+      expect(product.price, 0);
+      expect(product.material, '');
+      expect(product.dimensions, '');
+      expect(product.origin, '');
+      expect(product.season, '');
+      expect(product.assetImagePath, isNull);
+    },
+  );
+
+  test(
     'real repository executes the card request and fetches the saved mobile result',
     () async {
       final _RecordingApiClient apiClient = _RecordingApiClient(
@@ -349,8 +487,9 @@ void main() {
       final _RecordingApiClient outOfVocabularyClient = _RecordingApiClient(
         postResponse: outOfVocabularyResponse,
       );
-      final RealSegueRepository outOfVocabularyRepository =
-          RealSegueRepository(apiClient: outOfVocabularyClient);
+      final RealSegueRepository outOfVocabularyRepository = RealSegueRepository(
+        apiClient: outOfVocabularyClient,
+      );
 
       final StructureIntentResponse outOfVocabularyResult =
           await outOfVocabularyRepository.structureIntent(

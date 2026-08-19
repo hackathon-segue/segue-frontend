@@ -11,7 +11,7 @@ abstract final class AppConfig {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'https://throat-bradford-blacks-yarn.trycloudflare.com',
   );
 
   static const int defaultStoreId = int.fromEnvironment(
@@ -39,8 +39,8 @@ abstract final class AppConfig {
     defaultValue: false,
   );
 
-  /// Sent on every real HTTP request (JSON API calls in
-  /// `HttpSegueApiClient` and product photo loads in `SegueProductImage`).
+  /// Sent on every real JSON API request, and only on ngrok-hosted product
+  /// photo loads in `SegueProductImage`.
   /// Skips ngrok's free-tier browser-warning interstitial — an HTML page
   /// with no CORS headers that a real backend never sends, so ngrok tunnels
   /// used for `API_BASE_URL` during development work the same as a direct

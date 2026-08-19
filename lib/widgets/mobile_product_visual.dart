@@ -2,18 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../utils/app_design_tokens.dart';
+import 'segue_product_image.dart';
 
 class MobileProductVisual extends StatelessWidget {
   const MobileProductVisual({
     required this.product,
     this.colorOverride,
     this.compact = false,
+    this.imageFit = BoxFit.contain,
+    this.showFrame = true,
     super.key,
   });
 
   final MobileProduct product;
   final Color? colorOverride;
   final bool compact;
+  final BoxFit imageFit;
+  final bool showFrame;
 
   @override
   Widget build(BuildContext context) {
@@ -37,26 +42,86 @@ class MobileProductVisual extends StatelessWidget {
       borderRadius: borderRadius,
       border: Border.all(color: AppColors.border),
     );
+    final BoxDecoration imageDecoration = showFrame
+        ? decoration
+        : const BoxDecoration(color: AppColors.surface);
 
-    final String? assetImagePath = product.assetImagePath;
-    if (assetImagePath != null) {
-      return Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: decoration,
-        foregroundDecoration: BoxDecoration(
-          borderRadius: borderRadius,
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Image.asset(
-          assetImagePath,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.medium,
-          errorBuilder: (_, __, ___) => paintedFallback,
+    Widget fallbackVisual() {
+      final String? assetImagePath = product.assetImagePath;
+      if (assetImagePath == null) {
+        return SizedBox.expand(child: paintedFallback);
+      }
+      return _ProductAssetImage(
+        assetImagePath: assetImagePath,
+        borderRadius: showFrame ? borderRadius : BorderRadius.zero,
+        fallback: paintedFallback,
+        fit: imageFit,
+      );
+    }
+
+    final String? imageUrl = product.imageUrl;
+    if (SegueProductImage.hasUsableImageUrl(imageUrl)) {
+      return SizedBox.expand(
+        child: DecoratedBox(
+          decoration: imageDecoration,
+          child: ClipRRect(
+            borderRadius: showFrame ? borderRadius : BorderRadius.zero,
+            child: SegueProductImage(
+              imageUrl: imageUrl,
+              width: double.infinity,
+              height: double.infinity,
+              fit: imageFit,
+              fallback: fallbackVisual(),
+            ),
+          ),
         ),
       );
     }
 
-    return DecoratedBox(decoration: decoration, child: paintedFallback);
+    final String? assetImagePath = product.assetImagePath;
+    if (assetImagePath != null) {
+      return SizedBox.expand(
+        child: DecoratedBox(
+          decoration: imageDecoration,
+          child: fallbackVisual(),
+        ),
+      );
+    }
+
+    return SizedBox.expand(
+      child: DecoratedBox(decoration: decoration, child: paintedFallback),
+    );
+  }
+}
+
+class _ProductAssetImage extends StatelessWidget {
+  const _ProductAssetImage({
+    required this.assetImagePath,
+    required this.borderRadius,
+    required this.fallback,
+    required this.fit,
+  });
+
+  final String assetImagePath;
+  final BorderRadius borderRadius;
+  final Widget fallback;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Image.asset(
+        assetImagePath,
+        width: double.infinity,
+        height: double.infinity,
+        fit: fit,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, __, ___) {
+          return SizedBox.expand(child: fallback);
+        },
+      ),
+    );
   }
 }
 

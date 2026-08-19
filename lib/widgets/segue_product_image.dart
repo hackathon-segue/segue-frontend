@@ -17,6 +17,7 @@ class SegueProductImage extends StatelessWidget {
     this.width = 237,
     this.height = 256,
     this.fit = BoxFit.cover,
+    this.fallback,
     super.key,
   });
 
@@ -30,32 +31,135 @@ class SegueProductImage extends StatelessWidget {
   /// "진행 중인 상담" card) can pass `BoxFit.contain` instead so the product
   /// is never cropped out of frame.
   final BoxFit fit;
+  final Widget? fallback;
 
-  static String _resolveImageUrl(String url) {
-    final Uri uri = Uri.parse(url);
-    if (uri.hasScheme) {
+  static const Set<String> _localImageHosts = <String>{
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '10.0.2.2',
+  };
+
+  static bool hasUsableImageUrl(String? url) {
+    final String trimmed = url?.trim() ?? '';
+    if (trimmed.isEmpty || trimmed == '/') {
+      return false;
+    }
+    final Uri? uri = Uri.tryParse(trimmed);
+    if (uri == null) {
+      return false;
+    }
+    if (uri.hasScheme &&
+        (uri.path.isEmpty || uri.path == '/') &&
+        !uri.hasQuery) {
+      return false;
+    }
+    return true;
+  }
+
+  static String? resolveImageUrl(String? url) {
+    if (!hasUsableImageUrl(url)) {
+      return null;
+    }
+
+    final Uri uri = Uri.parse(url!.trim());
+    if (!uri.hasScheme) {
+      return Uri.parse(AppConfig.apiBaseUrl).resolveUri(uri).toString();
+    }
+    if (!_localImageHosts.contains(uri.host.toLowerCase())) {
       return url;
     }
-    return Uri.parse(AppConfig.apiBaseUrl).resolve(url).toString();
+
+    final Uri baseUri = Uri.parse(AppConfig.apiBaseUrl);
+    return baseUri
+        .replace(
+          path: uri.path,
+          query: uri.hasQuery ? uri.query : null,
+          fragment: uri.hasFragment ? uri.fragment : null,
+        )
+        .toString();
+  }
+
+  static Map<String, String>? headersFor(String resolvedUrl) {
+    final Uri? uri = Uri.tryParse(resolvedUrl);
+    final String host = uri?.host.toLowerCase() ?? '';
+    if (host.contains('ngrok')) {
+      return AppConfig.ngrokSkipWarningHeader;
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (imageUrl == null || imageUrl!.isEmpty) {
+    final String? resolvedImageUrl = resolveImageUrl(imageUrl);
+    if (resolvedImageUrl == null) {
       return _placeholder();
     }
-    return Image.network(
-      _resolveImageUrl(imageUrl!),
-      width: width,
-      height: height,
-      fit: fit,
-      errorBuilder:
-          (BuildContext context, Object error, StackTrace? stackTrace) =>
-              _placeholder(),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double displayWidth = _displayDimension(
+          preferred: width,
+          constrained: constraints.maxWidth,
+        );
+        final double displayHeight = _displayDimension(
+          preferred: height,
+          constrained: constraints.maxHeight,
+        );
+        return Image.network(
+          resolvedImageUrl,
+          headers: headersFor(resolvedImageUrl),
+          width: width,
+          height: height,
+          fit: fit,
+          cacheWidth: _cacheDimension(context, displayWidth),
+          cacheHeight: _cacheDimension(context, displayHeight),
+          filterQuality: FilterQuality.medium,
+          gaplessPlayback: true,
+          loadingBuilder:
+              (
+                BuildContext context,
+                Widget child,
+                ImageChunkEvent? loadingProgress,
+              ) {
+                if (loadingProgress == null) {
+                  return child;
+                }
+                return _placeholder();
+              },
+          errorBuilder:
+              (BuildContext context, Object error, StackTrace? stackTrace) =>
+                  _placeholder(),
+        );
+      },
     );
   }
 
+  static double _displayDimension({
+    required double preferred,
+    required double constrained,
+  }) {
+    if (preferred.isFinite && preferred > 0) {
+      return preferred;
+    }
+    if (constrained.isFinite && constrained > 0) {
+      return constrained;
+    }
+    return 0;
+  }
+
+  static int? _cacheDimension(BuildContext context, double logicalPixels) {
+    if (logicalPixels <= 0) {
+      return null;
+    }
+    final double devicePixelRatio =
+        MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
+    return (logicalPixels * devicePixelRatio).round().clamp(1, 1200).toInt();
+  }
+
   Widget _placeholder() {
+    if (fallback != null) {
+      return SizedBox(width: width, height: height, child: fallback);
+    }
     return Container(
       width: width,
       height: height,

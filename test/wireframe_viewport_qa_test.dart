@@ -54,57 +54,34 @@ void main() {
         await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
         await tester.pumpAndSettle();
         _expectScreenReady(tester, 'mobile product detail');
-        _expectVisibleTextInViewport(tester, '제품 상세 화면');
-        _expectVisibleTextInViewport(tester, '컬러 선택');
-        await tester.ensureVisible(find.text('스몰'));
-        await tester.tap(find.text('스몰'));
-        await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('장바구니 담기'));
-        _expectMaterialTapTarget(tester, '장바구니 담기');
+        _expectVisibleTextInViewport(tester, '신규 컬렉션');
+        _expectVisibleTextInViewport(tester, '색상: 오렌지');
+        await tester.ensureVisible(find.text('쇼핑백에 추가'));
+        _expectMaterialTapTarget(tester, '쇼핑백에 추가');
 
-        await _tapMaterialButton(tester, '장바구니 담기');
+        await _tapMaterialButton(tester, '쇼핑백에 추가');
         _expectScreenReady(tester, 'mobile cart added');
-        _expectVisibleTextInViewport(tester, '장바구니 추가 완료');
-        _expectVisibleTextInViewport(tester, '장바구니에 추가되었습니다');
-        _expectMaterialTapTarget(tester, '장바구니 보기');
+        _expectVisibleTextInViewport(tester, '새로운 상품이 쇼핑백에 추가되었습니다!');
+        _expectMaterialTapTarget(tester, '쇼핑백 확인하기');
         _expectMaterialTapTarget(tester, '계속 쇼핑하기');
 
-        await _tapMaterialButton(tester, '장바구니 보기');
+        await _tapMaterialButton(tester, '쇼핑백 확인하기');
         _expectScreenReady(tester, 'mobile cart list');
-        _expectVisibleTextInViewport(tester, '앱 장바구니 목록');
-        _expectVisibleTextInViewport(tester, '최근 담은 순서');
+        _expectVisibleTextInViewport(tester, '나의 쇼핑백(4개 품목)');
         _expectVisibleTextInViewport(tester, 'Diamond 3D 카프스킨 숄더백');
 
-        await tester.tap(find.text('상담 결과').last);
+        await tester.tap(find.byTooltip('SEGUE 내역 확인'));
         await tester.pumpAndSettle();
         _expectScreenReady(tester, 'mobile consultation results');
-        _expectVisibleTextInViewport(tester, '앱 상담 결과 확인');
-        _expectVisibleTextInViewport(tester, '정확한 제품 확인');
-        await tester.ensureVisible(find.text('온라인 구매하기'));
-        _expectMaterialTapTarget(tester, '온라인 구매하기');
+        _expectVisibleTextInViewport(tester, 'SEGUE 내역');
+        _expectVisibleTextInViewport(tester, '총 1건의 상담 기록');
 
-        await _tapMaterialButton(tester, '온라인 구매하기');
-        _expectScreenReady(tester, 'mobile online purchase');
-        _expectVisibleTextInViewport(tester, '온라인 구매 화면');
-        _expectVisibleTextInViewport(tester, '온라인 구매 안내');
-        await _ensureTextComfortablyVisible(tester, '온라인 스토어에서 구매하기');
-        _expectMaterialTapTarget(tester, '온라인 스토어에서 구매하기');
-
-        await tester.tap(find.byTooltip('뒤로'));
+        await tester.tap(find.text('MCM 백팩 미디움').first);
         await tester.pumpAndSettle();
-        await _ensureTextComfortablyVisible(tester, '매장 재방문 안내 보기');
-        _expectMaterialTapTarget(tester, '매장 재방문 안내 보기');
-
-        await _tapMaterialButton(tester, '매장 재방문 안내 보기');
-        _expectScreenReady(tester, 'mobile store visit');
-        _expectVisibleTextInViewport(tester, '매장 재방문 안내');
-        _expectVisibleTextInViewport(tester, '방문 전 준비 사항');
-        await tester.scrollUntilVisible(
-          find.text('요청 접수 안내'),
-          120,
-          scrollable: find.byType(Scrollable).last,
-        );
-        _expectVisibleTextInViewport(tester, '요청 접수 안내');
+        _expectScreenReady(tester, 'mobile segue result detail');
+        _expectVisibleTextInViewport(tester, 'SEGUE 결과');
+        _expectVisibleTextInViewport(tester, '핵심 조건');
+        _expectVisibleTextInViewport(tester, '상담 완료');
       });
     }
   });
