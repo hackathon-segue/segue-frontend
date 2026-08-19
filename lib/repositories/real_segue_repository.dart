@@ -1,6 +1,5 @@
 import '../exceptions/app_exception.dart';
 import '../models/models.dart';
-import 'mobile_product_catalog.dart';
 import 'segue_api_client.dart';
 import 'segue_repository.dart';
 
@@ -42,7 +41,29 @@ class RealSegueRepository implements SegueRepository {
   @override
   Future<List<MobileProduct>> fetchMobileProducts() async {
     final Object? response = await _apiClient.getJson('/api/products');
-    return _mobileProductsFromResponse(response);
+    final List<MobileProduct> products = _mobileProductsFromResponse(response);
+    return Future.wait(products.map(_fetchProductDetailIfNeeded));
+  }
+
+  Future<MobileProduct> _fetchProductDetailIfNeeded(
+    MobileProduct product,
+  ) async {
+    if (_hasDisplayReadyProductDetail(product)) {
+      return product;
+    }
+
+    try {
+      final Object? response = await _apiClient.getJson(
+        '/api/products/${product.id}',
+      );
+      final MobileProduct detail = _mobileProductFromJson(response);
+      if (detail.id != product.id || detail.name.trim().isEmpty) {
+        return product;
+      }
+      return detail;
+    } catch (_) {
+      return product;
+    }
   }
 
   @override
@@ -197,6 +218,10 @@ List<MobileProduct> _mobileProductsFromResponse(Object? response) {
       .toList();
 }
 
+bool _hasDisplayReadyProductDetail(MobileProduct product) {
+  return product.price > 0 && product.options.isNotEmpty;
+}
+
 List<Object?> _extractProductList(Object? response) {
   if (response is List) {
     return response.cast<Object?>();
@@ -235,19 +260,15 @@ MobileProduct _mobileProductFromJson(Object? value) {
     'productName',
     defaultValue: _stringValueAny(json, <String>['name', 'product_name']),
   );
-  final MobileProduct? fallback = _fallbackProductForBackendProduct(
-    id: id,
-    productName: productName,
-  );
   final String category = _stringValueAny(json, <String>[
     'category',
     'categoryName',
     'category_name',
-  ], defaultValue: fallback?.category ?? '가방');
-  final List<MobileSkuOption> options = _mobileSkuOptionsFromJson(
-    json,
-    fallback: fallback,
-  );
+  ], defaultValue: '가방');
+  final List<MobileSkuOption> options = _mobileSkuOptionsFromJson(json);
+  final int visualValue = options.isEmpty
+      ? 0xFF111827
+      : options.first.swatchValue;
 
   return MobileProduct(
     id: id,
@@ -258,7 +279,7 @@ MobileProduct _mobileProductFromJson(Object? value) {
       defaultValue: _stringValueAny(json, <String>[
         'collectionName',
         'collection_name',
-      ], defaultValue: fallback?.collection ?? category),
+      ], defaultValue: category),
     ),
     category: category,
     price: intValue(
@@ -270,39 +291,29 @@ MobileProduct _mobileProductFromJson(Object? value) {
         defaultValue: intValue(
           json,
           'unitPrice',
-          defaultValue: intValue(
-            json,
-            'unit_price',
-            defaultValue: fallback?.price ?? 0,
-          ),
+          defaultValue: intValue(json, 'unit_price'),
         ),
       ),
     ),
     material: stringValue(
       json,
       'material',
-      defaultValue: options.isEmpty
-          ? fallback?.material ?? ''
-          : options.first.material ?? fallback?.material ?? '',
+      defaultValue: options.isEmpty ? '' : options.first.material ?? '',
     ),
     dimensions: _stringValueAny(json, <String>[
       'dimensions',
       'dimension',
       'sizeDescription',
       'size_description',
-    ], defaultValue: fallback?.dimensions ?? ''),
-    origin: _stringValueAny(json, <String>[
-      'origin',
-      'madeIn',
-      'made_in',
-    ], defaultValue: fallback?.origin ?? ''),
+    ]),
+    origin: _stringValueAny(json, <String>['origin', 'madeIn', 'made_in']),
     season: _stringValueAny(json, <String>[
       'season',
       'seasonName',
       'season_name',
-    ], defaultValue: fallback?.season ?? ''),
-    visualValue: fallback?.visualValue ?? 0xFF111827,
-    accentValue: fallback?.accentValue ?? 0xFFB87945,
+    ]),
+    visualValue: visualValue,
+    accentValue: 0xFFB87945,
     options: options,
     imageUrl: _stringValueAny(json, <String>[
       'imageUrl',
@@ -310,94 +321,11 @@ MobileProduct _mobileProductFromJson(Object? value) {
       'productImageUrl',
       'product_image_url',
     ]),
-    assetImagePath: fallback?.assetImagePath,
+    assetImagePath: null,
   );
 }
 
-MobileProduct? _fallbackProductForBackendProduct({
-  required int id,
-  required String productName,
-}) {
-  final String normalizedName = _normalizeProductName(productName);
-  if (normalizedName.isEmpty) {
-    return MobileProductCatalog.tryProductById(id);
-  }
-
-  MobileProduct? bestProduct;
-  int bestScore = 0;
-  for (final MobileProduct product in MobileProductCatalog.products) {
-    final int score = _productNameMatchScore(normalizedName, product.name);
-    if (score > bestScore) {
-      bestScore = score;
-      bestProduct = product;
-    }
-  }
-
-  return bestScore >= 3 ? bestProduct : null;
-}
-
-int _productNameMatchScore(String normalizedBackendName, String localName) {
-  final String normalizedLocalName = _normalizeProductName(localName);
-  if (normalizedLocalName.isEmpty) {
-    return 0;
-  }
-  if (normalizedBackendName == normalizedLocalName) {
-    return 100;
-  }
-  if (normalizedBackendName.contains(normalizedLocalName) ||
-      normalizedLocalName.contains(normalizedBackendName)) {
-    return 80;
-  }
-
-  int score = 0;
-  const List<String> keywords = <String>[
-    'diamond',
-    'aren',
-    'stark',
-    'himmel',
-    'klara',
-    'liz',
-    'ottomar',
-    'mode',
-    '트라비아',
-    '비세토스',
-    '카프',
-    '레더',
-    '가죽',
-    '백팩',
-    '숄더백',
-    '크로스바디',
-    '토트백',
-    '토트',
-    '쇼퍼',
-    '지갑',
-    '벨트백',
-    '핸들백',
-  ];
-  for (final String keyword in keywords) {
-    if (normalizedBackendName.contains(keyword) &&
-        normalizedLocalName.contains(keyword)) {
-      score += 1;
-    }
-  }
-  return score;
-}
-
-String _normalizeProductName(String value) {
-  return value
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^0-9a-z가-힣]+'), '')
-      .replaceAll('mcm', '')
-      .replaceAll('미니', '')
-      .replaceAll('스몰', '')
-      .replaceAll('미디움', '')
-      .replaceAll('라지', '');
-}
-
-List<MobileSkuOption> _mobileSkuOptionsFromJson(
-  JsonMap json, {
-  required MobileProduct? fallback,
-}) {
+List<MobileSkuOption> _mobileSkuOptionsFromJson(JsonMap json) {
   final List<Object?> skuItems = <Object?>[
     ...asJsonList(json['options']),
     ...asJsonList(json['skus']),
@@ -417,7 +345,7 @@ List<MobileSkuOption> _mobileSkuOptionsFromJson(
       'sizeName',
       'size_name',
     ])) {
-      return fallback?.options ?? <MobileSkuOption>[];
+      return <MobileSkuOption>[];
     }
     final JsonMap attributeJson = _attributeJson(json);
     final String color = _stringValueAny(json, <String>[
@@ -438,7 +366,7 @@ List<MobileSkuOption> _mobileSkuOptionsFromJson(
         skuId: intValue(json, 'skuId', defaultValue: intValue(json, 'id')),
         color: color,
         size: size,
-        swatchValue: fallback?.optionForColor(color).swatchValue ?? 0xFF111827,
+        swatchValue: _swatchValueFor(color),
         material:
             _nullableStringAny(json, <String>['material']) ??
             _nullableStringAny(attributeJson, <String>['material']),
@@ -505,7 +433,7 @@ List<MobileSkuOption> _mobileSkuOptionsFromJson(
           ),
           color: color,
           size: size,
-          swatchValue: _swatchValueFor(color, fallback: fallback),
+          swatchValue: _swatchValueFor(color),
           material:
               _nullableStringAny(skuJson, <String>['material']) ??
               _nullableStringAny(attributeJson, <String>['material']),
@@ -651,15 +579,7 @@ bool? _nullableBoolAny(JsonMap json, Iterable<String> keys) {
   return null;
 }
 
-int _swatchValueFor(String color, {required MobileProduct? fallback}) {
-  if (fallback != null) {
-    for (final MobileSkuOption option in fallback.options) {
-      if (option.color == color) {
-        return option.swatchValue;
-      }
-    }
-  }
-
+int _swatchValueFor(String color) {
   return switch (color.toLowerCase()) {
     'black' || '블랙' => 0xFF111827,
     'navy' || '네이비' => 0xFF1E3A5F,

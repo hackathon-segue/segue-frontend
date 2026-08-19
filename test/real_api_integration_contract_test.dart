@@ -148,7 +148,11 @@ void main() {
               'productName': 'Diamond 3D 카프스킨 숄더백',
               'imageUrl': '/images/products/diamond.png',
               'category': '가방',
+              'collection': '신상품',
               'price': 2050000,
+              'material': '스페니시 레더',
+              'dimensions': 'W 24 x H 14 x D 7 cm',
+              'origin': 'Made in Italy',
               'season': '2026 AW',
               'skus': <Object?>[
                 <String, Object?>{
@@ -177,6 +181,11 @@ void main() {
       expect(products.single.id, 6);
       expect(products.single.name, 'Diamond 3D 카프스킨 숄더백');
       expect(products.single.imageUrl, '/images/products/diamond.png');
+      expect(products.single.collection, '신상품');
+      expect(products.single.price, 2050000);
+      expect(products.single.dimensions, 'W 24 x H 14 x D 7 cm');
+      expect(products.single.origin, 'Made in Italy');
+      expect(products.single.season, '2026 AW');
       expect(products.single.options.single.skuId, 14);
       expect(products.single.options.single.material, '스페니시 레더');
       expect(products.single.options.single.storageStructure, '내부 포켓 2개');
@@ -243,6 +252,57 @@ void main() {
   });
 
   test(
+    'real repository hydrates summary products from product detail endpoints',
+    () async {
+      final _RecordingApiClient apiClient = _RecordingApiClient(
+        getResponsesByPath: <String, Object?>{
+          '/api/products': <Object?>[
+            <String, Object?>{
+              'id': 3,
+              'name': 'M New Liz 비세토스 쇼퍼',
+              'imageUrl': '/images/products/bag3.png',
+              'category': '쇼퍼백',
+            },
+          ],
+          '/api/products/3': <String, Object?>{
+            'id': 3,
+            'name': 'M New Liz 비세토스 쇼퍼',
+            'imageUrl': '/images/products/bag3.png',
+            'category': '쇼퍼백',
+            'price': 1090000,
+            'options': <Object?>[
+              <String, Object?>{
+                'skuId': 3,
+                'color': '꼬냑',
+                'size': 'M',
+                'material': '비세토스 모노그램 캔버스 + 나파 가죽',
+                'weightGrams': 520,
+                'storageStructure': '오픈탑 + 내부 지퍼 포켓',
+                'wearStyle': '쇼퍼',
+                'laptopCompatible': true,
+              },
+            ],
+          },
+        },
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: apiClient,
+      );
+
+      final MobileProduct product =
+          (await repository.fetchMobileProducts()).single;
+
+      expect(apiClient.getPaths, <String>['/api/products', '/api/products/3']);
+      expect(product.id, 3);
+      expect(product.price, 1090000);
+      expect(product.options.single.color, '꼬냑');
+      expect(product.options.single.size, 'M');
+      expect(product.options.single.material, '비세토스 모노그램 캔버스 + 나파 가죽');
+      expect(product.options.single.laptopCompatible, isTrue);
+    },
+  );
+
+  test(
     'real repository does not mix local catalog details into backend products',
     () async {
       final _RecordingApiClient apiClient = _RecordingApiClient(
@@ -276,7 +336,7 @@ void main() {
   );
 
   test(
-    'real repository fills missing display details from a similar local product name',
+    'real repository does not infer missing display details from local names',
     () async {
       final _RecordingApiClient apiClient = _RecordingApiClient(
         getResponse: <Object?>[
@@ -296,11 +356,9 @@ void main() {
           (await repository.fetchMobileProducts()).single;
 
       expect(product.name, '미니 Diamond 카프 레더 숄더백');
-      expect(product.price, 2050000);
-      expect(product.material, '카프스킨 레더 / 코튼 안감');
-      expect(product.options, isNotEmpty);
-      expect(product.colors, contains('오렌지'));
-      expect(product.sizes, contains('스몰'));
+      expect(product.price, 0);
+      expect(product.material, '');
+      expect(product.options, isEmpty);
       expect(product.imageUrl, '/images/products/mini-diamond.png');
     },
   );
@@ -668,14 +726,20 @@ JsonMap _consultationResultJson() {
 }
 
 class _RecordingApiClient implements SegueApiClient {
-  _RecordingApiClient({this.getResponse, this.postResponse});
+  _RecordingApiClient({
+    this.getResponse,
+    this.postResponse,
+    Map<String, Object?>? getResponsesByPath,
+  }) : getResponsesByPath = getResponsesByPath ?? <String, Object?>{};
 
   final Object? getResponse;
   final Object? postResponse;
+  final Map<String, Object?> getResponsesByPath;
   String? lastGetPath;
   Map<String, Object?>? lastGetQueryParameters;
   String? lastPostPath;
   JsonMap? lastPostBody;
+  final List<String> getPaths = <String>[];
 
   @override
   Future<Object?> getJson(
@@ -683,7 +747,11 @@ class _RecordingApiClient implements SegueApiClient {
     Map<String, Object?> queryParameters = const <String, Object?>{},
   }) async {
     lastGetPath = path;
+    getPaths.add(path);
     lastGetQueryParameters = Map<String, Object?>.of(queryParameters);
+    if (getResponsesByPath.containsKey(path)) {
+      return getResponsesByPath[path];
+    }
     return getResponse;
   }
 
