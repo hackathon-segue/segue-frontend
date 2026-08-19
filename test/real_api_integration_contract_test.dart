@@ -276,6 +276,36 @@ void main() {
   );
 
   test(
+    'real repository fills missing display details from a similar local product name',
+    () async {
+      final _RecordingApiClient apiClient = _RecordingApiClient(
+        getResponse: <Object?>[
+          <String, Object?>{
+            'productId': 501,
+            'productName': '미니 Diamond 카프 레더 숄더백',
+            'category': '가방',
+            'imageUrl': '/images/products/mini-diamond.png',
+          },
+        ],
+      );
+      final RealSegueRepository repository = RealSegueRepository(
+        apiClient: apiClient,
+      );
+
+      final MobileProduct product =
+          (await repository.fetchMobileProducts()).single;
+
+      expect(product.name, '미니 Diamond 카프 레더 숄더백');
+      expect(product.price, 2050000);
+      expect(product.material, '카프스킨 레더 / 코튼 안감');
+      expect(product.options, isNotEmpty);
+      expect(product.colors, contains('오렌지'));
+      expect(product.sizes, contains('스몰'));
+      expect(product.imageUrl, '/images/products/mini-diamond.png');
+    },
+  );
+
+  test(
     'real repository executes the card request and fetches the saved mobile result',
     () async {
       final _RecordingApiClient apiClient = _RecordingApiClient(

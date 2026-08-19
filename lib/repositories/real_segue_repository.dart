@@ -230,17 +230,20 @@ MobileProduct _mobileProductFromJson(Object? value) {
     'productId',
     defaultValue: intValue(json, 'id'),
   );
-  final MobileProduct? fallback = MobileProductCatalog.tryProductById(id);
   final String productName = stringValue(
     json,
     'productName',
     defaultValue: _stringValueAny(json, <String>['name', 'product_name']),
   );
+  final MobileProduct? fallback = _fallbackProductForBackendProduct(
+    id: id,
+    productName: productName,
+  );
   final String category = _stringValueAny(json, <String>[
     'category',
     'categoryName',
     'category_name',
-  ], defaultValue: '가방');
+  ], defaultValue: fallback?.category ?? '가방');
   final List<MobileSkuOption> options = _mobileSkuOptionsFromJson(
     json,
     fallback: fallback,
@@ -255,7 +258,7 @@ MobileProduct _mobileProductFromJson(Object? value) {
       defaultValue: _stringValueAny(json, <String>[
         'collectionName',
         'collection_name',
-      ], defaultValue: category),
+      ], defaultValue: fallback?.collection ?? category),
     ),
     category: category,
     price: intValue(
@@ -267,27 +270,37 @@ MobileProduct _mobileProductFromJson(Object? value) {
         defaultValue: intValue(
           json,
           'unitPrice',
-          defaultValue: intValue(json, 'unit_price', defaultValue: 0),
+          defaultValue: intValue(
+            json,
+            'unit_price',
+            defaultValue: fallback?.price ?? 0,
+          ),
         ),
       ),
     ),
     material: stringValue(
       json,
       'material',
-      defaultValue: options.isEmpty ? '' : options.first.material ?? '',
+      defaultValue: options.isEmpty
+          ? fallback?.material ?? ''
+          : options.first.material ?? fallback?.material ?? '',
     ),
     dimensions: _stringValueAny(json, <String>[
       'dimensions',
       'dimension',
       'sizeDescription',
       'size_description',
-    ]),
-    origin: _stringValueAny(json, <String>['origin', 'madeIn', 'made_in']),
+    ], defaultValue: fallback?.dimensions ?? ''),
+    origin: _stringValueAny(json, <String>[
+      'origin',
+      'madeIn',
+      'made_in',
+    ], defaultValue: fallback?.origin ?? ''),
     season: _stringValueAny(json, <String>[
       'season',
       'seasonName',
       'season_name',
-    ]),
+    ], defaultValue: fallback?.season ?? ''),
     visualValue: fallback?.visualValue ?? 0xFF111827,
     accentValue: fallback?.accentValue ?? 0xFFB87945,
     options: options,
@@ -297,7 +310,88 @@ MobileProduct _mobileProductFromJson(Object? value) {
       'productImageUrl',
       'product_image_url',
     ]),
+    assetImagePath: fallback?.assetImagePath,
   );
+}
+
+MobileProduct? _fallbackProductForBackendProduct({
+  required int id,
+  required String productName,
+}) {
+  final String normalizedName = _normalizeProductName(productName);
+  if (normalizedName.isEmpty) {
+    return MobileProductCatalog.tryProductById(id);
+  }
+
+  MobileProduct? bestProduct;
+  int bestScore = 0;
+  for (final MobileProduct product in MobileProductCatalog.products) {
+    final int score = _productNameMatchScore(normalizedName, product.name);
+    if (score > bestScore) {
+      bestScore = score;
+      bestProduct = product;
+    }
+  }
+
+  return bestScore >= 3 ? bestProduct : null;
+}
+
+int _productNameMatchScore(String normalizedBackendName, String localName) {
+  final String normalizedLocalName = _normalizeProductName(localName);
+  if (normalizedLocalName.isEmpty) {
+    return 0;
+  }
+  if (normalizedBackendName == normalizedLocalName) {
+    return 100;
+  }
+  if (normalizedBackendName.contains(normalizedLocalName) ||
+      normalizedLocalName.contains(normalizedBackendName)) {
+    return 80;
+  }
+
+  int score = 0;
+  const List<String> keywords = <String>[
+    'diamond',
+    'aren',
+    'stark',
+    'himmel',
+    'klara',
+    'liz',
+    'ottomar',
+    'mode',
+    '트라비아',
+    '비세토스',
+    '카프',
+    '레더',
+    '가죽',
+    '백팩',
+    '숄더백',
+    '크로스바디',
+    '토트백',
+    '토트',
+    '쇼퍼',
+    '지갑',
+    '벨트백',
+    '핸들백',
+  ];
+  for (final String keyword in keywords) {
+    if (normalizedBackendName.contains(keyword) &&
+        normalizedLocalName.contains(keyword)) {
+      score += 1;
+    }
+  }
+  return score;
+}
+
+String _normalizeProductName(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^0-9a-z가-힣]+'), '')
+      .replaceAll('mcm', '')
+      .replaceAll('미니', '')
+      .replaceAll('스몰', '')
+      .replaceAll('미디움', '')
+      .replaceAll('라지', '');
 }
 
 List<MobileSkuOption> _mobileSkuOptionsFromJson(
@@ -323,7 +417,7 @@ List<MobileSkuOption> _mobileSkuOptionsFromJson(
       'sizeName',
       'size_name',
     ])) {
-      return <MobileSkuOption>[];
+      return fallback?.options ?? <MobileSkuOption>[];
     }
     final JsonMap attributeJson = _attributeJson(json);
     final String color = _stringValueAny(json, <String>[
