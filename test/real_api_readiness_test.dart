@@ -97,7 +97,7 @@ void main() {
       await controller.lookupCustomer('010-1234-5678');
 
       expect(controller.state.lookupState.hasError, isTrue);
-      expect(controller.state.customer, isNull);
+      expect(controller.state.currentCustomer, isNull);
     });
   });
 }

@@ -46,7 +46,7 @@ class CartInventoryScreen extends StatelessWidget {
       listenable: controller,
       builder: (BuildContext context, Widget? _) {
         final StaffWebSessionState state = controller.state;
-        final Customer? customer = state.customer;
+        final Customer? customer = state.currentCustomer;
 
         if (customer == null) {
           return const SegueHeaderOnlyShell(
@@ -65,7 +65,7 @@ class CartInventoryScreen extends StatelessWidget {
         bool isItemCompleted(CartItem item) {
           return item.inventory.currentStoreInStock
               ? state.checkedInStockSkuIds.contains(item.skuId)
-              : lastIntentManager.isCompleted(item.skuId);
+              : lastIntentManager.isCompleted(customer.id, item.skuId);
         }
 
         final bool allComplete =
@@ -324,13 +324,15 @@ class _CartList extends StatelessWidget {
       // A stale `hasConsented: true` on the looked-up Customer (consent
       // revoked/expired server-side since lookup) surfaces here as a 403
       // instead of the pre-check above — same messaging/redirect either way.
-      final bool consentRequired = error is ApiException && error.isConsentRequired;
+      final bool consentRequired =
+          error is ApiException && error.isConsentRequired;
       if (consentRequired) {
         return AppStateView.error(
           title: '데이터 이용 동의가 필요합니다',
           message: '동의 확인 후 장바구니 목록을 볼 수 있습니다.',
           actionLabel: '동의 화면으로 이동',
-          onAction: () => Navigator.of(context).pushNamed(AppRoutes.customerConsent),
+          onAction: () =>
+              Navigator.of(context).pushNamed(AppRoutes.customerConsent),
         );
       }
       return AppStateView.error(message: message);
@@ -382,12 +384,13 @@ class _CartItemRow extends StatelessWidget {
     // LastIntentSessionManager.isCompleted.
     final bool completed = inStock
         ? checkedInStockSkuIds.contains(item.skuId)
-        : lastIntentManager.isCompleted(item.skuId);
+        : lastIntentManager.isCompleted(customer.id, item.skuId);
     // Issue #64: "추가 상담 미진행" (169:3821) still completes the session
     // (execute() ran) but shows Figma 98:1740's darker "상담 중단" badge
     // instead of the normal one — in-stock rows have no Last Intent
     // session at all, so this never applies to them.
-    final bool declined = !inStock && lastIntentManager.isDeclined(item.skuId);
+    final bool declined =
+        !inStock && lastIntentManager.isDeclined(customer.id, item.skuId);
     const String consultLabel = '상담 미진행';
     final String actionLabel = inStock ? '제품 확인하기' : item.actionButtonLabel;
 
@@ -412,7 +415,11 @@ class _CartItemRow extends StatelessWidget {
       }
     }
 
-    final Widget image = SegueProductImage(imageUrl: item.imageUrl, width: 228, height: 247);
+    final Widget image = SegueProductImage(
+      imageUrl: item.imageUrl,
+      width: 228,
+      height: 247,
+    );
     final Widget description = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,

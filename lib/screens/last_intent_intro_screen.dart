@@ -8,6 +8,38 @@ import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_product_image.dart';
 import 'last_intent_utterance_screen.dart';
 
+/// "처음으로 돌아가기" everywhere in the Last Intent flow (utterance/follow-up/
+/// confirm/card/result/additional-consultation) means SEGUE's own step 1 —
+/// this screen ("상담 대상 제품") — never Home. Pops back to it if it's already
+/// in the stack (the normal cart → intro → ... flow always has it there);
+/// otherwise pushes it fresh so "상담 이어서 진행" (Home), which can land the
+/// CA directly on a later step with no intro screen underneath it, still
+/// has somewhere correct to go back to.
+void navigateToLastIntentIntro(
+  BuildContext context, {
+  required Customer customer,
+  required CartItem cartItem,
+}) {
+  final NavigatorState navigator = Navigator.of(context);
+  bool found = false;
+  navigator.popUntil((Route<dynamic> route) {
+    if (route.settings.name == AppRoutes.lastIntentIntro) {
+      found = true;
+      return true;
+    }
+    return route.isFirst;
+  });
+  if (!found) {
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            LastIntentIntroScreen(customer: customer, cartItem: cartItem),
+        settings: const RouteSettings(name: AppRoutes.lastIntentIntro),
+      ),
+    );
+  }
+}
+
 /// Figma node 89:1559 "상담 시작 - 1단계" — reused shell ([SegueCardShell],
 /// same family as [GeneralProductCheckScreen]'s 98:1933), so no
 /// header/sidebar/CA-footer markup is built here.
@@ -76,11 +108,19 @@ class LastIntentIntroScreen extends StatelessWidget {
                     showArrow: true,
                     textStyle: SegueCardText.ctaLabel18White,
                     onPressed: () {
+                      // Named lastIntentUtterance here, NOT lastIntentIntro
+                      // (that name belongs to THIS screen's own push below)
+                      // — reusing it would make navigateToLastIntentIntro's
+                      // popUntil find this route immediately instead of
+                      // actually popping back to the real intro screen
+                      // underneath it.
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) =>
                               LastIntentUtteranceScreen(customer: customer, cartItem: cartItem),
-                          settings: const RouteSettings(name: AppRoutes.lastIntentIntro),
+                          settings: const RouteSettings(
+                            name: AppRoutes.lastIntentUtterance,
+                          ),
                         ),
                       );
                     },

@@ -3,9 +3,11 @@ import 'package:segue_frontend/models/models.dart';
 import 'package:segue_frontend/providers/providers.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 
-/// Issue #9: LastIntentSessionManager keeps one independent session per SKU
-/// so several out-of-stock cart items never share or overwrite each
-/// other's Last Intent progress.
+/// Issue #9: LastIntentSessionManager keeps one independent session per
+/// (customer, SKU) pair so several out-of-stock cart items — and, per the
+/// "다른 고객을 상담하면 진행 중인 상담에 최근 고객만 뜨는" bug fix, several
+/// different CUSTOMERS — never share or overwrite each other's Last Intent
+/// progress.
 void main() {
   late MockSegueRepository repository;
   late LastIntentSessionManager manager;
@@ -19,6 +21,12 @@ void main() {
     id: 1,
     name: '김세계',
     phoneNumber: '010-1234-5678',
+    hasConsented: true,
+  );
+  const Customer otherCustomer = Customer(
+    id: 2,
+    name: '이수현',
+    phoneNumber: '010-9876-5432',
     hasConsented: true,
   );
 
@@ -91,51 +99,83 @@ void main() {
     },
   );
 
-  test('reset clears every SKU session (new customer lookup)', () {
-    manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
-    manager.sessionFor(customer: customer, cartItem: cartItem(2, 'B'));
-    expect(manager.isStarted(1), isTrue);
-    expect(manager.isStarted(2), isTrue);
+  test('two different customers with the same skuId get independent sessions '
+      '(the catalog is shared, so this collision is a real scenario)', () {
+    final CartItem sharedSkuItem = cartItem(1, 'MCM 백팩');
 
-    manager.reset();
+    final LastIntentSessionController sessionForCustomer = manager.sessionFor(
+      customer: customer,
+      cartItem: sharedSkuItem,
+    );
+    final LastIntentSessionController sessionForOther = manager.sessionFor(
+      customer: otherCustomer,
+      cartItem: sharedSkuItem,
+    );
 
-    expect(manager.isStarted(1), isFalse);
-    expect(manager.isStarted(2), isFalse);
+    expect(identical(sessionForCustomer, sessionForOther), isFalse);
+    expect(sessionForCustomer.state.customer?.id, customer.id);
+    expect(sessionForOther.state.customer?.id, otherCustomer.id);
+    expect(manager.activeCount, 2);
   });
 
   test(
-    'StaffWebSessionController.onNewLookup resets the manager on a new lookup',
+    '상담 한 뒤 다른 고객을 상담해도 이전 고객의 진행 중 상담은 사라지지 않는다 — '
+    'looking up a different customer no longer resets every session',
     () async {
       final StaffWebSessionController staffController =
           StaffWebSessionController(repository: repository);
-      staffController.onNewLookup = manager.reset;
+      addTearDown(staffController.dispose);
 
       manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
-      expect(manager.isStarted(1), isTrue);
+      expect(manager.isStarted(customer.id, 1), isTrue);
 
-      await staffController.lookupCustomer('010-1234-5678');
+      // Look up a completely different customer — used to wipe every
+      // session via the old onNewLookup -> manager.reset() wiring.
+      await staffController.lookupCustomer(otherCustomer.phoneNumber);
 
-      expect(manager.isStarted(1), isFalse);
+      expect(manager.isStarted(customer.id, 1), isTrue);
+      expect(manager.activeCount, 1);
+      expect(manager.firstActiveSession?.customer?.id, customer.id);
     },
   );
 
+  test('resetForCustomer only clears that customer\'s sessions, leaving other '
+      "customers' sessions untouched", () {
+    manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
+    manager.sessionFor(customer: customer, cartItem: cartItem(2, 'B'));
+    manager.sessionFor(customer: otherCustomer, cartItem: cartItem(3, 'C'));
+    expect(manager.activeCount, 3);
+
+    manager.resetForCustomer(customer.id);
+
+    expect(manager.isStarted(customer.id, 1), isFalse);
+    expect(manager.isStarted(customer.id, 2), isFalse);
+    expect(manager.isStarted(otherCustomer.id, 3), isTrue);
+    expect(manager.activeCount, 1);
+  });
+
   test(
-    'StaffWebSessionController.onConsentChanged resets in-progress sessions',
+    'StaffWebSessionController.onConsentChanged resets only that customer\'s '
+    'in-progress sessions',
     () async {
       final StaffWebSessionController staffController =
           StaffWebSessionController(repository: repository);
-      staffController.onConsentChanged = manager.reset;
+      addTearDown(staffController.dispose);
+      staffController.onConsentChanged = manager.resetForCustomer;
 
       await staffController.lookupCustomer('010-1234-5678');
       await staffController.loadCart();
       manager.sessionFor(customer: customer, cartItem: cartItem(1, 'A'));
-      expect(manager.isStarted(1), isTrue);
+      manager.sessionFor(customer: otherCustomer, cartItem: cartItem(2, 'B'));
+      expect(manager.isStarted(customer.id, 1), isTrue);
       expect(staffController.state.cartState.hasData, isTrue);
 
       await staffController.submitConsent(false);
 
-      expect(manager.isStarted(1), isFalse);
-      expect(staffController.state.customer?.hasConsented, isFalse);
+      expect(manager.isStarted(customer.id, 1), isFalse);
+      // A different customer's session is unrelated to this consent change.
+      expect(manager.isStarted(otherCustomer.id, 2), isTrue);
+      expect(staffController.state.currentCustomer?.hasConsented, isFalse);
       expect(staffController.state.cartItems, isEmpty);
       expect(staffController.state.cartState.isIdle, isTrue);
     },
@@ -152,15 +192,15 @@ void main() {
         );
 
         expect(manager.activeCount, 1);
-        expect(manager.isCompleted(1), isFalse);
-        expect(manager.isDeclined(1), isFalse);
+        expect(manager.isCompleted(customer.id, 1), isFalse);
+        expect(manager.isDeclined(customer.id, 1), isFalse);
 
         // declineAdditionalConsultation() alone (no execute() yet) is not a
         // real usage of the method — this only proves it doesn't fabricate
         // completion on its own, execute() is still what flips isCompleted.
         sessionA.declineAdditionalConsultation();
-        expect(manager.isDeclined(1), isTrue);
-        expect(manager.isCompleted(1), isFalse);
+        expect(manager.isDeclined(customer.id, 1), isTrue);
+        expect(manager.isCompleted(customer.id, 1), isFalse);
         expect(manager.activeCount, 1);
       },
     );
@@ -190,11 +230,11 @@ void main() {
         await sessionA.execute();
         sessionA.declineAdditionalConsultation();
 
-        expect(manager.isCompleted(1), isTrue);
-        expect(manager.isDeclined(1), isTrue);
+        expect(manager.isCompleted(customer.id, 1), isTrue);
+        expect(manager.isDeclined(customer.id, 1), isTrue);
         // SKU B is untouched — still active, not declined.
-        expect(manager.isCompleted(2), isFalse);
-        expect(manager.isDeclined(2), isFalse);
+        expect(manager.isCompleted(customer.id, 2), isFalse);
+        expect(manager.isDeclined(customer.id, 2), isFalse);
         // Only SKU B is left active now that A completed (declined or not).
         expect(manager.activeCount, 1);
         expect(manager.firstActiveSession?.selectedCartItem?.skuId, 2);
@@ -202,8 +242,8 @@ void main() {
         // SKU B: normal completion — execute() runs, never declined.
         await sessionB.execute();
 
-        expect(manager.isCompleted(2), isTrue);
-        expect(manager.isDeclined(2), isFalse);
+        expect(manager.isCompleted(customer.id, 2), isTrue);
+        expect(manager.isDeclined(customer.id, 2), isFalse);
         // Both SKUs done (one declined, one normal) → no active sessions
         // left, matching "모든 상담 대상 상품이 상담 완료 또는 상담 중단이면
         // 고객 진행 중 상담 종료" (Issue #64).

@@ -3,11 +3,13 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
 import 'last_intent_confirm_screen.dart';
 import 'last_intent_follow_up_screen.dart';
+import 'last_intent_intro_screen.dart';
 
 /// Figma node 98:1881 "고객 의도 입력 화면 - 2단계" — reused shell
 /// ([SegueCardShell], same family as 89:1559/98:1933), so no
@@ -139,14 +141,18 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
   }
 
   void _goToNextStep({required bool needsFollowUp}) {
+    final LastIntentSessionController session = LastIntentSessionScope.of(
+      context,
+    ).sessionFor(customer: widget.customer, cartItem: widget.cartItem);
+    session.setCurrentStep(
+      needsFollowUp ? LastIntentStep.followUp : LastIntentStep.confirm,
+    );
     if (needsFollowUp) {
       // Fired here (button handler), not inside LastIntentFollowUpScreen's
       // own mount — notifyListeners() while ANOTHER screen is mid-build/
       // mid-mount (this screen's ListenableBuilder is still attached, since
       // push() keeps it in the tree) trips a "setState during build" error.
-      LastIntentSessionScope.of(context)
-          .sessionFor(customer: widget.customer, cartItem: widget.cartItem)
-          .requestFollowUpQuestion();
+      session.requestFollowUpQuestion();
     }
     // push (not pushReplacement) so "수정할게요"/뒤로가기 from the next screen
     // lands back here with the already-submitted utterance still visible.
@@ -161,6 +167,11 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
                 customer: widget.customer,
                 cartItem: widget.cartItem,
               ),
+        settings: RouteSettings(
+          name: needsFollowUp
+              ? AppRoutes.lastIntentFollowUp
+              : AppRoutes.lastIntentConfirm,
+        ),
       ),
     );
   }
@@ -212,7 +223,11 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
         builder: (BuildContext context, Widget? _) {
           final bool canSubmit = _utteranceController.text.trim().isNotEmpty;
           return SegueBottomActionRow(
-            onBackToStart: () => Navigator.of(context).pop(),
+            onBackToStart: () => navigateToLastIntentIntro(
+              context,
+              customer: widget.customer,
+              cartItem: widget.cartItem,
+            ),
             cta: _StructureIntentButton(
               onPressed: (!_analyzing && canSubmit)
                   ? () => _submit(session)

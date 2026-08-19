@@ -12,6 +12,7 @@ import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
 import 'last_intent_card_screen.dart';
 import 'last_intent_edit_screen.dart';
+import 'last_intent_intro_screen.dart';
 
 /// Figma node 110:2038 "의도 요약 확인 화면 - 3단계" — reused shell
 /// ([SegueCardShell], same family as 89:1559/98:1881), so no
@@ -69,12 +70,14 @@ class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
     }
     setState(() => _deciding = false);
     if (session.state.decisionResult != null) {
+      session.setCurrentStep(LastIntentStep.card);
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => LastIntentCardScreen(
             customer: widget.customer,
             cartItem: widget.cartItem,
           ),
+          settings: const RouteSettings(name: AppRoutes.lastIntentCard),
         ),
       );
     }
@@ -131,8 +134,11 @@ class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
         },
       ),
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () =>
-            navigateToTabletRoute(context, AppRoutes.staffHome),
+        onBackToStart: () => navigateToLastIntentIntro(
+          context,
+          customer: widget.customer,
+          cartItem: widget.cartItem,
+        ),
         topPadding: 28,
         // Wrap (not a fixed-width Row) so the two buttons can reflow onto
         // their own line instead of overflowing — SegueBottomActionRow's
@@ -153,6 +159,9 @@ class _LastIntentConfirmScreenState extends State<LastIntentConfirmScreen> {
                     builder: (_) => LastIntentEditScreen(
                       customer: widget.customer,
                       cartItem: widget.cartItem,
+                    ),
+                    settings: const RouteSettings(
+                      name: AppRoutes.lastIntentEdit,
                     ),
                   ),
                 );

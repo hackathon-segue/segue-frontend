@@ -118,7 +118,7 @@ void main() {
 
       final BuildContext context = tester.element(find.text('고객 의도 입력'));
       final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
-      final Customer customer = StaffSessionScope.of(context).state.customer!;
+      final Customer customer = StaffSessionScope.of(context).state.currentCustomer!;
       final CartItem sku1Item = StaffSessionScope.of(
         context,
       ).state.cartState.data!.firstWhere((CartItem i) => i.skuId == 1);

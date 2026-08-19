@@ -16,12 +16,20 @@ class SegueProductImage extends StatelessWidget {
     this.imageUrl,
     this.width = 237,
     this.height = 256,
+    this.fit = BoxFit.cover,
     super.key,
   });
 
   final String? imageUrl;
   final double width;
   final double height;
+
+  /// Every existing call site relies on the original `cover` (crops to
+  /// fill the fixed box) — this default is unchanged. Callers whose box
+  /// doesn't match the real photo's aspect ratio (e.g. Home's wide
+  /// "진행 중인 상담" card) can pass `BoxFit.contain` instead so the product
+  /// is never cropped out of frame.
+  final BoxFit fit;
 
   static String _resolveImageUrl(String url) {
     final Uri uri = Uri.parse(url);
@@ -40,7 +48,7 @@ class SegueProductImage extends StatelessWidget {
       _resolveImageUrl(imageUrl!),
       width: width,
       height: height,
-      fit: BoxFit.cover,
+      fit: fit,
       errorBuilder:
           (BuildContext context, Object error, StackTrace? stackTrace) =>
               _placeholder(),

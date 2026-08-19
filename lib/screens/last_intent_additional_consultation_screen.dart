@@ -8,6 +8,7 @@ import '../utils/structured_intent_vocabulary.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
+import 'last_intent_intro_screen.dart';
 
 /// Figma node 169:3683 ("진행" checked) / 169:3821 ("미진행" checked) —
 /// "추가 상담 진행" (ADDITIONAL_CONSULTATION). Both nodes are the SAME screen
@@ -139,13 +140,17 @@ class _LastIntentAdditionalConsultationScreenState
         final DecisionResult? result = session.state.decisionResult;
         final StructuredIntent? intent = session.state.structuredIntent;
         if (result == null || intent == null) {
-          return const _Scaffold(
-            child: Text('생성된 결과가 없습니다.', style: SegueCardText.body18),
+          return _Scaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
+            child: const Text('생성된 결과가 없습니다.', style: SegueCardText.body18),
           );
         }
 
         if (_executing || session.state.executionState.isLoading) {
           return _Scaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
             child: AppStateView.loading(
               title: session.state.executionState.isLoading
                   ? '요청을 접수하고 있습니다'
@@ -156,6 +161,8 @@ class _LastIntentAdditionalConsultationScreenState
 
         if (session.state.executionState.hasError) {
           return _Scaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
             child: AppStateView.error(
               message: '요청 접수에 실패했습니다. 다시 시도해 주세요.',
               onAction: () => _handleExecute(session),
@@ -165,6 +172,8 @@ class _LastIntentAdditionalConsultationScreenState
 
         if (session.state.resultSaveState.hasError) {
           return _Scaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
             child: AppStateView.error(
               message: '상담 결과 저장에 실패했습니다. 다시 시도해 주세요.',
               onAction: () => _handleRetrySave(session),
@@ -173,6 +182,8 @@ class _LastIntentAdditionalConsultationScreenState
         }
 
         return _Scaffold(
+          customer: widget.customer,
+          cartItem: widget.cartItem,
           // Figma-literal display override (169:3724/169:3972), same
           // established pattern as the result-detail screens' CTA label —
           // execute() below still sends the real actionType/actionButtonLabel
@@ -300,12 +311,16 @@ class _LastIntentAdditionalConsultationScreenState
 
 class _Scaffold extends StatelessWidget {
   const _Scaffold({
+    required this.customer,
+    required this.cartItem,
     required this.child,
     this.ctaLabel,
     this.onCta,
     this.ctaShowArrow = true,
   });
 
+  final Customer customer;
+  final CartItem cartItem;
   final Widget child;
   final String? ctaLabel;
   final VoidCallback? onCta;
@@ -323,8 +338,11 @@ class _Scaffold extends StatelessWidget {
           '보다 정확한 제안을 위해 추가 상담이 필요합니다. Client Advisor가 고객님과 더 깊이 있는 상담을 진행하겠습니다.',
       body: child,
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () =>
-            navigateToTabletRoute(context, AppRoutes.staffHome),
+        onBackToStart: () => navigateToLastIntentIntro(
+          context,
+          customer: customer,
+          cartItem: cartItem,
+        ),
         cta: ctaLabel != null
             ? SegueCtaButton(
                 label: ctaLabel!,

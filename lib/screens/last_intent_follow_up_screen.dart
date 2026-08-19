@@ -8,6 +8,7 @@ import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
 import 'last_intent_confirm_screen.dart';
+import 'last_intent_intro_screen.dart';
 
 /// Figma node 98:1981 "보충 질문 제시 화면 - 2단계" — reused shell
 /// ([SegueCardShell], same family as 89:1559/98:1881), so no
@@ -79,6 +80,7 @@ class _LastIntentFollowUpScreenState extends State<LastIntentFollowUpScreen> {
     }
     setState(() => _submitting = false);
     if (session.state.intentState.hasData) {
+      session.setCurrentStep(LastIntentStep.confirm);
       // push (not pushReplacement) so "수정할게요" from the confirm screen
       // can land back here to revise the follow-up answer.
       Navigator.of(context).push(
@@ -87,6 +89,7 @@ class _LastIntentFollowUpScreenState extends State<LastIntentFollowUpScreen> {
             customer: widget.customer,
             cartItem: widget.cartItem,
           ),
+          settings: const RouteSettings(name: AppRoutes.lastIntentConfirm),
         ),
       );
     }
@@ -181,8 +184,11 @@ class _LastIntentFollowUpScreenState extends State<LastIntentFollowUpScreen> {
         builder: (BuildContext context, Widget? _) {
           final bool canSubmit = _answerController.text.trim().isNotEmpty;
           return SegueBottomActionRow(
-            onBackToStart: () =>
-                navigateToTabletRoute(context, AppRoutes.staffHome),
+            onBackToStart: () => navigateToLastIntentIntro(
+              context,
+              customer: widget.customer,
+              cartItem: widget.cartItem,
+            ),
             // Wrap (not a fixed-width Row) so the two buttons can reflow
             // onto their own line instead of overflowing on narrow
             // viewports — SegueBottomActionRow's own Wrap doesn't shrink a
