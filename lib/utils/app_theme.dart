@@ -3,13 +3,18 @@ import 'package:flutter/material.dart';
 import 'app_design_tokens.dart';
 
 abstract final class SegueTheme {
+  static const String englishFontFamily = 'Montserrat';
+  static const String koreanFontFamily = 'Pretendard';
+  static const List<String> _fontFamilyFallback = <String>[koreanFontFamily];
+
   static ThemeData light() {
     final ThemeData base = ThemeData(
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.brand,
         brightness: Brightness.light,
       ),
-      fontFamily: 'Arial',
+      fontFamily: englishFontFamily,
+      fontFamilyFallback: _fontFamilyFallback,
       useMaterial3: true,
     );
 
@@ -28,7 +33,7 @@ abstract final class SegueTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: _fontStyle(const TextStyle(fontWeight: FontWeight.w700)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -39,7 +44,7 @@ abstract final class SegueTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: _fontStyle(const TextStyle(fontWeight: FontWeight.w700)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -93,9 +98,9 @@ abstract final class SegueTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.ink,
-        contentTextStyle: base.textTheme.bodyMedium?.copyWith(
-          color: AppColors.surface,
-        ),
+        contentTextStyle: _fontStyle(
+          base.textTheme.bodyMedium,
+        )?.copyWith(color: AppColors.surface),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
@@ -104,33 +109,37 @@ abstract final class SegueTheme {
     );
   }
 
+  static TextStyle? _fontStyle(TextStyle? style) {
+    return style?.copyWith(
+      fontFamily: englishFontFamily,
+      fontFamilyFallback: _fontFamilyFallback,
+    );
+  }
+
   static TextTheme _textTheme(TextTheme base) {
     return base.copyWith(
-      headlineMedium: base.headlineMedium?.copyWith(
+      headlineMedium: _fontStyle(base.headlineMedium)?.copyWith(
         color: AppColors.ink,
         fontWeight: FontWeight.w800,
         letterSpacing: 0,
       ),
-      titleLarge: base.titleLarge?.copyWith(
+      titleLarge: _fontStyle(base.titleLarge)?.copyWith(
         color: AppColors.ink,
         fontWeight: FontWeight.w800,
         letterSpacing: 0,
       ),
-      titleMedium: base.titleMedium?.copyWith(
+      titleMedium: _fontStyle(base.titleMedium)?.copyWith(
         color: AppColors.ink,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
       ),
-      bodyMedium: base.bodyMedium?.copyWith(
-        color: AppColors.mutedInk,
-        height: 1.4,
-        letterSpacing: 0,
-      ),
-      bodySmall: base.bodySmall?.copyWith(
-        color: AppColors.subtleInk,
-        letterSpacing: 0,
-      ),
-      labelLarge: base.labelLarge?.copyWith(
+      bodyMedium: _fontStyle(
+        base.bodyMedium,
+      )?.copyWith(color: AppColors.mutedInk, height: 1.4, letterSpacing: 0),
+      bodySmall: _fontStyle(
+        base.bodySmall,
+      )?.copyWith(color: AppColors.subtleInk, letterSpacing: 0),
+      labelLarge: _fontStyle(base.labelLarge)?.copyWith(
         color: AppColors.subtleInk,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,

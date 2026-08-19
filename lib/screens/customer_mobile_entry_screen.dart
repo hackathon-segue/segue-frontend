@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../exceptions/app_exception.dart';
@@ -10,9 +12,11 @@ import '../utils/execution_status_display.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/mobile_product_visual.dart';
 import '../widgets/mobile_screen_scaffold.dart';
+import '../widgets/segue_product_image.dart';
 
 enum _MobileScreen {
   start,
+  login,
   menu,
   products,
   detail,
@@ -63,6 +67,9 @@ class CustomerMobileEntryScreen extends StatefulWidget {
 class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   _MobileScreen _screen = _MobileScreen.start;
   MobileProduct _selectedProduct = MobileProductCatalog.products[2];
+  final List<MobileProduct> _mobileProducts = List<MobileProduct>.of(
+    AppConfig.useMockData ? MobileProductCatalog.products : <MobileProduct>[],
+  );
   String? _selectedCategory;
   String? _expandedMenuSection;
   String? _selectedColor;
@@ -70,13 +77,32 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   CartItem? _lastSavedCartItem;
   final List<CartItem> _cartItems = <CartItem>[];
   bool _isSavingCart = false;
+  bool _isLoadingProducts = false;
+  bool _hasLoadedProducts = false;
+  bool _hasQueuedInitialProductLoad = false;
   bool _isLoadingCart = false;
   String? _cartSaveError;
+  String? _productsError;
   String? _cartError;
   final List<ConsultationResult> _consultationResults = <ConsultationResult>[];
   ConsultationResult? _selectedConsultationResult;
   bool _isLoadingResults = false;
   String? _resultsError;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_hasQueuedInitialProductLoad) {
+      return;
+    }
+    _hasQueuedInitialProductLoad = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_loadMobileProducts());
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,12 +113,14 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
           _openResults();
         },
       ),
+      _MobileScreen.login => _LoginScreen(onClose: _openStart),
       _MobileScreen.menu => _MenuScreen(
         expandedSection: _expandedMenuSection,
         onClose: _openStart,
         onToggleSection: _toggleMenuSection,
         onOpenProducts: _openProductCategory,
         onOpenAllProducts: _openAllProducts,
+        onOpenLogin: _openLogin,
         onOpenCart: _openCart,
         onOpenResults: () {
           _openResults();
@@ -101,6 +129,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _MobileScreen.products => _ProductListScreen(
         products: _filteredProducts,
         selectedCategory: _selectedCategory,
+        isLoading: _isLoadingProducts,
+        errorMessage: _productsError,
+        onRetry: () => _loadMobileProducts(force: true),
         onCategorySelected: (String? category) {
           if (category == null) {
             _openAllProducts();
@@ -125,11 +156,19 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onBack: _returnToProducts,
         onColorSelected: (String color) {
           setState(() {
+            final MobileSkuOption? firstOption = _selectedProduct
+                .firstOptionForColor(color);
             _selectedColor = color;
-            _selectedSize = _selectedProduct.sizes.first;
+            _selectedSize = firstOption?.size;
           });
         },
-        onSizeSelected: (String size) => setState(() => _selectedSize = size),
+        onSizeSelected: (String size) {
+          if (_selectedProduct.skuFor(color: _selectedColor, size: size) ==
+              null) {
+            return;
+          }
+          setState(() => _selectedSize = size);
+        },
         onAddToCart: _saveSelectedCartItem,
         isSavingCart: _isSavingCart,
         cartSaveError: _cartSaveError,
@@ -172,7 +211,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
   List<MobileProduct> get _filteredProducts {
     final String category = _selectedCategory ?? '가방';
-    final List<MobileProduct> products = MobileProductCatalog.products.where((
+    final List<MobileProduct> products = _mobileProducts.where((
       MobileProduct product,
     ) {
       return _matchesProductCategory(product, category);
@@ -190,7 +229,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
   bool _matchesProductCategory(MobileProduct product, String category) {
     return switch (category) {
-      '신상품' => product.season.contains('2026'),
+      '신상품' =>
+        product.season.contains('2026') ||
+            product.collection.contains('신') ||
+            product.category.contains('신상품'),
       '가방' => product.category != '지갑',
       '토트백 & 쇼퍼백' => product.name.contains('토트') || product.name.contains('쇼퍼'),
       '숄더백 & 크로스백' =>
@@ -215,6 +257,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     });
   }
 
+  void _openLogin() {
+    setState(() => _screen = _MobileScreen.login);
+  }
+
   void _toggleMenuSection(String section) {
     setState(() {
       _expandedMenuSection = _expandedMenuSection == section ? null : section;
@@ -226,6 +272,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _selectedCategory = null;
       _screen = _MobileScreen.products;
     });
+    _loadMobileProducts();
   }
 
   void _openProductCategory(String category) {
@@ -233,6 +280,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _selectedCategory = category;
       _screen = _MobileScreen.products;
     });
+    _loadMobileProducts();
   }
 
   void _returnToProducts() {
@@ -240,10 +288,11 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   void _openDetail(MobileProduct product) {
+    final MobileSkuOption? initialSku = product.firstAvailableOption;
     setState(() {
       _selectedProduct = product;
-      _selectedColor = product.colors.first;
-      _selectedSize = product.sizes.first;
+      _selectedColor = initialSku?.color;
+      _selectedSize = initialSku?.size;
       _screen = _MobileScreen.detail;
     });
   }
@@ -266,6 +315,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         CustomerMobileTab.results => _MobileScreen.results,
       };
     });
+    if (tab == CustomerMobileTab.products) {
+      _loadMobileProducts();
+    }
   }
 
   void _openCart() {
@@ -302,6 +354,76 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _selectedConsultationResult = result;
       _screen = _MobileScreen.storeVisit;
     });
+  }
+
+  Future<void> _loadMobileProducts({bool force = false}) async {
+    if (_isLoadingProducts || (_hasLoadedProducts && !force)) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingProducts = true;
+      _productsError = null;
+    });
+
+    try {
+      final List<MobileProduct> products = await RepositoryScope.of(
+        context,
+      ).fetchMobileProducts();
+      if (!mounted) {
+        return;
+      }
+      final List<MobileProduct> nextProducts =
+          products.isEmpty && AppConfig.useMockData
+          ? MobileProductCatalog.products
+          : products;
+      setState(() {
+        _mobileProducts
+          ..clear()
+          ..addAll(nextProducts);
+        _hasLoadedProducts = true;
+        _isLoadingProducts = false;
+      });
+      _precacheProductImages(nextProducts);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (!AppConfig.useMockData) {
+          _mobileProducts.clear();
+        }
+        _isLoadingProducts = false;
+        _productsError = _errorMessage(
+          error,
+          fallback: '상품 정보를 불러오지 못했습니다. 다시 시도해 주세요.',
+        );
+      });
+    }
+  }
+
+  void _precacheProductImages(List<MobileProduct> products) {
+    final Set<String> resolvedUrls = <String>{};
+    for (final MobileProduct product in products) {
+      final String? resolvedUrl = SegueProductImage.resolveImageUrl(
+        product.imageUrl,
+      );
+      if (resolvedUrl == null || !resolvedUrls.add(resolvedUrl)) {
+        continue;
+      }
+      unawaited(
+        precacheImage(
+          NetworkImage(
+            resolvedUrl,
+            headers: SegueProductImage.headersFor(resolvedUrl),
+          ),
+          context,
+        ).catchError((Object _) {}),
+      );
+      if (resolvedUrls.length >= 12) {
+        return;
+      }
+    }
   }
 
   Future<void> _loadConsultationResults({bool force = false}) async {
@@ -494,6 +616,143 @@ class _StartScreen extends StatelessWidget {
   }
 }
 
+class _LoginScreen extends StatelessWidget {
+  const _LoginScreen({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 68),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SizedBox(
+                height: 78,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: <Widget>[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        tooltip: '로그인 닫기',
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close, size: 28),
+                      ),
+                    ),
+                    const Text(
+                      'MCM',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 34),
+              const Text(
+                '로그인',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.',
+                style: TextStyle(fontSize: 13, height: 1.35),
+              ),
+              const SizedBox(height: 42),
+              const _LoginInputField(hintText: '이메일 주소*'),
+              const SizedBox(height: 34),
+              const _LoginInputField(
+                hintText: '비밀번호*',
+                trailingText: '표시',
+                obscureText: true,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '*표시가 있는 모든 입력 항목은 필수입니다.',
+                style: TextStyle(
+                  color: Color(0xFF747474),
+                  fontSize: 11,
+                  height: 1.35,
+                ),
+              ),
+              const Spacer(),
+              _McmPrimaryButton(label: '로그인', onPressed: () {}),
+              const SizedBox(height: 8),
+              _McmOutlinedButton(label: '회원가입', onPressed: () {}),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginInputField extends StatelessWidget {
+  const _LoginInputField({
+    required this.hintText,
+    this.trailingText,
+    this.obscureText = false,
+  });
+
+  final String hintText;
+  final String? trailingText;
+  final bool obscureText;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 35,
+      child: Stack(
+        children: <Widget>[
+          TextField(
+            obscureText: obscureText,
+            cursorColor: Colors.black,
+            style: const TextStyle(fontSize: 13, height: 1.2),
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: const TextStyle(
+                color: Color(0xFF8A8A8A),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              isDense: true,
+              contentPadding: EdgeInsets.only(
+                right: trailingText == null ? 0 : 44,
+                bottom: 9,
+              ),
+              enabledBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.black),
+              ),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.black, width: 1.2),
+              ),
+            ),
+          ),
+          if (trailingText != null)
+            Positioned(
+              right: 0,
+              bottom: 10,
+              child: Text(
+                trailingText!,
+                style: const TextStyle(
+                  color: Color(0xFF696969),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StartScreenLogo extends StatelessWidget {
   const _StartScreenLogo();
 
@@ -582,6 +841,7 @@ class _MenuScreen extends StatelessWidget {
     required this.onToggleSection,
     required this.onOpenProducts,
     required this.onOpenAllProducts,
+    required this.onOpenLogin,
     required this.onOpenCart,
     required this.onOpenResults,
   });
@@ -591,6 +851,7 @@ class _MenuScreen extends StatelessWidget {
   final ValueChanged<String> onToggleSection;
   final ValueChanged<String> onOpenProducts;
   final VoidCallback onOpenAllProducts;
+  final VoidCallback onOpenLogin;
   final VoidCallback onOpenCart;
   final VoidCallback onOpenResults;
 
@@ -617,6 +878,11 @@ class _MenuScreen extends StatelessWidget {
                     ),
                     _MenuSubItem(
                       label: '남성 신상품',
+                      onTap: () => onOpenProducts('신상품'),
+                    ),
+                    _MenuSubItem(
+                      label: 'AUTUMN WINTER 2026',
+                      fontFamily: 'Montserrat',
                       onTap: () => onOpenProducts('신상품'),
                     ),
                     const SizedBox(height: 12),
@@ -710,7 +976,7 @@ class _MenuScreen extends StatelessWidget {
                   _MenuFooterRow(
                     label: '로그인',
                     icon: Icons.person_outline,
-                    onTap: onClose,
+                    onTap: onOpenLogin,
                   ),
                   _MenuFooterRow(
                     label: '쇼핑백',
@@ -929,10 +1195,15 @@ class _MenuPrimaryRow extends StatelessWidget {
 }
 
 class _MenuSubItem extends StatelessWidget {
-  const _MenuSubItem({required this.label, required this.onTap});
+  const _MenuSubItem({
+    required this.label,
+    required this.onTap,
+    this.fontFamily,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final String? fontFamily;
 
   @override
   Widget build(BuildContext context) {
@@ -942,7 +1213,11 @@ class _MenuSubItem extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 8, 0, 8),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            fontFamily: fontFamily,
+          ),
         ),
       ),
     );
@@ -1038,6 +1313,9 @@ class _ProductListScreen extends StatelessWidget {
   const _ProductListScreen({
     required this.products,
     required this.selectedCategory,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onRetry,
     required this.onCategorySelected,
     required this.onProductSelected,
     required this.onOpenMenu,
@@ -1046,6 +1324,9 @@ class _ProductListScreen extends StatelessWidget {
 
   final List<MobileProduct> products;
   final String? selectedCategory;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onRetry;
   final ValueChanged<String?> onCategorySelected;
   final ValueChanged<MobileProduct> onProductSelected;
   final VoidCallback onOpenMenu;
@@ -1083,6 +1364,17 @@ class _ProductListScreen extends StatelessWidget {
                     categories: categories,
                     onCategorySelected: onCategorySelected,
                   ),
+                  if (isLoading)
+                    const LinearProgressIndicator(
+                      minHeight: 2,
+                      color: Colors.black,
+                      backgroundColor: Color(0xFFEDEDED),
+                    ),
+                  if (errorMessage != null)
+                    _ProductLoadErrorBanner(
+                      message: errorMessage!,
+                      onRetry: onRetry,
+                    ),
                   _ProductCampaignHero(assetPath: heroAssetPath, title: title),
                   const _ProductSortRow(),
                   if (products.isEmpty)
@@ -1097,7 +1389,7 @@ class _ProductListScreen extends StatelessWidget {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         crossAxisCount: 2,
-                        childAspectRatio: 0.58,
+                        childAspectRatio: 0.68,
                         children: <Widget>[
                           for (final MobileProduct product in products)
                             _ProductGridTile(
@@ -1112,6 +1404,53 @@ class _ProductListScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProductLoadErrorBanner extends StatelessWidget {
+  const _ProductLoadErrorBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7F4),
+        border: Border.all(color: const Color(0xFFE7B8AA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 10,
+                height: 1.35,
+                color: Color(0xFF6F2A1D),
+              ),
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28),
+              textStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            onPressed: onRetry,
+            child: const Text('재시도'),
+          ),
+        ],
       ),
     );
   }
@@ -1259,9 +1598,13 @@ class _ProductGridTile extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Expanded(
-                child: Center(
-                  child: MobileProductVisual(product: product, compact: true),
+              AspectRatio(
+                aspectRatio: 1.08,
+                child: MobileProductVisual(
+                  product: product,
+                  compact: true,
+                  imageFit: BoxFit.cover,
+                  showFrame: false,
                 ),
               ),
               const SizedBox(height: 10),
@@ -1340,8 +1683,28 @@ class _ProductDetailScreen extends StatelessWidget {
     final Color selectedVisualColor = selectedColor == null
         ? Color(product.visualValue)
         : Color(product.optionForColor(selectedColor!).swatchValue);
-    final String colorLabel = selectedColor ?? product.colors.first;
-    final String sizeLabel = selectedSize ?? 'M';
+    final List<String> availableColors = product.colors;
+    final List<String> availableSizes = product.sizesForColor(selectedColor);
+    final String colorLabel =
+        selectedColor ??
+        (availableColors.isEmpty ? '정보 없음' : availableColors.first);
+    final String sizeLabel =
+        selectedSize ??
+        (availableSizes.isEmpty ? '정보 없음' : availableSizes.first);
+    final List<(String, String)> skuDetailRows = <(String, String)>[
+      if ((selectedSku?.material ?? product.material).trim().isNotEmpty)
+        ('소재', selectedSku?.material ?? product.material),
+      if ((selectedSku?.storageStructure ?? '').trim().isNotEmpty)
+        ('수납', selectedSku!.storageStructure!),
+      if ((selectedSku?.wearStyle ?? '').trim().isNotEmpty)
+        ('착용', selectedSku!.wearStyle!),
+      if (selectedSku?.weightGrams != null)
+        ('무게', '${selectedSku!.weightGrams}g'),
+      if (selectedSku?.laptopCompatible != null)
+        ('노트북', selectedSku!.laptopCompatible! ? '수납 가능' : '수납 불가'),
+      if ((selectedSku?.sizeGrade ?? '').trim().isNotEmpty)
+        ('크기', selectedSku!.sizeGrade!),
+    ];
 
     return _McmPhoneShell(
       child: SafeArea(
@@ -1370,12 +1733,14 @@ class _ProductDetailScreen extends StatelessWidget {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(48, 46, 48, 30),
+                    padding: const EdgeInsets.fromLTRB(40, 34, 40, 24),
                     child: AspectRatio(
-                      aspectRatio: 0.92,
+                      aspectRatio: 1.12,
                       child: MobileProductVisual(
                         product: product,
                         colorOverride: selectedVisualColor,
+                        imageFit: BoxFit.cover,
+                        showFrame: false,
                       ),
                     ),
                   ),
@@ -1411,13 +1776,17 @@ class _ProductDetailScreen extends StatelessWidget {
                           '사이즈: $sizeLabel',
                           style: const TextStyle(fontSize: 12, height: 1.3),
                         ),
+                        if (skuDetailRows.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 18),
+                          _McmSkuDetailPanel(rows: skuDetailRows),
+                        ],
                         const SizedBox(height: 22),
-                        if (product.colors.length > 1)
+                        if (availableColors.length > 1)
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: <Widget>[
-                              for (final String color in product.colors)
+                              for (final String color in availableColors)
                                 _McmOptionChip(
                                   label: color,
                                   selected: selectedColor == color,
@@ -1425,13 +1794,13 @@ class _ProductDetailScreen extends StatelessWidget {
                                 ),
                             ],
                           ),
-                        if (product.sizes.length > 1) ...<Widget>[
+                        if (availableSizes.length > 1) ...<Widget>[
                           const SizedBox(height: 10),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: <Widget>[
-                              for (final String size in product.sizes)
+                              for (final String size in availableSizes)
                                 _McmOptionChip(
                                   label: size,
                                   selected: selectedSize == size,
@@ -1471,6 +1840,64 @@ class _ProductDetailScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _McmSkuDetailPanel extends StatelessWidget {
+  const _McmSkuDetailPanel({required this.rows});
+
+  final List<(String, String)> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFAFA),
+        border: Border.all(color: const Color(0xFFE5E5E5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '소재 및 상세 정보',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          for (final (String label, String value) in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  SizedBox(
+                    width: 54,
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF666666),
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1641,7 +2068,7 @@ class _ShoppingBagLineItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final MobileProduct product = MobileProductCatalog.productById(
       item.productId,
-    );
+    ).copyWith(imageUrl: item.imageUrl);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1651,7 +2078,12 @@ class _ShoppingBagLineItem extends StatelessWidget {
           SizedBox(
             width: 108,
             height: 108,
-            child: MobileProductVisual(product: product, compact: true),
+            child: MobileProductVisual(
+              product: product,
+              compact: true,
+              imageFit: BoxFit.cover,
+              showFrame: false,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1832,7 +2264,7 @@ class _SegueHistoryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final MobileProduct product = MobileProductCatalog.productBySkuId(
       result.skuId,
-    );
+    ).copyWith(imageUrl: result.imageUrl);
     final MobileSkuOption? sku = MobileProductCatalog.skuById(result.skuId);
 
     return InkWell(
@@ -1852,6 +2284,8 @@ class _SegueHistoryRow extends StatelessWidget {
                     product: product,
                     colorOverride: sku == null ? null : Color(sku.swatchValue),
                     compact: true,
+                    imageFit: BoxFit.cover,
+                    showFrame: false,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -2484,7 +2918,7 @@ class _ConsultationProductRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final MobileProduct product = MobileProductCatalog.productBySkuId(
       result.skuId,
-    );
+    ).copyWith(imageUrl: result.imageUrl);
     final MobileSkuOption? sku = MobileProductCatalog.skuById(result.skuId);
     final String color = sku?.color ?? 'Black';
     final String size = sku?.size ?? 'M';
@@ -2499,6 +2933,8 @@ class _ConsultationProductRow extends StatelessWidget {
             product: product,
             colorOverride: sku == null ? null : Color(sku.swatchValue),
             compact: true,
+            imageFit: BoxFit.cover,
+            showFrame: false,
           ),
         ),
         const SizedBox(width: AppSpacing.md),
@@ -2671,6 +3107,9 @@ String _formatKoreanDateTime(DateTime date) {
 }
 
 String _formatWon(int price) {
+  if (price <= 0) {
+    return '가격 정보 없음';
+  }
   final String digits = price.toString();
   final StringBuffer buffer = StringBuffer();
   for (int index = 0; index < digits.length; index += 1) {

@@ -325,6 +325,15 @@ abstract final class MobileProductCatalog {
     );
   }
 
+  static MobileProduct? tryProductById(int id) {
+    for (final MobileProduct product in products) {
+      if (product.id == id) {
+        return product;
+      }
+    }
+    return null;
+  }
+
   static MobileProduct productBySkuId(int skuId) {
     return products.firstWhere(
       (MobileProduct product) => product.options.any(

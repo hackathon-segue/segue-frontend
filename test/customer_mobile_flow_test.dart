@@ -41,6 +41,55 @@ void main() {
     expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
   });
 
+  testWidgets('customer mobile menu opens the login screen', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('로그인'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('로그인 닫기'), findsOneWidget);
+    expect(find.text('회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.'), findsOneWidget);
+    expect(find.text('이메일 주소*'), findsOneWidget);
+    expect(find.text('비밀번호*'), findsOneWidget);
+    expect(find.text('회원가입'), findsOneWidget);
+  });
+
+  testWidgets('customer mobile new-season menu item opens product list', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('신상품').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('AUTUMN WINTER 2026'), findsOneWidget);
+    final Text seasonMenuItem = tester.widget<Text>(
+      find.text('AUTUMN WINTER 2026'),
+    );
+    expect(seasonMenuItem.style?.fontFamily, 'Montserrat');
+
+    await tester.tap(find.text('AUTUMN WINTER 2026'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
+  });
+
   testWidgets('product detail shows the new shopping bag CTA', (
     WidgetTester tester,
   ) async {
@@ -95,6 +144,56 @@ void main() {
     expect(find.textContaining('나의 쇼핑백('), findsOneWidget);
     expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
     expect(find.text('예상 합계'), findsWidgets);
+  });
+
+  testWidgets('mobile detail only allows existing color and size SKU pairs', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final _NonCartesianProductRepository repository =
+        _NonCartesianProductRepository();
+
+    await tester.pumpWidget(
+      RepositoryScope(
+        repository: repository,
+        child: MaterialApp(
+          theme: SegueTheme.light(),
+          home: const CustomerMobileEntryScreen(),
+        ),
+      ),
+    );
+    await _openNewProducts(tester);
+
+    await tester.tap(find.text('조합 제한 토트').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('색상: 코냑'), findsOneWidget);
+    expect(find.text('사이즈: 미디움'), findsOneWidget);
+    expect(find.text('소재 및 상세 정보'), findsOneWidget);
+    expect(find.text('비세토스 캔버스'), findsOneWidget);
+    expect(find.text('내부 포켓 2개'), findsOneWidget);
+    expect(find.text('토트'), findsOneWidget);
+    expect(find.text('620g'), findsOneWidget);
+    expect(find.text('수납 불가'), findsOneWidget);
+    expect(find.text('라지'), findsNothing);
+
+    await tester.tap(find.text('블랙'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('색상: 블랙'), findsOneWidget);
+    expect(find.text('사이즈: 라지'), findsOneWidget);
+    expect(find.text('미디움'), findsNothing);
+
+    await tester.tap(find.text('쇼핑백에 추가'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastSaveRequest?.productId, 99);
+    expect(repository.lastSaveRequest?.color, '블랙');
+    expect(repository.lastSaveRequest?.size, '라지');
   });
 
   testWidgets('mobile cart save and cart tab use the repository API contract', (
@@ -185,7 +284,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      SegueApp(repository: MockSegueRepository(seedDemoConsultationResults: true)),
+      SegueApp(
+        repository: MockSegueRepository(seedDemoConsultationResults: true),
+      ),
     );
     await tester.tap(find.byTooltip('SEGUE 내역 확인'));
     await tester.pumpAndSettle();
@@ -306,6 +407,69 @@ class _RecordingMobileRepository extends MockSegueRepository {
     lastFetchCustomerId = customerId;
     lastFetchStoreId = storeId;
     return super.fetchCart(customerId: customerId, storeId: storeId);
+  }
+}
+
+class _NonCartesianProductRepository extends MockSegueRepository {
+  CartSaveRequest? lastSaveRequest;
+
+  @override
+  Future<List<MobileProduct>> fetchMobileProducts() async {
+    return const <MobileProduct>[
+      MobileProduct(
+        id: 99,
+        name: '조합 제한 토트',
+        collection: '신상품',
+        category: '가방',
+        price: 1090000,
+        material: '비세토스 캔버스',
+        dimensions: 'W 35 x H 29 x D 14 cm',
+        origin: 'Made in Korea',
+        season: '2026 AW',
+        visualValue: 0xFFB87945,
+        accentValue: 0xFF111827,
+        options: <MobileSkuOption>[
+          MobileSkuOption(
+            skuId: 991,
+            color: '코냑',
+            size: '미디움',
+            swatchValue: 0xFFB87945,
+            material: '비세토스 캔버스',
+            weightGrams: 620,
+            storageStructure: '내부 포켓 2개',
+            wearStyle: '토트',
+            laptopCompatible: false,
+            sizeGrade: '미디움',
+          ),
+          MobileSkuOption(
+            skuId: 992,
+            color: '블랙',
+            size: '라지',
+            swatchValue: 0xFF111827,
+          ),
+        ],
+      ),
+    ];
+  }
+
+  @override
+  Future<CartItem> saveCartItem(CartSaveRequest request) async {
+    lastSaveRequest = request;
+    return CartItem.fromJson(<String, Object?>{
+      'cartItemId': 99,
+      'productId': request.productId,
+      'productName': '조합 제한 토트',
+      'imageUrl': '/images/products/non-cartesian.png',
+      'category': '가방',
+      'skuId': request.color == '블랙' ? 992 : 991,
+      'color': request.color,
+      'size': request.size,
+      'currentStoreInStock': false,
+      'otherStoreInStock': false,
+      'restockPlanned': false,
+      'actionButtonLabel': 'Last Intent 시작',
+      'savedAt': DateTime(2026, 8, 19, 12).toIso8601String(),
+    });
   }
 }
 

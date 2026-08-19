@@ -1,5 +1,6 @@
 import '../exceptions/app_exception.dart';
 import '../models/models.dart';
+import 'mobile_product_catalog.dart';
 import 'segue_api_client.dart';
 import 'segue_repository.dart';
 
@@ -36,6 +37,12 @@ class RealSegueRepository implements SegueRepository {
       '/api/customers/$customerId/consent',
     );
     return CustomerConsent.fromJson(asJsonMap(response));
+  }
+
+  @override
+  Future<List<MobileProduct>> fetchMobileProducts() async {
+    final Object? response = await _apiClient.getJson('/api/products');
+    return _mobileProductsFromResponse(response);
   }
 
   @override
@@ -176,6 +183,397 @@ class RealSegueRepository implements SegueRepository {
     _validateConsultationResult(json, 'updateExecutionStatus');
     return ConsultationResult.fromJson(json);
   }
+}
+
+List<MobileProduct> _mobileProductsFromResponse(Object? response) {
+  final List<Object?> productItems = _extractProductList(response);
+  if (productItems.isEmpty) {
+    return <MobileProduct>[];
+  }
+
+  return productItems
+      .map(_mobileProductFromJson)
+      .where((MobileProduct product) => product.name.trim().isNotEmpty)
+      .toList();
+}
+
+List<Object?> _extractProductList(Object? response) {
+  if (response is List) {
+    return response.cast<Object?>();
+  }
+
+  final JsonMap json = asJsonMap(response);
+  for (final String key in <String>[
+    'products',
+    'productList',
+    'items',
+    'data',
+    'content',
+  ]) {
+    final List<Object?> items = asJsonList(json[key]);
+    if (items.isNotEmpty) {
+      return items;
+    }
+  }
+
+  if (json.containsKey('productId') || json.containsKey('id')) {
+    return <Object?>[json];
+  }
+
+  return <Object?>[];
+}
+
+MobileProduct _mobileProductFromJson(Object? value) {
+  final JsonMap json = asJsonMap(value);
+  final int id = intValue(
+    json,
+    'productId',
+    defaultValue: intValue(json, 'id'),
+  );
+  final MobileProduct? fallback = MobileProductCatalog.tryProductById(id);
+  final String productName = stringValue(
+    json,
+    'productName',
+    defaultValue: _stringValueAny(json, <String>['name', 'product_name']),
+  );
+  final String category = _stringValueAny(json, <String>[
+    'category',
+    'categoryName',
+    'category_name',
+  ], defaultValue: '가방');
+  final List<MobileSkuOption> options = _mobileSkuOptionsFromJson(
+    json,
+    fallback: fallback,
+  );
+
+  return MobileProduct(
+    id: id,
+    name: productName,
+    collection: stringValue(
+      json,
+      'collection',
+      defaultValue: _stringValueAny(json, <String>[
+        'collectionName',
+        'collection_name',
+      ], defaultValue: category),
+    ),
+    category: category,
+    price: intValue(
+      json,
+      'price',
+      defaultValue: intValue(
+        json,
+        'priceWon',
+        defaultValue: intValue(
+          json,
+          'unitPrice',
+          defaultValue: intValue(json, 'unit_price', defaultValue: 0),
+        ),
+      ),
+    ),
+    material: stringValue(
+      json,
+      'material',
+      defaultValue: options.isEmpty ? '' : options.first.material ?? '',
+    ),
+    dimensions: _stringValueAny(json, <String>[
+      'dimensions',
+      'dimension',
+      'sizeDescription',
+      'size_description',
+    ]),
+    origin: _stringValueAny(json, <String>['origin', 'madeIn', 'made_in']),
+    season: _stringValueAny(json, <String>[
+      'season',
+      'seasonName',
+      'season_name',
+    ]),
+    visualValue: fallback?.visualValue ?? 0xFF111827,
+    accentValue: fallback?.accentValue ?? 0xFFB87945,
+    options: options,
+    imageUrl: _stringValueAny(json, <String>[
+      'imageUrl',
+      'image_url',
+      'productImageUrl',
+      'product_image_url',
+    ]),
+  );
+}
+
+List<MobileSkuOption> _mobileSkuOptionsFromJson(
+  JsonMap json, {
+  required MobileProduct? fallback,
+}) {
+  final List<Object?> skuItems = <Object?>[
+    ...asJsonList(json['options']),
+    ...asJsonList(json['skus']),
+    ...asJsonList(json['skuList']),
+    ...asJsonList(json['skuOptions']),
+    ...asJsonList(json['skuOptionResponses']),
+    ...asJsonList(json['variants']),
+  ];
+  if (skuItems.isEmpty) {
+    if (!_containsAnyKey(json, <String>[
+      'skuId',
+      'id',
+      'color',
+      'colorName',
+      'color_name',
+      'size',
+      'sizeName',
+      'size_name',
+    ])) {
+      return <MobileSkuOption>[];
+    }
+    final JsonMap attributeJson = _attributeJson(json);
+    final String color = _stringValueAny(json, <String>[
+      'color',
+      'colorName',
+      'color_name',
+    ]);
+    final String size = _stringValueAny(json, <String>[
+      'size',
+      'sizeName',
+      'size_name',
+    ]);
+    if (color.trim().isEmpty || size.trim().isEmpty) {
+      return <MobileSkuOption>[];
+    }
+    return <MobileSkuOption>[
+      MobileSkuOption(
+        skuId: intValue(json, 'skuId', defaultValue: intValue(json, 'id')),
+        color: color,
+        size: size,
+        swatchValue: fallback?.optionForColor(color).swatchValue ?? 0xFF111827,
+        material:
+            _nullableStringAny(json, <String>['material']) ??
+            _nullableStringAny(attributeJson, <String>['material']),
+        weightGrams: _nullableIntAny(json, <String>[
+          'weightGrams',
+          'weight_grams',
+        ]),
+        storageStructure: _nullableStringAny(json, <String>[
+          'storageStructure',
+          'storage_structure',
+        ]),
+        wearStyle: _nullableStringAny(json, <String>[
+          'wearStyle',
+          'wear_style',
+        ]),
+        laptopCompatible: _nullableBoolAny(json, <String>[
+          'laptopCompatible',
+          'laptop_compatible',
+        ]),
+        colorFamily:
+            _nullableStringAny(json, <String>['colorFamily', 'color_family']) ??
+            _nullableStringAny(attributeJson, <String>[
+              'colorFamily',
+              'color_family',
+            ]),
+        colorTone:
+            _nullableStringAny(json, <String>['colorTone', 'color_tone']) ??
+            _nullableStringAny(attributeJson, <String>[
+              'colorTone',
+              'color_tone',
+            ]),
+        sizeGrade:
+            _nullableStringAny(json, <String>['sizeGrade', 'size_grade']) ??
+            _nullableStringAny(attributeJson, <String>[
+              'sizeGrade',
+              'size_grade',
+            ]),
+      ),
+    ];
+  }
+
+  return skuItems
+      .map((Object? item) {
+        final JsonMap skuJson = asJsonMap(item);
+        final JsonMap attributeJson = _attributeJson(skuJson);
+        final String color = _stringValueAny(skuJson, <String>[
+          'color',
+          'colorName',
+          'color_name',
+        ]);
+        final String size = _stringValueAny(skuJson, <String>[
+          'size',
+          'sizeName',
+          'size_name',
+        ]);
+        if (color.trim().isEmpty || size.trim().isEmpty) {
+          return null;
+        }
+        return MobileSkuOption(
+          skuId: intValue(
+            skuJson,
+            'skuId',
+            defaultValue: intValue(skuJson, 'id'),
+          ),
+          color: color,
+          size: size,
+          swatchValue: _swatchValueFor(color, fallback: fallback),
+          material:
+              _nullableStringAny(skuJson, <String>['material']) ??
+              _nullableStringAny(attributeJson, <String>['material']),
+          weightGrams: _nullableIntAny(skuJson, <String>[
+            'weightGrams',
+            'weight_grams',
+          ]),
+          storageStructure: _nullableStringAny(skuJson, <String>[
+            'storageStructure',
+            'storage_structure',
+          ]),
+          wearStyle: _nullableStringAny(skuJson, <String>[
+            'wearStyle',
+            'wear_style',
+          ]),
+          laptopCompatible: _nullableBoolAny(skuJson, <String>[
+            'laptopCompatible',
+            'laptop_compatible',
+          ]),
+          colorFamily:
+              _nullableStringAny(skuJson, <String>[
+                'colorFamily',
+                'color_family',
+              ]) ??
+              _nullableStringAny(attributeJson, <String>[
+                'colorFamily',
+                'color_family',
+              ]),
+          colorTone:
+              _nullableStringAny(skuJson, <String>[
+                'colorTone',
+                'color_tone',
+              ]) ??
+              _nullableStringAny(attributeJson, <String>[
+                'colorTone',
+                'color_tone',
+              ]),
+          sizeGrade:
+              _nullableStringAny(skuJson, <String>[
+                'sizeGrade',
+                'size_grade',
+              ]) ??
+              _nullableStringAny(attributeJson, <String>[
+                'sizeGrade',
+                'size_grade',
+              ]),
+        );
+      })
+      .whereType<MobileSkuOption>()
+      .toList();
+}
+
+bool _containsAnyKey(JsonMap json, Iterable<String> keys) {
+  for (final String key in keys) {
+    if (json.containsKey(key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+String _stringValueAny(
+  JsonMap json,
+  Iterable<String> keys, {
+  String defaultValue = '',
+}) {
+  for (final String key in keys) {
+    final Object? value = json[key];
+    if (value != null) {
+      return value.toString();
+    }
+  }
+  return defaultValue;
+}
+
+JsonMap _attributeJson(JsonMap json) {
+  for (final String key in <String>[
+    'attribute',
+    'attributes',
+    'productAttribute',
+    'product_attribute',
+  ]) {
+    final Object? value = json[key];
+    if (value is Map) {
+      return asJsonMap(value);
+    }
+  }
+  return <String, Object?>{};
+}
+
+String? _nullableStringAny(JsonMap json, Iterable<String> keys) {
+  Object? value;
+  for (final String key in keys) {
+    value = json[key];
+    if (value != null) {
+      break;
+    }
+  }
+  if (value == null) {
+    return null;
+  }
+  final String text = value.toString().trim();
+  return text.isEmpty ? null : text;
+}
+
+int? _nullableIntAny(JsonMap json, Iterable<String> keys) {
+  Object? value;
+  for (final String key in keys) {
+    value = json[key];
+    if (value != null) {
+      break;
+    }
+  }
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse(value?.toString() ?? '');
+}
+
+bool? _nullableBoolAny(JsonMap json, Iterable<String> keys) {
+  Object? value;
+  for (final String key in keys) {
+    value = json[key];
+    if (value != null) {
+      break;
+    }
+  }
+  if (value is bool) {
+    return value;
+  }
+  if (value is String) {
+    final String normalized = value.toLowerCase();
+    if (normalized == 'true') {
+      return true;
+    }
+    if (normalized == 'false') {
+      return false;
+    }
+  }
+  return null;
+}
+
+int _swatchValueFor(String color, {required MobileProduct? fallback}) {
+  if (fallback != null) {
+    for (final MobileSkuOption option in fallback.options) {
+      if (option.color == color) {
+        return option.swatchValue;
+      }
+    }
+  }
+
+  return switch (color.toLowerCase()) {
+    'black' || '블랙' => 0xFF111827,
+    'navy' || '네이비' => 0xFF1E3A5F,
+    'beige' || '베이지' => 0xFFE8D9C5,
+    'orange' || '오렌지' => 0xFFE85F35,
+    'khaki' || '카키' => 0xFF66735F,
+    _ => 0xFFB87945,
+  };
 }
 
 const String _schemaMismatchMessage =

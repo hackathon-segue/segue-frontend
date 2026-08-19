@@ -10,6 +10,8 @@ abstract interface class SegueRepository {
 
   Future<CustomerConsent> fetchCustomerConsent(int customerId);
 
+  Future<List<MobileProduct>> fetchMobileProducts();
+
   Future<CartItem> saveCartItem(CartSaveRequest request);
 
   Future<List<CartItem>> fetchCart({
