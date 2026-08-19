@@ -24,6 +24,12 @@ class SegueProductImage extends StatelessWidget {
   final String? imageUrl;
   final double width;
   final double height;
+
+  /// Every existing call site relies on the original `cover` (crops to
+  /// fill the fixed box) — this default is unchanged. Callers whose box
+  /// doesn't match the real photo's aspect ratio (e.g. Home's wide
+  /// "진행 중인 상담" card) can pass `BoxFit.contain` instead so the product
+  /// is never cropped out of frame.
   final BoxFit fit;
   final Widget? fallback;
 

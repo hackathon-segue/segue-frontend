@@ -61,4 +61,25 @@ abstract final class AppRoutes {
   static const String generalProductCheck = '/staff/product-check';
   static const String lastIntentIntro = '/staff/last-intent';
   static const String consultationHistory = '/staff/consultation-history';
+
+  // The rest of the Last Intent flow (utterance onward) is reached via
+  // Navigator.push with unnamed MaterialPageRoutes — this app has no
+  // usePathUrlStrategy()/Router2 setup, so on web, an unnamed route never
+  // gets its own browser history entry, which makes the browser's own back
+  // button behave unpredictably (it can skip past several screens at once
+  // instead of always landing on the immediately-previous one). None of
+  // these are registered in MaterialApp's routes table (they need
+  // customer/cartItem constructor args a static WidgetBuilder can't
+  // provide) — they're only ever reached via a direct `.push`, and only
+  // used as RouteSettings.name tags so Flutter/the browser can track one
+  // history entry per screen, matching lastIntentIntro's existing pattern.
+  static const String lastIntentUtterance = '/staff/last-intent/utterance';
+  static const String lastIntentFollowUp = '/staff/last-intent/follow-up';
+  static const String lastIntentConfirm = '/staff/last-intent/confirm';
+  static const String lastIntentEdit = '/staff/last-intent/edit';
+  static const String lastIntentCard = '/staff/last-intent/card';
+  static const String lastIntentResult = '/staff/last-intent/result';
+  static const String lastIntentAdditionalConsultation =
+      '/staff/last-intent/additional-consultation';
+  static const String lastIntentCompletion = '/staff/last-intent/completion';
 }

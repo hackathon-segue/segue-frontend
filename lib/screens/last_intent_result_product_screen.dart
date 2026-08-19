@@ -9,6 +9,7 @@ import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
 import 'last_intent_completion_screen.dart';
+import 'last_intent_intro_screen.dart';
 
 /// Shared implementation for Figma nodes 159:2295 (EXACT_PRODUCT),
 /// 159:2173 (COMPARISON_EXPERIENCE), and 159:3053 (TODAY_PURCHASE) — all
@@ -104,6 +105,9 @@ class _LastIntentResultProductScreenState
               customer: widget.customer,
               cartItem: widget.cartItem,
             ),
+            settings: const RouteSettings(
+              name: AppRoutes.lastIntentCompletion,
+            ),
           ),
         );
       }
@@ -121,11 +125,13 @@ class _LastIntentResultProductScreenState
       builder: (BuildContext context, Widget? _) {
         final DecisionResult? result = session.state.decisionResult;
         if (result == null) {
-          return const _ResultScaffold(
+          return _ResultScaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
             step: '5/5',
             title: '',
             subtitle: '',
-            child: Text('생성된 결과가 없습니다.', style: SegueCardText.body18),
+            child: const Text('생성된 결과가 없습니다.', style: SegueCardText.body18),
           );
         }
 
@@ -136,6 +142,8 @@ class _LastIntentResultProductScreenState
 
         if (_executing || session.state.executionState.isLoading) {
           return _ResultScaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
             step: '5/5',
             title: config.title,
             subtitle: config.subtitle,
@@ -149,6 +157,8 @@ class _LastIntentResultProductScreenState
 
         if (session.state.executionState.hasError) {
           return _ResultScaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
             step: '5/5',
             title: config.title,
             subtitle: config.subtitle,
@@ -161,6 +171,8 @@ class _LastIntentResultProductScreenState
 
         if (session.state.resultSaveState.hasError) {
           return _ResultScaffold(
+            customer: widget.customer,
+            cartItem: widget.cartItem,
             step: '5/5',
             title: config.title,
             subtitle: config.subtitle,
@@ -172,6 +184,8 @@ class _LastIntentResultProductScreenState
         }
 
         return _ResultScaffold(
+          customer: widget.customer,
+          cartItem: widget.cartItem,
           step: '5/5',
           title: config.title,
           subtitle: config.subtitle,
@@ -298,6 +312,8 @@ class _LastIntentResultProductScreenState
 
 class _ResultScaffold extends StatelessWidget {
   const _ResultScaffold({
+    required this.customer,
+    required this.cartItem,
     required this.step,
     required this.title,
     required this.subtitle,
@@ -307,6 +323,8 @@ class _ResultScaffold extends StatelessWidget {
     this.ctaShowArrow = true,
   });
 
+  final Customer customer;
+  final CartItem cartItem;
   final String step;
   final String title;
   final String subtitle;
@@ -326,8 +344,11 @@ class _ResultScaffold extends StatelessWidget {
       subtitle: subtitle,
       body: child,
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () =>
-            navigateToTabletRoute(context, AppRoutes.staffHome),
+        onBackToStart: () => navigateToLastIntentIntro(
+          context,
+          customer: customer,
+          cartItem: cartItem,
+        ),
         cta: ctaLabel != null
             ? SegueCtaButton(
                 label: ctaLabel!,

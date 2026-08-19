@@ -1,14 +1,17 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/models.dart';
 import '../repositories/repositories.dart';
 import '../utils/app_config.dart';
+import '../utils/local_storage.dart';
 import 'async_value.dart';
 
 class StaffWebSessionState {
   const StaffWebSessionState({
     this.storeId = AppConfig.defaultStoreId,
-    this.customer,
+    this.currentCustomer,
     this.cartItems = const <CartItem>[],
     this.lookupState = const AsyncValue<Customer>.idle(),
     this.consentState = const AsyncValue<CustomerConsent>.idle(),
@@ -17,8 +20,21 @@ class StaffWebSessionState {
   });
 
   final int storeId;
-  final Customer? customer;
+
+  /// The customer whose cart/consent is currently in view (Cart/Consent
+  /// screens read this) — persists across refresh and navigation, only
+  /// replaced once a *different* customer is successfully looked up.
+  /// Deliberately separate from [lookupState]'s result (Issue: "Customer
+  /// Lookup의 이전 고객 잔상 제거") — re-entering the Customer Lookup screen
+  /// resets [lookupState] back to idle so it shows a blank search state,
+  /// without touching this field or the customer's cart/consent context.
+  final Customer? currentCustomer;
   final List<CartItem> cartItems;
+
+  /// The Customer Lookup screen's own "방금 검색한 결과" — reset to `.idle()`
+  /// every time that screen is (re-)entered
+  /// ([StaffWebSessionController.clearLookupResult]), independent of
+  /// [currentCustomer].
   final AsyncValue<Customer> lookupState;
   final AsyncValue<CustomerConsent> consentState;
   final AsyncValue<List<CartItem>> cartState;
@@ -31,7 +47,7 @@ class StaffWebSessionState {
 
   StaffWebSessionState copyWith({
     int? storeId,
-    Customer? customer,
+    Customer? currentCustomer,
     List<CartItem>? cartItems,
     AsyncValue<Customer>? lookupState,
     AsyncValue<CustomerConsent>? consentState,
@@ -40,7 +56,7 @@ class StaffWebSessionState {
   }) {
     return StaffWebSessionState(
       storeId: storeId ?? this.storeId,
-      customer: customer ?? this.customer,
+      currentCustomer: currentCustomer ?? this.currentCustomer,
       cartItems: cartItems ?? this.cartItems,
       lookupState: lookupState ?? this.lookupState,
       consentState: consentState ?? this.consentState,
@@ -52,54 +68,96 @@ class StaffWebSessionState {
 
 class StaffWebSessionController extends ChangeNotifier {
   StaffWebSessionController({required SegueRepository repository})
-    : _repository = repository;
+    : _repository = repository {
+    _restoreCurrentCustomer();
+  }
 
   final SegueRepository _repository;
+
+  static const String _currentCustomerStorageKey = 'segue.currentCustomer';
 
   StaffWebSessionState _state = const StaffWebSessionState();
 
   StaffWebSessionState get state => _state;
 
-  /// Fired right before a new customer lookup begins. Issue #9 wires this to
-  /// LastIntentSessionManager.reset so a different customer's cart never
-  /// inherits a previous customer's in-progress Last Intent sessions.
-  VoidCallback? onNewLookup;
-
-  /// Fired after a consent record is changed. Consent controls access to the
-  /// customer cart and saved consultation results, so dependent Last Intent
-  /// session state must be discarded when the CA records agree/disagree.
-  VoidCallback? onConsentChanged;
+  /// Fired after a consent record is changed, with that customer's id.
+  /// Consent controls access to the customer cart and saved consultation
+  /// results, so that SPECIFIC customer's Last Intent sessions must be
+  /// discarded when the CA records agree/disagree — wired to
+  /// [LastIntentSessionManager.resetForCustomer], never a blanket reset,
+  /// since other customers' in-progress sessions are unrelated.
+  ValueChanged<int>? onConsentChanged;
 
   void setStoreId(int storeId) {
     _state = _state.copyWith(storeId: storeId);
     notifyListeners();
   }
 
-  /// Clears any looked-up customer/cart/consent state, keeping only the
-  /// current store context. Used when the CA starts a fresh customer lookup.
+  /// Clears the looked-up/current customer and cart/consent state entirely,
+  /// keeping only the current store context — including the persisted
+  /// currentCustomer, since this means the CA is deliberately abandoning
+  /// this customer (e.g. "고객 조회로 돌아가기" after a declined consent).
   void reset() {
+    LocalStorage.removeItem(_currentCustomerStorageKey);
     _state = StaffWebSessionState(storeId: _state.storeId);
     notifyListeners();
   }
 
-  Future<void> lookupCustomer(String phoneNumber) async {
-    onNewLookup?.call();
-    // Reset to a fresh state (keeping only storeId) so a new customer lookup
-    // never carries over a previous customer's cart/consent state.
+  /// Resets only the Customer Lookup screen's own "방금 검색한 결과" —
+  /// called when that screen is (re-)entered so it never shows a stale
+  /// customer card left over from a previous visit. Never touches
+  /// [StaffWebSessionState.currentCustomer]/cart/consent — Home and other
+  /// screens keep whatever customer/consultation was already in progress.
+  void clearLookupResult() {
+    if (_state.lookupState.isIdle) {
+      return;
+    }
+    _state = _state.copyWith(lookupState: const AsyncValue<Customer>.idle());
+    notifyListeners();
+  }
+
+  /// Switches [StaffWebSessionState.currentCustomer] to [customer] and
+  /// re-fetches THEIR cart — used by Home's "진행 중인 상담" cards' "쇼핑백
+  /// 확인" button, which already knows exactly which customer's card was
+  /// tapped (unlike a plain navigate-to-cart, which would just show
+  /// whichever customer happened to be [currentCustomer] already — e.g. a
+  /// different, unrelated one the CA looked up more recently, or one whose
+  /// consultation already completed). A no-op if [customer] is already
+  /// current, so it never redundantly re-fetches the same cart.
+  void switchToCustomer(Customer customer) {
+    if (_state.currentCustomer?.id == customer.id) {
+      return;
+    }
     _state = StaffWebSessionState(
       storeId: _state.storeId,
-      lookupState: const AsyncValue<Customer>.loading(),
+      currentCustomer: customer,
     );
+    _persistCurrentCustomer(customer);
+    notifyListeners();
+    loadCart();
+  }
+
+  Future<void> lookupCustomer(String phoneNumber) async {
+    _state = _state.copyWith(lookupState: const AsyncValue<Customer>.loading());
     notifyListeners();
 
     try {
       final Customer customer = await _repository.lookupCustomerByPhone(
         phoneNumber,
       );
-      _state = _state.copyWith(
-        customer: customer,
+      // Only replace the active customer/cart/consent context once a NEW
+      // lookup actually succeeds — never while it's merely loading, and
+      // never on failure, so the previous customer's context (if any)
+      // stays intact until a different one is genuinely found. No
+      // LastIntentSessionManager reset here anymore — sessions are keyed
+      // per customer now, so looking up someone else never risks
+      // corrupting or losing anyone else's in-progress consultation.
+      _state = StaffWebSessionState(
+        storeId: _state.storeId,
+        currentCustomer: customer,
         lookupState: AsyncValue<Customer>.data(customer),
       );
+      _persistCurrentCustomer(customer);
     } catch (error, stackTrace) {
       _state = _state.copyWith(
         lookupState: AsyncValue<Customer>.error(error, stackTrace),
@@ -109,7 +167,7 @@ class StaffWebSessionController extends ChangeNotifier {
   }
 
   Future<void> submitConsent(bool agreed) async {
-    final Customer? customer = _state.customer;
+    final Customer? customer = _state.currentCustomer;
     if (customer == null) {
       return;
     }
@@ -128,13 +186,14 @@ class StaffWebSessionController extends ChangeNotifier {
         hasConsented: consent.hasAgreed,
       );
       _state = _state.copyWith(
-        customer: updatedCustomer,
+        currentCustomer: updatedCustomer,
         lookupState: AsyncValue<Customer>.data(updatedCustomer),
         consentState: AsyncValue<CustomerConsent>.data(consent),
         cartItems: const <CartItem>[],
         cartState: const AsyncValue<List<CartItem>>.idle(),
       );
-      onConsentChanged?.call();
+      _persistCurrentCustomer(updatedCustomer);
+      onConsentChanged?.call(updatedCustomer.id);
     } catch (error, stackTrace) {
       _state = _state.copyWith(
         consentState: AsyncValue<CustomerConsent>.error(error, stackTrace),
@@ -144,7 +203,7 @@ class StaffWebSessionController extends ChangeNotifier {
   }
 
   Future<void> loadCart() async {
-    final Customer? customer = _state.customer;
+    final Customer? customer = _state.currentCustomer;
     if (customer == null || _state.cartState.isLoading) {
       return;
     }
@@ -181,5 +240,39 @@ class StaffWebSessionController extends ChangeNotifier {
       checkedInStockSkuIds: <int>{..._state.checkedInStockSkuIds, skuId},
     );
     notifyListeners();
+  }
+
+  /// Restores [StaffWebSessionState.currentCustomer] from a previous visit
+  /// (browser refresh) and kicks off the existing [loadCart] to re-fetch
+  /// that same customer's cart from the real API — never replays a copy of
+  /// the cart items themselves from localStorage, only the customer id
+  /// needed to ask for them again.
+  ///
+  /// The full [Customer] (not just its id) is persisted because API.md has
+  /// no "look up customer by id" endpoint — only by phone number — so an
+  /// id-only record could not be turned back into a usable [Customer] here.
+  void _restoreCurrentCustomer() {
+    final String? raw = LocalStorage.getItem(_currentCustomerStorageKey);
+    if (raw == null) {
+      return;
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return;
+      }
+      final Customer restored = Customer.fromJson(asJsonMap(decoded));
+      _state = _state.copyWith(currentCustomer: restored);
+      loadCart();
+    } catch (_) {
+      LocalStorage.removeItem(_currentCustomerStorageKey);
+    }
+  }
+
+  void _persistCurrentCustomer(Customer customer) {
+    LocalStorage.setItem(
+      _currentCustomerStorageKey,
+      jsonEncode(customer.toJson()),
+    );
   }
 }

@@ -411,8 +411,7 @@ class TabletHeader extends StatelessWidget {
       child: Row(
         children: <Widget>[
           InkWell(
-            onTap: () =>
-                navigateToTabletRoute(context, AppRoutes.staffHome),
+            onTap: () => navigateToTabletRoute(context, AppRoutes.staffHome),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -508,7 +507,16 @@ class TabletNavSidebar extends StatelessWidget {
                             TabletMenuItem.currentSession
                         ? sessionCount
                         : null,
-                    onTap: TabletMenuItem.values[i].route == null
+                    // CURRENT SESSION has nowhere real to go when there's no
+                    // active consultation (the cart hub it links to is about
+                    // an in-progress session, not a generic destination) —
+                    // stays visible but inert at 0, same as REQUESTS having
+                    // no route at all.
+                    onTap:
+                        TabletMenuItem.values[i].route == null ||
+                            (TabletMenuItem.values[i] ==
+                                    TabletMenuItem.currentSession &&
+                                sessionCount == 0)
                         ? null
                         : () => navigateToTabletRoute(
                             context,

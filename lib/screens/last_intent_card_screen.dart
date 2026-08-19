@@ -9,6 +9,7 @@ import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
 import 'last_intent_additional_consultation_screen.dart';
+import 'last_intent_intro_screen.dart';
 import 'last_intent_result_product_screen.dart';
 
 /// Figma node 164:3213 "Last Intent Card 화면" (Issue #46, superseding the
@@ -33,20 +34,31 @@ class LastIntentCardScreen extends StatelessWidget {
   final CartItem cartItem;
 
   void _goToResultScreen(BuildContext context, DecisionResultType resultType) {
-    final Widget target = switch (resultType) {
-      DecisionResultType.exactProduct ||
-      DecisionResultType.comparisonExperience ||
-      DecisionResultType.todayPurchase => LastIntentResultProductScreen(
-        customer: customer,
-        cartItem: cartItem,
-      ),
-      DecisionResultType.additionalConsultation =>
-        LastIntentAdditionalConsultationScreen(
-          customer: customer,
-          cartItem: cartItem,
+    final bool isAdditionalConsultation =
+        resultType == DecisionResultType.additionalConsultation;
+    LastIntentSessionScope.of(context)
+        .sessionFor(customer: customer, cartItem: cartItem)
+        .setCurrentStep(
+          isAdditionalConsultation
+              ? LastIntentStep.additionalConsultation
+              : LastIntentStep.resultProduct,
+        );
+    final Widget target = isAdditionalConsultation
+        ? LastIntentAdditionalConsultationScreen(
+            customer: customer,
+            cartItem: cartItem,
+          )
+        : LastIntentResultProductScreen(customer: customer, cartItem: cartItem);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => target,
+        settings: RouteSettings(
+          name: isAdditionalConsultation
+              ? AppRoutes.lastIntentAdditionalConsultation
+              : AppRoutes.lastIntentResult,
         ),
-    };
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => target));
+      ),
+    );
   }
 
   @override
@@ -59,15 +71,19 @@ class LastIntentCardScreen extends StatelessWidget {
       listenable: session,
       builder: (BuildContext context, Widget? _) {
         if (session.state.decisionState.isLoading) {
-          return const _CardScaffold(
-            child: AppStateView.loading(title: '결과를 다시 불러오고 있습니다'),
+          return _CardScaffold(
+            customer: customer,
+            cartItem: cartItem,
+            child: const AppStateView.loading(title: '결과를 다시 불러오고 있습니다'),
           );
         }
 
         final DecisionResult? result = session.state.decisionResult;
         if (result == null) {
-          return const _CardScaffold(
-            child: Text(
+          return _CardScaffold(
+            customer: customer,
+            cartItem: cartItem,
+            child: const Text(
               '생성된 Last Intent Card가 없습니다.',
               style: SegueCardText.body18,
             ),
@@ -79,6 +95,8 @@ class LastIntentCardScreen extends StatelessWidget {
         // 재실행할 대상 자체가 없다.
         if (DecisionResultValidator.hasForbiddenLanguage(result)) {
           return _CardScaffold(
+            customer: customer,
+            cartItem: cartItem,
             child: AppStateView.error(
               title: '결과를 표시할 수 없습니다',
               message: '이 상담 결과에는 표시할 수 없는 표현이 포함되어 있습니다. 다시 시도해 주세요.',
@@ -90,6 +108,8 @@ class LastIntentCardScreen extends StatelessWidget {
         final ProductSkuSummary? recommended = result.recommendedProduct;
 
         return _CardScaffold(
+          customer: customer,
+          cartItem: cartItem,
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
               final List<Widget> left = <Widget>[
@@ -163,8 +183,14 @@ class LastIntentCardScreen extends StatelessWidget {
 }
 
 class _CardScaffold extends StatelessWidget {
-  const _CardScaffold({required this.child});
+  const _CardScaffold({
+    required this.customer,
+    required this.cartItem,
+    required this.child,
+  });
 
+  final Customer customer;
+  final CartItem cartItem;
   final Widget child;
 
   @override
@@ -178,8 +204,11 @@ class _CardScaffold extends StatelessWidget {
       screenTitleStyle: SegueCardText.screenTitle24,
       body: child,
       bottomBar: SegueBottomActionRow(
-        onBackToStart: () =>
-            navigateToTabletRoute(context, AppRoutes.staffHome),
+        onBackToStart: () => navigateToLastIntentIntro(
+          context,
+          customer: customer,
+          cartItem: cartItem,
+        ),
       ),
     );
   }

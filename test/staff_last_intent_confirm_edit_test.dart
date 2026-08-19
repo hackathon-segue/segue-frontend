@@ -96,15 +96,19 @@ void main() {
     expect(find.text('로고 위치: 정면중앙, 실루엣: 각진'), findsOneWidget);
   });
 
-  testWidgets('처음으로 돌아가기는 모바일 홈이 아니라 직원 홈으로 이동한다', (WidgetTester tester) async {
-    await reachConfirmScreen(tester);
+  testWidgets(
+    '처음으로 돌아가기는 SEGUE 1단계(상담 대상 제품) 화면으로 이동한다 — 모바일 홈도, 직원 홈도 아니다',
+    (WidgetTester tester) async {
+      await reachConfirmScreen(tester);
 
-    await tester.tap(find.text('처음으로 돌아가기'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('처음으로 돌아가기'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('SEGUE HOME'), findsOneWidget);
-    expect(find.text('고객 모바일'), findsNothing);
-  });
+      expect(find.text('상담 대상 제품'), findsOneWidget);
+      expect(find.text('SEGUE HOME'), findsNothing);
+      expect(find.text('고객 모바일'), findsNothing);
+    },
+  );
 
   testWidgets('수정할게요 -> edit fields -> 저장 reflects on the summary screen', (
     WidgetTester tester,
@@ -184,4 +188,20 @@ void main() {
     expect(find.text('추가 상담 필요'), findsNothing);
     expect(find.textContaining('BEST MATCH'), findsNothing);
   });
+
+  testWidgets(
+    'Last Intent Card 화면의 처음으로 돌아가기도 SEGUE 1단계로 이동한다 (Home 아님)',
+    (WidgetTester tester) async {
+      await reachConfirmScreen(tester);
+      await tester.tap(find.text('맞아요, 다음 단계로'));
+      await tester.pumpAndSettle();
+      expect(find.text('SEGUE CARD'), findsOneWidget);
+
+      await tester.tap(find.text('처음으로 돌아가기'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('상담 대상 제품'), findsOneWidget);
+      expect(find.text('SEGUE HOME'), findsNothing);
+    },
+  );
 }

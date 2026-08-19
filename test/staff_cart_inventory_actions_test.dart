@@ -179,7 +179,7 @@ void main() {
       final LastIntentSessionManager manager = LastIntentSessionScope.of(
         context,
       );
-      final Customer customer = StaffSessionScope.of(context).state.customer!;
+      final Customer customer = StaffSessionScope.of(context).state.currentCustomer!;
       final List<CartItem> items = StaffSessionScope.of(
         context,
       ).state.cartState.data!;

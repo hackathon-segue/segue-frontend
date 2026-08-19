@@ -42,8 +42,7 @@ class _SegueAppState extends State<SegueApp> {
           : RealSegueRepository(apiClient: HttpSegueApiClient()));
   late final StaffWebSessionController _staffSessionController =
       StaffWebSessionController(repository: _repository)
-        ..onNewLookup = _lastIntentSessionManager.reset
-        ..onConsentChanged = _lastIntentSessionManager.reset;
+        ..onConsentChanged = _lastIntentSessionManager.resetForCustomer;
   late final LastIntentSessionManager _lastIntentSessionManager =
       LastIntentSessionManager(repository: _repository);
 

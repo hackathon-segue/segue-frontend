@@ -6,6 +6,73 @@ import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
+import 'last_intent_additional_consultation_screen.dart';
+import 'last_intent_card_screen.dart';
+import 'last_intent_confirm_screen.dart';
+import 'last_intent_follow_up_screen.dart';
+import 'last_intent_result_product_screen.dart';
+import 'last_intent_utterance_screen.dart';
+
+/// Pushes whatever screen "상담 이어서 진행" (Home) needs to land the CA
+/// directly on [step]. Every Last Intent flow screen's own "처음으로
+/// 돌아가기" (`navigateToLastIntentIntro`, see last_intent_intro_screen.dart)
+/// already finds-or-pushes SEGUE step 1 on its own regardless of what's
+/// underneath it on the stack, so pushing just the target screen here is
+/// always enough — no need to pre-push intermediate steps.
+void _resumeConsultation(
+  BuildContext context, {
+  required LastIntentStep step,
+  required Customer customer,
+  required CartItem cartItem,
+}) {
+  // Same reasoning as "쇼핑백 확인" below — this SKU's session may belong to
+  // a customer other than whoever currentCustomer currently points at, and
+  // some flow screens (e.g. "쇼핑백 확인" inside LastIntentIntroScreen) pop
+  // straight to the cart screen, which reads currentCustomer directly.
+  StaffSessionScope.of(context).switchToCustomer(customer);
+  final Widget target = switch (step) {
+    LastIntentStep.utterance => LastIntentUtteranceScreen(
+      customer: customer,
+      cartItem: cartItem,
+    ),
+    LastIntentStep.followUp => LastIntentFollowUpScreen(
+      customer: customer,
+      cartItem: cartItem,
+    ),
+    LastIntentStep.confirm => LastIntentConfirmScreen(
+      customer: customer,
+      cartItem: cartItem,
+    ),
+    LastIntentStep.card => LastIntentCardScreen(
+      customer: customer,
+      cartItem: cartItem,
+    ),
+    LastIntentStep.resultProduct => LastIntentResultProductScreen(
+      customer: customer,
+      cartItem: cartItem,
+    ),
+    LastIntentStep.additionalConsultation =>
+      LastIntentAdditionalConsultationScreen(
+        customer: customer,
+        cartItem: cartItem,
+      ),
+  };
+  final String routeName = switch (step) {
+    LastIntentStep.utterance => AppRoutes.lastIntentUtterance,
+    LastIntentStep.followUp => AppRoutes.lastIntentFollowUp,
+    LastIntentStep.confirm => AppRoutes.lastIntentConfirm,
+    LastIntentStep.card => AppRoutes.lastIntentCard,
+    LastIntentStep.resultProduct => AppRoutes.lastIntentResult,
+    LastIntentStep.additionalConsultation =>
+      AppRoutes.lastIntentAdditionalConsultation,
+  };
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => target,
+      settings: RouteSettings(name: routeName),
+    ),
+  );
+}
 
 /// Figma node 89:1196 "직원용 웹 홈 -> 고객 조회 이전" (empty state) and 80:776
 /// "직원용 웹 홈 -> 고객 조회 이후" (active-consultation state) — Issue #48's
@@ -18,10 +85,12 @@ import '../widgets/segue_info_card.dart';
 /// 상담"/"처리 대기" counters stay the same kind of static placeholder the
 /// previous build already used (see git history) — "현재 진행 중 상담" and the
 /// "진행 중인 상담" panel below it are wired to the real
-/// [LastIntentSessionManager.firstActiveSession] this app already tracks,
-/// switching between 89:1196's empty state ("현재 없음") and 80:776's
-/// customer/product card the same way the real session count naturally
-/// does — never a hardcoded toggle.
+/// [LastIntentSessionManager.activeSessions] this app already tracks,
+/// rendering one card per still-in-progress session (never just the first —
+/// two different customers can each have their own in-progress
+/// consultation at once now that sessions are keyed per customer, see
+/// LastIntentSessionManager's own doc comment) and switching to 89:1196's
+/// empty state ("현재 없음") only once that list is actually empty.
 ///
 /// The old 14:765-era "상담 진행 흐름" 4-step guide and "상담 데이터 이용 안내"
 /// panel don't exist in either Figma node, so they're dropped rather than
@@ -34,7 +103,7 @@ class StaffHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
     final int activeCount = manager.activeCount;
-    final LastIntentSessionState? activeSession = manager.firstActiveSession;
+    final List<LastIntentSessionState> activeSessions = manager.activeSessions;
 
     return SegueCardShell(
       pageTitle: 'SEGUE HOME',
@@ -98,7 +167,7 @@ class StaffHomeScreen extends StatelessWidget {
           const Text('진행 중인 상담', style: SegueCardText.screenTitle22),
           // Figma: title bottom 362+31=393 → details box top 405 = 12px.
           const SizedBox(height: 12),
-          if (activeSession == null)
+          if (activeSessions.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
@@ -109,7 +178,13 @@ class StaffHomeScreen extends StatelessWidget {
               child: const Text('현재 없음', style: SegueCardText.emptyState20),
             )
           else
-            _InProgressConsultationCard(session: activeSession),
+            // Figma (80:776) only ever mocks a single card, so there's no
+            // reference spacing for a second one — 16px matches this same
+            // screen's own summary-card stacking gap just above.
+            for (int i = 0; i < activeSessions.length; i++) ...<Widget>[
+              if (i > 0) const SizedBox(height: 16),
+              _InProgressConsultationCard(session: activeSessions[i]),
+            ],
           // Figma: footer image top is a fixed y=558 in both 89:1196 and
           // 80:776 — the empty-state box (68 tall) ends well above that
           // (405+68=473, 85px gap), but the active card (238 tall) ends at
@@ -120,7 +195,7 @@ class StaffHomeScreen extends StatelessWidget {
           // conversion is 0 — the card's bottom flows directly into the
           // (still-347px-tall) image, exactly matching what's actually
           // visible once the overlapped portion is accounted for.
-          SizedBox(height: activeSession == null ? 85 : 0),
+          SizedBox(height: activeSessions.isEmpty ? 85 : 0),
           const _HomeFooterImage(),
         ],
       ),
@@ -257,25 +332,39 @@ class _InProgressConsultationCard extends StatelessWidget {
                   // Figma: details block bottom 504+48=552 → button row top
                   // 580 = 28px.
                   const SizedBox(height: 28),
-                  const Row(
+                  Row(
                     children: <Widget>[
                       SegueCompactButton(
                         label: '쇼핑백 확인',
                         backgroundColor: SegueCardColors.compactButtonSecondaryBg,
-                        // No resume/deep-link semantics exist yet for this
-                        // brand-new interaction (no prior screen ever
-                        // needed to jump back into a specific customer's
-                        // cart from Home) — left inactive rather than
-                        // guessing a navigation target.
-                        onPressed: null,
+                        // Switch currentCustomer to THIS card's customer
+                        // first — with several active consultations shown
+                        // on Home at once, currentCustomer could still be
+                        // pointing at a different (or already-completed)
+                        // customer the CA looked up more recently, which
+                        // would show the wrong cart otherwise.
+                        onPressed: () {
+                          StaffSessionScope.of(context).switchToCustomer(customer);
+                          navigateToTabletRoute(context, AppRoutes.cartInventory);
+                        },
                       ),
                       // Figma: button1 right 321+96=417 → button2 left 429 = 12px.
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       SegueCompactButton(
                         label: '상담 이어서 진행',
                         backgroundColor: SegueCardColors.ctaBg,
                         showArrow: true,
-                        onPressed: null,
+                        // Resumes exactly where this SKU's session left off
+                        // (session.currentStep), not always back at step 1 —
+                        // the session (in-memory or restored from
+                        // localStorage after a refresh) already carries
+                        // every field that step's screen needs.
+                        onPressed: () => _resumeConsultation(
+                          context,
+                          step: session.currentStep,
+                          customer: customer,
+                          cartItem: cartItem,
+                        ),
                       ),
                     ],
                   ),
@@ -290,6 +379,11 @@ class _InProgressConsultationCard extends StatelessWidget {
               imageUrl: recommended?.imageUrl ?? cartItem.imageUrl,
               width: 411,
               height: 231,
+              // The real photo's aspect ratio rarely matches this wide
+              // 411x231 box exactly — contain (not the shared widget's
+              // default cover) keeps the whole product visible instead of
+              // cropping its edges to fill the box.
+              fit: BoxFit.contain,
             ),
           ),
         ],

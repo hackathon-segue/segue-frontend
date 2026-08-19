@@ -6,6 +6,26 @@ import '../repositories/repositories.dart';
 import '../utils/app_config.dart';
 import 'async_value.dart';
 
+/// Which Last Intent screen this SKU's session should resume into — set by
+/// each screen right before it navigates to the next one, so "상담 이어서
+/// 진행" (Home) can jump straight back to the last screen the CA was on
+/// instead of always restarting from the utterance step.
+enum LastIntentStep {
+  utterance,
+  followUp,
+  confirm,
+  card,
+  resultProduct,
+  additionalConsultation;
+
+  static LastIntentStep fromWire(String value) {
+    return LastIntentStep.values.firstWhere(
+      (LastIntentStep step) => step.name == value,
+      orElse: () => LastIntentStep.utterance,
+    );
+  }
+}
+
 class LastIntentSessionState {
   const LastIntentSessionState({
     this.storeId = AppConfig.defaultStoreId,
@@ -27,6 +47,7 @@ class LastIntentSessionState {
     this.executionStatusUpdateState =
         const AsyncValue<ConsultationResult>.idle(),
     this.additionalConsultationDeclined = false,
+    this.currentStep = LastIntentStep.utterance,
   });
 
   final int storeId;
@@ -71,6 +92,13 @@ class LastIntentSessionState {
   /// frontend workaround.
   final bool additionalConsultationDeclined;
 
+  /// Which screen "상담 이어서 진행" (Home) should resume into. Set by each
+  /// screen right before it navigates to the next one — not inferred from
+  /// which data fields happen to be filled in, since e.g. a re-visited
+  /// utterance screen (via "수정할게요") still has a non-null
+  /// [structuredIntent] while genuinely being back on the utterance step.
+  final LastIntentStep currentStep;
+
   LastIntentSessionState copyWith({
     int? storeId,
     Customer? customer,
@@ -91,6 +119,7 @@ class LastIntentSessionState {
     AsyncValue<ConsultationResult>? executionStatusUpdateState,
     bool clearExecutionNote = false,
     bool? additionalConsultationDeclined,
+    LastIntentStep? currentStep,
   }) {
     return LastIntentSessionState(
       storeId: storeId ?? this.storeId,
@@ -115,6 +144,66 @@ class LastIntentSessionState {
           executionStatusUpdateState ?? this.executionStatusUpdateState,
       additionalConsultationDeclined:
           additionalConsultationDeclined ?? this.additionalConsultationDeclined,
+      currentStep: currentStep ?? this.currentStep,
+    );
+  }
+
+  /// True once this SKU's session has real customer/product/step data worth
+  /// persisting — a controller that was only ever constructed but never
+  /// [LastIntentSessionController.start]ed has nothing to save.
+  bool get isPersistable => customer != null && selectedCartItem != null;
+
+  /// Serializes exactly what "상담 이어서 진행" needs to resume this session
+  /// without re-calling any AI/decide endpoint — reuses every field's own
+  /// existing model [toJson]/[fromJson] rather than inventing a parallel DTO.
+  ///
+  /// Includes the full [Customer]/[CartItem] (not just their ids) because
+  /// there is no "look up customer/cart-item by id" endpoint in API.md — an
+  /// id-only record could not be turned back into a usable [Customer]/
+  /// [CartItem] on restore without one.
+  JsonMap toPersistedJson() {
+    return <String, Object?>{
+      'customer': customer?.toJson(),
+      'cartItem': selectedCartItem?.toJson(),
+      'currentStep': currentStep.name,
+      'utterance': utterance,
+      'structuredIntent': structuredIntent?.toJson(),
+      'followUpQuestion': followUpQuestion == null
+          ? null
+          : <String, Object?>{'question': followUpQuestion!.question},
+      'followUpAnswer': followUpAnswer,
+      'decisionResult': decisionResult?.toJson(),
+    };
+  }
+
+  /// Reconstructs a session from [toPersistedJson]'s output. Returns null
+  /// for an entry missing its customer/cartItem (nothing usable to resume).
+  static LastIntentSessionState? fromPersistedJson(JsonMap json) {
+    final Object? customerJson = json['customer'];
+    final Object? cartItemJson = json['cartItem'];
+    if (customerJson is! Map || cartItemJson is! Map) {
+      return null;
+    }
+    final Object? structuredIntentJson = json['structuredIntent'];
+    final Object? followUpQuestionJson = json['followUpQuestion'];
+    final Object? decisionResultJson = json['decisionResult'];
+    return LastIntentSessionState(
+      customer: Customer.fromJson(asJsonMap(customerJson)),
+      selectedCartItem: CartItem.fromJson(asJsonMap(cartItemJson)),
+      currentStep: LastIntentStep.fromWire(
+        stringValue(json, 'currentStep', defaultValue: LastIntentStep.utterance.name),
+      ),
+      utterance: stringValue(json, 'utterance'),
+      structuredIntent: structuredIntentJson is Map
+          ? StructuredIntent.fromJson(asJsonMap(structuredIntentJson))
+          : null,
+      followUpQuestion: followUpQuestionJson is Map
+          ? FollowUpQuestion.fromJson(asJsonMap(followUpQuestionJson))
+          : null,
+      followUpAnswer: stringValue(json, 'followUpAnswer'),
+      decisionResult: decisionResultJson is Map
+          ? DecisionResult.fromJson(asJsonMap(decisionResultJson))
+          : null,
     );
   }
 }
@@ -139,6 +228,24 @@ class LastIntentSessionController extends ChangeNotifier {
       selectedCartItem: cartItem,
       storeId: storeId,
     );
+    notifyListeners();
+  }
+
+  /// Rehydrates a session from a previously-persisted [state]
+  /// ([LastIntentSessionState.toPersistedJson]) — used only at app startup
+  /// by [LastIntentSessionManager] to restore active consultations after a
+  /// refresh. Unlike [start], this does NOT reset progress: it takes the
+  /// already-reconstructed state as-is.
+  void restore(LastIntentSessionState state) {
+    _state = state;
+    notifyListeners();
+  }
+
+  /// Records which screen this SKU's session is currently on — see
+  /// [LastIntentSessionState.currentStep]'s doc comment for why this is
+  /// tracked explicitly instead of inferred from filled-in fields.
+  void setCurrentStep(LastIntentStep step) {
+    _state = _state.copyWith(currentStep: step);
     notifyListeners();
   }
 

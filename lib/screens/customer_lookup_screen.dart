@@ -38,6 +38,22 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
   static final RegExp _phonePattern = RegExp(r'^01[0-9]-\d{3,4}-\d{4}$');
 
   @override
+  void initState() {
+    super.initState();
+    // Deferred to a post-frame callback (same pattern this screen's own
+    // loadCart() pre-fetch below already uses) — calling
+    // clearLookupResult()'s notifyListeners() synchronously during this
+    // widget's own first build trips "setState() called during build",
+    // since it would try to rebuild the ancestor StaffSessionScope while
+    // this screen is still being mounted underneath it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        StaffSessionScope.of(context).clearLookupResult();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _memberNumberController.dispose();
     _phoneController.dispose();
@@ -68,7 +84,9 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
         builder: (BuildContext context, Widget? _) {
           final StaffWebSessionState state = controller.state;
 
-          if (state.customer != null && state.customer!.hasConsented && state.cartState.isIdle) {
+          if (state.currentCustomer != null &&
+              state.currentCustomer!.hasConsented &&
+              state.cartState.isIdle) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 controller.loadCart();
@@ -208,7 +226,10 @@ class _ResultPanel extends StatelessWidget {
         onAction: onRetryLookup,
       );
     }
-    final Customer? customer = state.customer;
+    // Reads the screen-local lookup result (reset every time this screen is
+    // entered), NOT state.currentCustomer — otherwise a previous visit's
+    // customer would flash back up immediately on re-entry.
+    final Customer? customer = state.lookupState.data;
     if (customer == null) {
       // Figma (89:928): nothing renders on the right until a customer is
       // found.
