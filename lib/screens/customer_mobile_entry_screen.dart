@@ -17,6 +17,10 @@ import '../widgets/segue_product_image.dart';
 enum _MobileScreen {
   start,
   login,
+  signup,
+  account,
+  profileEdit,
+  passwordEdit,
   menu,
   products,
   detail,
@@ -86,6 +90,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   String? _cartSaveError;
   String? _productsError;
   String? _cartError;
+  bool _isLoggedIn = false;
+  final String _accountName = '아무개';
+  final String _accountEmail = '1234@1234.com';
+  final String _accountPhone = '010-1234-1234';
   final List<ConsultationResult> _consultationResults = <ConsultationResult>[];
   ConsultationResult? _selectedConsultationResult;
   bool _isLoadingResults = false;
@@ -111,18 +119,57 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     return switch (_screen) {
       _MobileScreen.start => _StartScreen(
         onOpenMenu: _openMenu,
+        onOpenResults: _openAccount,
+      ),
+      _MobileScreen.login => _LoginScreen(
+        onClose: _openStart,
+        onLogin: _completeLogin,
+        onSignup: _openSignup,
+      ),
+      _MobileScreen.signup => _SignupScreen(
+        onClose: _openStart,
+        onSignup: _completeLogin,
+        onLogin: _openLogin,
+      ),
+      _MobileScreen.account => _AccountScreen(
+        isLoggedIn: _isLoggedIn,
+        name: _accountName,
+        email: _accountEmail,
+        phone: _accountPhone,
+        onClose: _openMenu,
+        onOpenLogin: _openLogin,
+        onEditProfile: _openProfileEdit,
+        onOpenCart: _openCart,
         onOpenResults: () {
           _openResults();
         },
       ),
-      _MobileScreen.login => _LoginScreen(onClose: _openStart),
+      _MobileScreen.profileEdit => _ProfileEditScreen(
+        name: _accountName,
+        email: _accountEmail,
+        phone: _accountPhone,
+        onBack: _openAccount,
+        onSave: _saveProfile,
+        onPasswordChange: _openPasswordEdit,
+        onLogin: _openLogin,
+      ),
+      _MobileScreen.passwordEdit => _PasswordEditScreen(
+        name: _accountName,
+        email: _accountEmail,
+        phone: _accountPhone,
+        onBack: _openProfileEdit,
+        onSave: _openAccount,
+        onLogin: _openLogin,
+      ),
       _MobileScreen.menu => _MenuScreen(
+        isLoggedIn: _isLoggedIn,
         expandedSection: _expandedMenuSection,
         onClose: _openStart,
         onToggleSection: _toggleMenuSection,
         onOpenProducts: _openProductCategory,
         onOpenAllProducts: _openAllProducts,
         onOpenLogin: _openLogin,
+        onOpenAccount: _openAccount,
         onOpenCart: _openCart,
         onOpenResults: () {
           _openResults();
@@ -143,9 +190,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         },
         onProductSelected: _openDetail,
         onOpenMenu: _openMenu,
-        onOpenResults: () {
-          _openResults();
-        },
+        onOpenResults: _openAccount,
       ),
       _MobileScreen.detail => _ProductDetailScreen(
         product: _selectedProduct,
@@ -174,6 +219,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onAddToCart: _saveSelectedCartItem,
         isSavingCart: _isSavingCart,
         cartSaveError: _cartSaveError,
+        onOpenAccount: _openAccount,
       ),
       _MobileScreen.cartAdded => _CartAddedScreen(
         cartItem: _lastSavedCartItem,
@@ -181,6 +227,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onBack: _openDetailFromCartAdded,
         onOpenCart: _openCart,
         onContinueShopping: _returnToProducts,
+        onOpenAccount: _openAccount,
       ),
       _MobileScreen.cart => _CartListScreen(
         cartItems: _cartItems,
@@ -188,7 +235,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         errorMessage: _cartError,
         onRetry: () => _loadCartItems(force: true),
         onBackToProducts: _returnToProducts,
-        onTabSelected: _openTab,
+        onOpenAccount: _openAccount,
       ),
       _MobileScreen.results => _ConsultationResultsScreen(
         results: _consultationResults,
@@ -198,7 +245,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onOnlinePurchase: _openOnlinePurchase,
         onStoreVisit: _openStoreVisit,
         onBackToHome: _openStart,
-        onTabSelected: _openTab,
+        onOpenAccount: _openAccount,
       ),
       _MobileScreen.onlinePurchase => _OnlinePurchaseScreen(
         result: _selectedConsultationResult,
@@ -230,11 +277,17 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   bool _matchesProductCategory(MobileProduct product, String category) {
+    final bool hasNewCollectionMetadata =
+        product.season.contains('2026') ||
+        product.collection.contains('신') ||
+        product.category.contains('신상품');
+    final bool lacksNewCollectionMetadata =
+        product.season.trim().isEmpty && product.collection.trim().isEmpty;
+
     return switch (category) {
       '신상품' =>
-        product.season.contains('2026') ||
-            product.collection.contains('신') ||
-            product.category.contains('신상품'),
+        hasNewCollectionMetadata ||
+            (lacksNewCollectionMetadata && product.category != '지갑'),
       '가방' => product.category != '지갑',
       '토트백 & 쇼퍼백' => product.name.contains('토트') || product.name.contains('쇼퍼'),
       '숄더백 & 크로스백' =>
@@ -243,7 +296,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
             product.name.contains('Patricia'),
       '백팩' => product.category == '백팩',
       '탑 핸들백' =>
-        product.name.contains('탑 핸들') || product.name.contains('Klara'),
+        product.category == '핸드백' ||
+            product.category == '탑 핸들백' ||
+            product.name.contains('탑 핸들') ||
+            product.name.contains('Klara'),
       _ => product.category == category,
     };
   }
@@ -261,6 +317,36 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
   void _openLogin() {
     setState(() => _screen = _MobileScreen.login);
+  }
+
+  void _openSignup() {
+    setState(() => _screen = _MobileScreen.signup);
+  }
+
+  void _openAccount() {
+    setState(() => _screen = _MobileScreen.account);
+  }
+
+  void _openProfileEdit() {
+    setState(() => _screen = _MobileScreen.profileEdit);
+  }
+
+  void _openPasswordEdit() {
+    setState(() => _screen = _MobileScreen.passwordEdit);
+  }
+
+  void _saveProfile() {
+    setState(() {
+      _isLoggedIn = true;
+      _screen = _MobileScreen.account;
+    });
+  }
+
+  void _completeLogin() {
+    setState(() {
+      _isLoggedIn = true;
+      _screen = _MobileScreen.start;
+    });
   }
 
   void _toggleMenuSection(String section) {
@@ -299,30 +385,12 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     });
   }
 
-  void _openTab(CustomerMobileTab tab) {
-    if (tab == CustomerMobileTab.results) {
-      _openResults();
-      return;
-    }
-    if (tab == CustomerMobileTab.cart) {
-      _openCart();
-      return;
-    }
-
-    setState(() {
-      _screen = switch (tab) {
-        CustomerMobileTab.home => _MobileScreen.start,
-        CustomerMobileTab.products => _MobileScreen.products,
-        CustomerMobileTab.cart => _MobileScreen.cart,
-        CustomerMobileTab.results => _MobileScreen.results,
-      };
-    });
-    if (tab == CustomerMobileTab.products) {
-      _loadMobileProducts();
-    }
-  }
-
   void _openCart() {
+    if (!_isLoggedIn) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
     setState(() => _screen = _MobileScreen.cart);
     if (!_isLoadingCart) {
       _loadCartItems(force: true);
@@ -338,10 +406,34 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   Future<void> _openResults() async {
+    if (!_isLoggedIn) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
     setState(() => _screen = _MobileScreen.results);
     if (_consultationResults.isEmpty && !_isLoadingResults) {
       await _loadConsultationResults();
     }
+  }
+
+  Future<void> _showLoginRequiredDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.24),
+      builder: (BuildContext dialogContext) {
+        return _LoginRequiredDialog(
+          onSignup: () {
+            Navigator.of(dialogContext).pop();
+            _openLogin();
+          },
+          onLogin: () {
+            Navigator.of(dialogContext).pop();
+            _openLogin();
+          },
+        );
+      },
+    );
   }
 
   void _openOnlinePurchase(ConsultationResult result) {
@@ -596,7 +688,7 @@ class _StartScreen extends StatelessWidget {
                         ),
                         const Spacer(),
                         IconButton(
-                          tooltip: 'SEGUE 내역 확인',
+                          tooltip: '내 계정',
                           onPressed: onOpenResults,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints.tightFor(
@@ -625,16 +717,22 @@ class _StartScreen extends StatelessWidget {
 }
 
 class _LoginScreen extends StatelessWidget {
-  const _LoginScreen({required this.onClose});
+  const _LoginScreen({
+    required this.onClose,
+    required this.onLogin,
+    required this.onSignup,
+  });
 
   final VoidCallback onClose;
+  final VoidCallback onLogin;
+  final VoidCallback onSignup;
 
   @override
   Widget build(BuildContext context) {
     return _McmPhoneShell(
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 68),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
@@ -668,38 +766,645 @@ class _LoginScreen extends StatelessWidget {
               const SizedBox(height: 34),
               const Text(
                 '로그인',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               const Text(
                 '회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.',
-                style: TextStyle(fontSize: 13, height: 1.35),
-              ),
-              const SizedBox(height: 42),
-              const _LoginInputField(hintText: '이메일 주소*'),
-              const SizedBox(height: 34),
-              const _LoginInputField(
-                hintText: '비밀번호*',
-                trailingText: '표시',
-                obscureText: true,
+                style: TextStyle(fontSize: 9.5, height: 1.35),
               ),
               const SizedBox(height: 8),
               const Text(
                 '*표시가 있는 모든 입력 항목은 필수입니다.',
                 style: TextStyle(
                   color: Color(0xFF747474),
-                  fontSize: 11,
+                  fontSize: 9,
                   height: 1.35,
                 ),
               ),
+              const SizedBox(height: 48),
+              const _LoginInputField(hintText: '이메일 주소*'),
+              const SizedBox(height: 28),
+              const _LoginInputField(
+                hintText: '비밀번호*',
+                trailingText: '표시',
+                obscureText: true,
+              ),
               const Spacer(),
-              _McmPrimaryButton(label: '로그인', onPressed: () {}),
-              const SizedBox(height: 8),
-              _McmOutlinedButton(label: '회원가입', onPressed: () {}),
+              _McmPrimaryButton(label: '로그인', onPressed: onLogin),
+              const SizedBox(height: 18),
+              Center(
+                child: InkWell(
+                  onTap: onSignup,
+                  child: const _McmUnderlinedText('계정이 없으신가요? 회원가입하기'),
+                ),
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LoginRequiredDialog extends StatelessWidget {
+  const _LoginRequiredDialog({required this.onSignup, required this.onLogin});
+
+  final VoidCallback onSignup;
+  final VoidCallback onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: ConstrainedBox(
+            key: const ValueKey<String>('login-required-dialog-panel'),
+            constraints: const BoxConstraints(
+              maxWidth: AppSizes.mobileContentMaxWidth - 44,
+            ),
+            child: Material(
+              color: Colors.white,
+              shape: const RoundedRectangleBorder(),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(26, 20, 26, 34),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        tooltip: '팝업 닫기',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close, size: 30),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '해당 기능은 로그인 이후에 가능합니다.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        height: 1.28,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 38),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: SizedBox(
+                            height: 64,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black,
+                                side: const BorderSide(
+                                  color: Colors.black,
+                                  width: 2,
+                                ),
+                                shape: const RoundedRectangleBorder(),
+                                textStyle: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              onPressed: onSignup,
+                              child: const Text('회원가입!'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: SizedBox(
+                            height: 64,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.black,
+                                foregroundColor: Colors.white,
+                                shape: const RoundedRectangleBorder(),
+                                textStyle: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              onPressed: onLogin,
+                              child: const Text('로그인'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountScreen extends StatelessWidget {
+  const _AccountScreen({
+    required this.isLoggedIn,
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.onClose,
+    required this.onOpenLogin,
+    required this.onEditProfile,
+    required this.onOpenCart,
+    required this.onOpenResults,
+  });
+
+  final bool isLoggedIn;
+  final String name;
+  final String email;
+  final String phone;
+  final VoidCallback onClose;
+  final VoidCallback onOpenLogin;
+  final VoidCallback onEditProfile;
+  final VoidCallback onOpenCart;
+  final VoidCallback onOpenResults;
+
+  @override
+  Widget build(BuildContext context) {
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _McmTopBar(onLeadingPressed: onClose, leadingIcon: Icons.close),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+                children: <Widget>[
+                  const Text(
+                    '내 계정',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                  ),
+                  if (isLoggedIn) ...<Widget>[
+                    const SizedBox(height: 36),
+                    const Text(
+                      '주문 내역',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      '이 계정에 대한 주문 기록이 없습니다.',
+                      style: TextStyle(fontSize: 11, height: 1.35),
+                    ),
+                    const SizedBox(height: 44),
+                    const _McmSectionDivider(),
+                    const SizedBox(height: 30),
+                    const Text(
+                      '계정 상세정보',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    _AccountInfoBlock(
+                      label: '이름/이메일',
+                      values: <String>[name, email],
+                    ),
+                    const SizedBox(height: 24),
+                    const _AccountInfoBlock(
+                      label: '비밀번호',
+                      values: <String>['••••••••'],
+                    ),
+                    const SizedBox(height: 24),
+                    _AccountInfoBlock(label: '전화번호', values: <String>[phone]),
+                    const SizedBox(height: 18),
+                    _McmOutlinedButton(
+                      label: '프로필 편집',
+                      onPressed: onEditProfile,
+                    ),
+                  ] else ...<Widget>[
+                    const SizedBox(height: 26),
+                    const Text(
+                      '로그인을 먼저 진행해 주세요.',
+                      style: TextStyle(
+                        color: Color(0xFF707070),
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
+              child: Column(
+                children: <Widget>[
+                  if (!isLoggedIn)
+                    _MenuFooterRow(
+                      label: '로그인',
+                      icon: Icons.person_outline,
+                      onTap: onOpenLogin,
+                    ),
+                  _MenuFooterRow(
+                    label: '쇼핑백',
+                    icon: Icons.shopping_bag_outlined,
+                    onTap: onOpenCart,
+                  ),
+                  _MenuFooterRow(
+                    label: 'SEGUE 내역 확인',
+                    icon: Icons.receipt_long_outlined,
+                    onTap: onOpenResults,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SignupScreen extends StatelessWidget {
+  const _SignupScreen({
+    required this.onClose,
+    required this.onSignup,
+    required this.onLogin,
+  });
+
+  final VoidCallback onClose;
+  final VoidCallback onSignup;
+  final VoidCallback onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SizedBox(
+                height: 78,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: <Widget>[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        tooltip: '회원가입 닫기',
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close, size: 28),
+                      ),
+                    ),
+                    Semantics(
+                      label: 'MCM',
+                      image: true,
+                      child: Image.asset(
+                        _McmImageAssets.wordmarkBlack,
+                        width: 76,
+                        height: 22,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 34),
+              const Text(
+                '회원가입',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.',
+                style: TextStyle(fontSize: 9.5, height: 1.35),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '*표시가 있는 모든 입력 항목은 필수입니다.',
+                style: TextStyle(
+                  color: Color(0xFF747474),
+                  fontSize: 9,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 48),
+              const _LoginInputField(hintText: '성명*'),
+              const SizedBox(height: 28),
+              const _LoginInputField(hintText: '이메일 주소*'),
+              const SizedBox(height: 28),
+              const _LoginInputField(hintText: '전화번호*'),
+              const SizedBox(height: 28),
+              const _LoginInputField(
+                hintText: '비밀번호*',
+                trailingText: '표시',
+                obscureText: true,
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                '비밀번호는 8자 이상이어야 합니다.',
+                style: TextStyle(
+                  color: Color(0xFF747474),
+                  fontSize: 9,
+                  height: 1.35,
+                ),
+              ),
+              const Spacer(),
+              _McmPrimaryButton(label: '회원가입', onPressed: onSignup),
+              const SizedBox(height: 18),
+              Center(
+                child: InkWell(
+                  onTap: onLogin,
+                  child: const _McmUnderlinedText('이미 계정이 있으신가요? 로그인하기'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileEditScreen extends StatelessWidget {
+  const _ProfileEditScreen({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.onBack,
+    required this.onSave,
+    required this.onPasswordChange,
+    required this.onLogin,
+  });
+
+  final String name;
+  final String email;
+  final String phone;
+  final VoidCallback onBack;
+  final VoidCallback onSave;
+  final VoidCallback onPasswordChange;
+  final VoidCallback onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _McmTopBar(
+                onLeadingPressed: onBack,
+                leadingIcon: Icons.chevron_left,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                '내 프로필 편집',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '*표시가 있는 모든 입력 항목은 필수입니다.',
+                style: TextStyle(
+                  color: Color(0xFF747474),
+                  fontSize: 10,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 30),
+              _AccountFormField(label: '성명*', value: name),
+              const SizedBox(height: 24),
+              _AccountFormField(label: '이메일 주소*', value: email),
+              const SizedBox(height: 24),
+              _AccountFormField(label: '전화번호*', value: phone),
+              const SizedBox(height: 24),
+              const _AccountFormField(
+                label: '비밀번호*',
+                value: '••••••••',
+                trailingText: '표시',
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: onPasswordChange,
+                child: const Text(
+                  '비밀번호 편집',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              _McmPrimaryButton(label: '회원가입', onPressed: onSave),
+              const SizedBox(height: 18),
+              Center(
+                child: InkWell(
+                  onTap: onLogin,
+                  child: const _McmUnderlinedText('이미 계정이 있으신가요? 로그인하기'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordEditScreen extends StatelessWidget {
+  const _PasswordEditScreen({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.onBack,
+    required this.onSave,
+    required this.onLogin,
+  });
+
+  final String name;
+  final String email;
+  final String phone;
+  final VoidCallback onBack;
+  final VoidCallback onSave;
+  final VoidCallback onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _McmTopBar(
+                onLeadingPressed: onBack,
+                leadingIcon: Icons.chevron_left,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                '내 프로필 편집',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '*표시가 있는 모든 입력 항목은 필수입니다.',
+                style: TextStyle(
+                  color: Color(0xFF747474),
+                  fontSize: 10,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 30),
+              _AccountFormField(label: '성명*', value: name),
+              const SizedBox(height: 24),
+              _AccountFormField(label: '이메일 주소*', value: email),
+              const SizedBox(height: 24),
+              _AccountFormField(label: '전화번호*', value: phone),
+              const SizedBox(height: 24),
+              const _AccountFormField(
+                label: '현재 비밀번호 입력*',
+                value: '••••••••',
+                trailingText: '표시',
+              ),
+              const SizedBox(height: 7),
+              InkWell(
+                onTap: onBack,
+                child: const Text(
+                  '비밀번호 편집',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const _AccountFormField(
+                label: '변경할 비밀번호*',
+                value: '',
+                trailingText: '표시',
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                '비밀번호는 8자 이상이어야 합니다.',
+                style: TextStyle(
+                  color: Color(0xFF747474),
+                  fontSize: 9,
+                  height: 1.35,
+                ),
+              ),
+              const Spacer(),
+              _McmPrimaryButton(label: '회원가입', onPressed: onSave),
+              const SizedBox(height: 18),
+              Center(
+                child: InkWell(
+                  onTap: onLogin,
+                  child: const _McmUnderlinedText('이미 계정이 있으신가요? 로그인하기'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountFormField extends StatelessWidget {
+  const _AccountFormField({
+    required this.label,
+    required this.value,
+    this.trailingText,
+  });
+
+  final String label;
+  final String value;
+  final String? trailingText;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.black)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF747474),
+                      fontSize: 10,
+                      height: 1.35,
+                    ),
+                  ),
+                  if (value.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 10),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (trailingText != null)
+              Text(
+                trailingText!,
+                style: const TextStyle(
+                  color: Color(0xFF696969),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountInfoBlock extends StatelessWidget {
+  const _AccountInfoBlock({required this.label, required this.values});
+
+  final String label;
+  final List<String> values;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        for (final String value in values)
+          Text(value, style: const TextStyle(fontSize: 11, height: 1.45)),
+      ],
     );
   }
 }
@@ -769,50 +1474,69 @@ class _StartScreenLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 318,
-      height: 86,
-      child: Stack(
-        alignment: Alignment.topCenter,
-        children: <Widget>[
-          Positioned(
-            top: 0,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: <Widget>[
-                Text(
-                  'MCM',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Montserrat',
-                    fontSize: 52,
-                    fontWeight: FontWeight.w900,
-                    height: 0.9,
-                    letterSpacing: 0,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 318;
+        final double logoWidth = availableWidth < 318 ? availableWidth : 318;
+
+        return SizedBox(
+          width: availableWidth,
+          height: 86,
+          child: Center(
+            child: SizedBox(
+              width: logoWidth,
+              height: 86,
+              child: Column(
+                children: <Widget>[
+                  SizedBox(
+                    width: logoWidth,
+                    height: 48,
+                    child: const FittedBox(
+                      fit: BoxFit.contain,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: <Widget>[
+                          Text(
+                            'MCM',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'Montserrat',
+                              fontSize: 52,
+                              fontWeight: FontWeight.w900,
+                              height: 0.9,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          _OutlinedText(
+                            'LXXVI',
+                            fontSize: 47,
+                            strokeWidth: 1.25,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                SizedBox(width: 4),
-                _OutlinedText('LXXVI', fontSize: 47, strokeWidth: 1.25),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 45,
-            child: Text(
-              '1976',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'Montserrat',
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                height: 0.9,
-                letterSpacing: 0,
+                  const Text(
+                    '1976',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      height: 0.9,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -935,22 +1659,26 @@ class _OutlinedText extends StatelessWidget {
 
 class _MenuScreen extends StatelessWidget {
   const _MenuScreen({
+    required this.isLoggedIn,
     required this.expandedSection,
     required this.onClose,
     required this.onToggleSection,
     required this.onOpenProducts,
     required this.onOpenAllProducts,
     required this.onOpenLogin,
+    required this.onOpenAccount,
     required this.onOpenCart,
     required this.onOpenResults,
   });
 
+  final bool isLoggedIn;
   final String? expandedSection;
   final VoidCallback onClose;
   final ValueChanged<String> onToggleSection;
   final ValueChanged<String> onOpenProducts;
   final VoidCallback onOpenAllProducts;
   final VoidCallback onOpenLogin;
+  final VoidCallback onOpenAccount;
   final VoidCallback onOpenCart;
   final VoidCallback onOpenResults;
 
@@ -1073,9 +1801,9 @@ class _MenuScreen extends StatelessWidget {
               child: Column(
                 children: <Widget>[
                   _MenuFooterRow(
-                    label: '로그인',
+                    label: isLoggedIn ? '내 계정' : '로그인',
                     icon: Icons.person_outline,
-                    onTap: onOpenLogin,
+                    onTap: isLoggedIn ? onOpenAccount : onOpenLogin,
                   ),
                   _MenuFooterRow(
                     label: '쇼핑백',
@@ -1163,7 +1891,7 @@ class _McmTopBar extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: IconButton(
-                tooltip: 'SEGUE 내역 확인',
+                tooltip: '내 계정',
                 onPressed: onProfilePressed,
                 icon: const Icon(Icons.person_outline, size: 22),
               ),
@@ -1457,26 +2185,25 @@ class _ProductListScreen extends StatelessWidget {
               onLeadingPressed: onOpenMenu,
               onProfilePressed: onOpenResults,
             ),
+            _CategoryTrail(
+              key: const ValueKey<String>('mobile-product-category-trail'),
+              selectedCategory: selectedCategory,
+              categories: categories,
+              onCategorySelected: onCategorySelected,
+            ),
+            if (isLoading)
+              const LinearProgressIndicator(
+                minHeight: 2,
+                color: Colors.black,
+                backgroundColor: Color(0xFFEDEDED),
+              ),
+            if (errorMessage != null)
+              _ProductLoadErrorBanner(message: errorMessage!, onRetry: onRetry),
             Expanded(
               child: ListView(
+                key: const ValueKey<String>('mobile-product-scroll-body'),
                 padding: EdgeInsets.zero,
                 children: <Widget>[
-                  _CategoryTrail(
-                    selectedCategory: selectedCategory,
-                    categories: categories,
-                    onCategorySelected: onCategorySelected,
-                  ),
-                  if (isLoading)
-                    const LinearProgressIndicator(
-                      minHeight: 2,
-                      color: Colors.black,
-                      backgroundColor: Color(0xFFEDEDED),
-                    ),
-                  if (errorMessage != null)
-                    _ProductLoadErrorBanner(
-                      message: errorMessage!,
-                      onRetry: onRetry,
-                    ),
                   _ProductCampaignHero(assetPath: heroAssetPath, title: title),
                   const _ProductSortRow(),
                   if (products.isEmpty)
@@ -1560,6 +2287,7 @@ class _ProductLoadErrorBanner extends StatelessWidget {
 
 class _CategoryTrail extends StatelessWidget {
   const _CategoryTrail({
+    super.key,
     required this.selectedCategory,
     required this.categories,
     required this.onCategorySelected,
@@ -1767,6 +2495,7 @@ class _ProductDetailScreen extends StatelessWidget {
     required this.onAddToCart,
     required this.isSavingCart,
     required this.cartSaveError,
+    required this.onOpenAccount,
   });
 
   final MobileProduct product;
@@ -1779,6 +2508,7 @@ class _ProductDetailScreen extends StatelessWidget {
   final VoidCallback onAddToCart;
   final bool isSavingCart;
   final String? cartSaveError;
+  final VoidCallback onOpenAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -1812,7 +2542,10 @@ class _ProductDetailScreen extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: <Widget>[
-            _McmTopBar(onLeadingPressed: onBack, onProfilePressed: onBack),
+            _McmTopBar(
+              onLeadingPressed: onBack,
+              onProfilePressed: onOpenAccount,
+            ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -2486,6 +3219,7 @@ class _CartAddedScreen extends StatelessWidget {
     required this.onBack,
     required this.onOpenCart,
     required this.onContinueShopping,
+    required this.onOpenAccount,
   });
 
   final CartItem? cartItem;
@@ -2493,6 +3227,7 @@ class _CartAddedScreen extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onOpenCart;
   final VoidCallback onContinueShopping;
+  final VoidCallback onOpenAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -2511,7 +3246,7 @@ class _CartAddedScreen extends StatelessWidget {
             _McmTopBar(
               onLeadingPressed: onBack,
               leadingIcon: Icons.close,
-              onProfilePressed: onBack,
+              onProfilePressed: onOpenAccount,
             ),
             Expanded(
               child: ListView(
@@ -2570,7 +3305,7 @@ class _CartListScreen extends StatelessWidget {
     required this.errorMessage,
     required this.onRetry,
     required this.onBackToProducts,
-    required this.onTabSelected,
+    required this.onOpenAccount,
   });
 
   final List<CartItem> cartItems;
@@ -2578,7 +3313,7 @@ class _CartListScreen extends StatelessWidget {
   final String? errorMessage;
   final VoidCallback onRetry;
   final VoidCallback onBackToProducts;
-  final ValueChanged<CustomerMobileTab> onTabSelected;
+  final VoidCallback onOpenAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -2592,7 +3327,7 @@ class _CartListScreen extends StatelessWidget {
           children: <Widget>[
             _McmTopBar(
               onLeadingPressed: onBackToProducts,
-              onProfilePressed: () => onTabSelected(CustomerMobileTab.results),
+              onProfilePressed: onOpenAccount,
             ),
             const Divider(height: 1, color: Color(0xFFE5E5E5)),
             Expanded(
@@ -2674,7 +3409,7 @@ class _ConsultationResultsScreen extends StatelessWidget {
     required this.onOnlinePurchase,
     required this.onStoreVisit,
     required this.onBackToHome,
-    required this.onTabSelected,
+    required this.onOpenAccount,
   });
 
   final List<ConsultationResult> results;
@@ -2684,7 +3419,7 @@ class _ConsultationResultsScreen extends StatelessWidget {
   final ValueChanged<ConsultationResult> onOnlinePurchase;
   final ValueChanged<ConsultationResult> onStoreVisit;
   final VoidCallback onBackToHome;
-  final ValueChanged<CustomerMobileTab> onTabSelected;
+  final VoidCallback onOpenAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -2694,7 +3429,7 @@ class _ConsultationResultsScreen extends StatelessWidget {
           children: <Widget>[
             _McmTopBar(
               onLeadingPressed: onBackToHome,
-              onProfilePressed: onBackToHome,
+              onProfilePressed: onOpenAccount,
             ),
             const SizedBox(height: 12),
             const Text(

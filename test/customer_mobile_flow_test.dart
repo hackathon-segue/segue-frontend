@@ -15,6 +15,22 @@ Future<void> _openNewProducts(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _loginMobileCustomer(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('메뉴 열기'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('로그인'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('로그인').last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openSegueHistoryFromMenu(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('메뉴 열기'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('SEGUE 내역 확인').last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('customer mobile start opens menu and product list', (
     WidgetTester tester,
@@ -60,7 +76,122 @@ void main() {
     expect(find.text('회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.'), findsOneWidget);
     expect(find.text('이메일 주소*'), findsOneWidget);
     expect(find.text('비밀번호*'), findsOneWidget);
-    expect(find.text('회원가입'), findsOneWidget);
+    expect(find.text('계정이 없으신가요? 회원가입하기'), findsOneWidget);
+  });
+
+  testWidgets('menu login row changes to my account after login', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    expect(find.text('로그인'), findsOneWidget);
+
+    await tester.tap(find.text('로그인'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('로그인').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('내 계정'), findsOneWidget);
+    expect(find.text('로그인'), findsNothing);
+
+    await tester.tap(find.text('내 계정'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('계정 상세정보'), findsOneWidget);
+    expect(find.text('1234@1234.com'), findsOneWidget);
+  });
+
+  testWidgets('top profile icon opens my account from product detail', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+    await _loginMobileCustomer(tester);
+    await _openNewProducts(tester);
+
+    await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('내 계정'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('내 계정'), findsOneWidget);
+    expect(find.text('계정 상세정보'), findsOneWidget);
+  });
+
+  testWidgets('shopping bag requires login before opening', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('쇼핑백'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('해당 기능은 로그인 이후에 가능합니다.'), findsOneWidget);
+    expect(find.text('회원가입!'), findsOneWidget);
+    expect(find.text('로그인'), findsWidgets);
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey<String>('login-required-dialog-panel')),
+          )
+          .width,
+      lessThanOrEqualTo(390 - 44),
+    );
+
+    await tester.tap(find.text('로그인').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('로그인 닫기'), findsOneWidget);
+  });
+
+  testWidgets('SEGUE history requires login before opening', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      SegueApp(
+        repository: MockSegueRepository(seedDemoConsultationResults: true),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SEGUE 내역 확인'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('해당 기능은 로그인 이후에 가능합니다.'), findsOneWidget);
+    expect(find.text('SEGUE 내역'), findsNothing);
+
+    await tester.tap(find.byTooltip('팝업 닫기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('해당 기능은 로그인 이후에 가능합니다.'), findsNothing);
   });
 
   testWidgets('customer mobile new-season menu item opens product list', (
@@ -90,6 +221,70 @@ void main() {
     expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
   });
 
+  testWidgets('product category selector stays fixed while list scrolls', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+    await _openNewProducts(tester);
+
+    final Finder categoryTrail = find.byKey(
+      const ValueKey<String>('mobile-product-category-trail'),
+    );
+    final Finder scrollBody = find.byKey(
+      const ValueKey<String>('mobile-product-scroll-body'),
+    );
+
+    final double beforeTop = tester.getTopLeft(categoryTrail).dy;
+
+    await tester.drag(scrollBody, const Offset(0, -420));
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(categoryTrail).dy, beforeTop);
+  });
+
+  testWidgets(
+    'backend products without season metadata appear in new products',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        SegueApp(repository: _BackendStyleProductRepository()),
+      );
+
+      await _openNewProducts(tester);
+
+      expect(find.text('M Diamond 비세토스 레더 믹스'), findsOneWidget);
+    },
+  );
+
+  testWidgets('backend handbag category appears in top-handle products', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      SegueApp(repository: _BackendStyleProductRepository()),
+    );
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('탑 핸들백').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('M Diamond 비세토스 레더 믹스'), findsOneWidget);
+  });
+
   testWidgets('product detail shows the new shopping bag CTA', (
     WidgetTester tester,
   ) async {
@@ -99,6 +294,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+    await _loginMobileCustomer(tester);
     await _openNewProducts(tester);
 
     await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
@@ -125,6 +321,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+    await _loginMobileCustomer(tester);
     await _openNewProducts(tester);
 
     await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
@@ -166,6 +363,7 @@ void main() {
         ),
       ),
     );
+    await _loginMobileCustomer(tester);
     await _openNewProducts(tester);
 
     await tester.tap(find.text('조합 제한 토트').first);
@@ -215,6 +413,7 @@ void main() {
         ),
       ),
     );
+    await _loginMobileCustomer(tester);
     await _openNewProducts(tester);
 
     await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
@@ -257,6 +456,7 @@ void main() {
         ),
       ),
     );
+    await _loginMobileCustomer(tester);
 
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
@@ -288,8 +488,8 @@ void main() {
         repository: MockSegueRepository(seedDemoConsultationResults: true),
       ),
     );
-    await tester.tap(find.byTooltip('SEGUE 내역 확인'));
-    await tester.pumpAndSettle();
+    await _loginMobileCustomer(tester);
+    await _openSegueHistoryFromMenu(tester);
 
     expect(find.text('SEGUE 내역'), findsOneWidget);
     expect(find.text('MCM 백팩 미디움'), findsOneWidget);
@@ -324,9 +524,9 @@ void main() {
         ),
       ),
     );
+    await _loginMobileCustomer(tester);
 
-    await tester.tap(find.byTooltip('SEGUE 내역 확인'));
-    await tester.pumpAndSettle();
+    await _openSegueHistoryFromMenu(tester);
 
     expect(repository.lastResultsCustomerId, 1);
     expect(find.text('SEGUE 내역'), findsOneWidget);
@@ -369,9 +569,9 @@ void main() {
         ),
       ),
     );
+    await _loginMobileCustomer(tester);
 
-    await tester.tap(find.byTooltip('SEGUE 내역 확인'));
-    await tester.pumpAndSettle();
+    await _openSegueHistoryFromMenu(tester);
 
     expect(find.text('SEGUE 내역'), findsOneWidget);
     expect(find.text('MCM 백팩 미디움'), findsOneWidget);
@@ -407,6 +607,40 @@ class _RecordingMobileRepository extends MockSegueRepository {
     lastFetchCustomerId = customerId;
     lastFetchStoreId = storeId;
     return super.fetchCart(customerId: customerId, storeId: storeId);
+  }
+}
+
+class _BackendStyleProductRepository extends MockSegueRepository {
+  @override
+  Future<List<MobileProduct>> fetchMobileProducts() async {
+    return const <MobileProduct>[
+      MobileProduct(
+        id: 1,
+        name: 'M Diamond 비세토스 레더 믹스',
+        collection: '',
+        category: '핸드백',
+        price: 1590000,
+        material: '비세토스 모노그램 캔버스 + 나파 송아지 가죽 트림',
+        dimensions: '',
+        origin: '',
+        season: '',
+        visualValue: 0xFFB87945,
+        accentValue: 0xFF111827,
+        options: <MobileSkuOption>[
+          MobileSkuOption(
+            skuId: 1,
+            color: '꼬냑',
+            size: 'M',
+            swatchValue: 0xFFB87945,
+            material: '비세토스 모노그램 캔버스 + 나파 송아지 가죽 트림',
+            weightGrams: 480,
+            storageStructure: '지퍼 클로저 + 내부 포켓',
+            wearStyle: '핸드백/크로스바디 겸용',
+            laptopCompatible: false,
+          ),
+        ],
+      ),
+    ];
   }
 }
 
