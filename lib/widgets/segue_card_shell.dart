@@ -63,7 +63,14 @@ void navigateToTabletRoute(BuildContext context, String routeName) {
   final LastIntentSessionManager sessionManager = LastIntentSessionScope.of(
     context,
   );
-  if (sessionManager.isConsultationInProgress) {
+  final String? currentRoute = ModalRoute.of(context)?.settings.name;
+  final bool isCartOrInStockProduct =
+      currentRoute == AppRoutes.cartInventory ||
+      currentRoute == AppRoutes.generalProductCheck;
+  final bool isLeavingCartOrInStockProduct =
+      isCartOrInStockProduct && routeName != AppRoutes.cartInventory;
+  if (sessionManager.isConsultationInProgress ||
+      isLeavingCartOrInStockProduct) {
     _showExitConsultationDialog(context, routeName);
     return;
   }
@@ -127,19 +134,10 @@ void _showNoActiveConsultationDialog(BuildContext context) {
         onClose: () => Navigator.of(dialogContext).pop(),
         onProceed: () {
           Navigator.of(dialogContext).pop();
-          // Reuses StaffWebSessionController's own existing lookup state —
-          // no new API/state of its own — and the shared nav handler (which
-          // is a no-op guard-wise here: this popup only ever shows when
-          // there's no in-progress consultation to protect).
-          final Customer? currentCustomer = StaffSessionScope.of(
-            context,
-          ).state.currentCustomer;
-          navigateToTabletRoute(
-            context,
-            currentCustomer != null
-                ? AppRoutes.cartInventory
-                : AppRoutes.customerLookup,
-          );
+          // CURRENT SESSION always starts a new customer consultation. The
+          // cart is reached only after a fresh customer lookup and consent.
+          StaffSessionScope.of(context).reset();
+          navigateToTabletRoute(context, AppRoutes.customerLookup);
         },
       );
     },
@@ -325,141 +323,143 @@ class SegueCardShell extends StatelessWidget {
                           activeMenuItem: activeMenuItem,
                           sessionCount: sessionCount,
                         ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(31, 24, 31, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              LayoutBuilder(
-                                builder:
-                                    (
-                                      BuildContext context,
-                                      BoxConstraints constraints,
-                                    ) {
-                                      final Widget title = Text(
-                                        pageTitle,
-                                        style: SegueCardText.pageTitle28,
-                                        overflow: TextOverflow.ellipsis,
-                                      );
-                                      final List<Widget> trailing = <Widget>[
-                                        if (stepBadge != null)
-                                          Container(
-                                            width: 53,
-                                            height: 36,
-                                            alignment: Alignment.center,
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  SegueCardColors.stepBadgeBg,
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              stepBadge!,
-                                              style: SegueCardText.stepBadge20,
-                                            ),
-                                          ),
-                                        if (titleTrailing != null)
-                                          titleTrailing!,
-                                      ];
-                                      // A fixed-width titleTrailing widget (e.g.
-                                      // 89:1196's 173px-wide Start Segue Button)
-                                      // has no narrower Figma variant, so this
-                                      // app's own responsive fallback drops it
-                                      // below the title instead of overflowing.
-                                      if (trailing.isEmpty ||
-                                          constraints.maxWidth >= 360) {
-                                        return Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: <Widget>[
-                                            Expanded(child: title),
-                                            for (final Widget t
-                                                in trailing) ...<Widget>[
-                                              const SizedBox(width: 12),
-                                              t,
-                                            ],
-                                          ],
-                                        );
-                                      }
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: <Widget>[
-                                          title,
-                                          const SizedBox(height: 12),
-                                          Wrap(
-                                            spacing: 12,
-                                            runSpacing: 8,
-                                            children: trailing,
-                                          ),
-                                        ],
-                                      );
-                                    },
-                              ),
-                              if (screenTitle != null) ...<Widget>[
-                                // Figma delta (159:2295): page-title top 105 →
-                                // screen-title top 191 = 86px, minus the
-                                // 28px-font page title's own ~34px line box =
-                                // 52px gap. Same delta on 164:3213/169:3683.
-                                const SizedBox(height: 52),
-                                Text(screenTitle!, style: screenTitleStyle),
-                              ],
-                              if (subtitle != null) ...<Widget>[
-                                // Figma: screen-title top 191 (h31) → subtitle
-                                // top 227 = 5px gap on the Last Intent flow
-                                // screens; 89:1196 Home (no screenTitle) uses
-                                // a 7px gap from the page-title instead.
-                                SizedBox(height: screenTitle != null ? 5 : 7),
-                                Text(
-                                  subtitle!,
-                                  style: SegueCardText.subtitle16,
-                                ),
-                              ],
-                              SizedBox(height: bodyTopGap),
-                              Expanded(
-                                child: LayoutBuilder(
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(31, 24, 31, 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                LayoutBuilder(
                                   builder:
                                       (
                                         BuildContext context,
                                         BoxConstraints constraints,
                                       ) {
-                                        return SingleChildScrollView(
-                                          // Gives short content (loading/
-                                          // empty/error states, all of
-                                          // which Center themselves) a real
-                                          // height to center within —
-                                          // without this, a
-                                          // SingleChildScrollView's
-                                          // unbounded height means Center
-                                          // just collapses to the top
-                                          // instead of the middle of the
-                                          // visible pane. Taller content
-                                          // still scrolls normally past
-                                          // this floor.
-                                          child: ConstrainedBox(
-                                            constraints: BoxConstraints(
-                                              minHeight: constraints.maxHeight,
+                                        final Widget title = Text(
+                                          pageTitle,
+                                          style: SegueCardText.pageTitle28,
+                                          overflow: TextOverflow.ellipsis,
+                                        );
+                                        final List<Widget> trailing = <Widget>[
+                                          if (stepBadge != null)
+                                            Container(
+                                              width: 53,
+                                              height: 36,
+                                              alignment: Alignment.center,
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    SegueCardColors.stepBadgeBg,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                stepBadge!,
+                                                style:
+                                                    SegueCardText.stepBadge20,
+                                              ),
                                             ),
-                                            child: body,
-                                          ),
+                                          if (titleTrailing != null)
+                                            titleTrailing!,
+                                        ];
+                                        // A fixed-width titleTrailing widget (e.g.
+                                        // 89:1196's 173px-wide Start Segue Button)
+                                        // has no narrower Figma variant, so this
+                                        // app's own responsive fallback drops it
+                                        // below the title instead of overflowing.
+                                        if (trailing.isEmpty ||
+                                            constraints.maxWidth >= 360) {
+                                          return Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: <Widget>[
+                                              Expanded(child: title),
+                                              for (final Widget t
+                                                  in trailing) ...<Widget>[
+                                                const SizedBox(width: 12),
+                                                t,
+                                              ],
+                                            ],
+                                          );
+                                        }
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: <Widget>[
+                                            title,
+                                            const SizedBox(height: 12),
+                                            Wrap(
+                                              spacing: 12,
+                                              runSpacing: 8,
+                                              children: trailing,
+                                            ),
+                                          ],
                                         );
                                       },
                                 ),
-                              ),
-                              if (bottomBar != null) bottomBar!,
-                            ],
+                                if (screenTitle != null) ...<Widget>[
+                                  // Figma delta (159:2295): page-title top 105 →
+                                  // screen-title top 191 = 86px, minus the
+                                  // 28px-font page title's own ~34px line box =
+                                  // 52px gap. Same delta on 164:3213/169:3683.
+                                  const SizedBox(height: 52),
+                                  Text(screenTitle!, style: screenTitleStyle),
+                                ],
+                                if (subtitle != null) ...<Widget>[
+                                  // Figma: screen-title top 191 (h31) → subtitle
+                                  // top 227 = 5px gap on the Last Intent flow
+                                  // screens; 89:1196 Home (no screenTitle) uses
+                                  // a 7px gap from the page-title instead.
+                                  SizedBox(height: screenTitle != null ? 5 : 7),
+                                  Text(
+                                    subtitle!,
+                                    style: SegueCardText.subtitle16,
+                                  ),
+                                ],
+                                SizedBox(height: bodyTopGap),
+                                Expanded(
+                                  child: LayoutBuilder(
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          BoxConstraints constraints,
+                                        ) {
+                                          return SingleChildScrollView(
+                                            // Gives short content (loading/
+                                            // empty/error states, all of
+                                            // which Center themselves) a real
+                                            // height to center within —
+                                            // without this, a
+                                            // SingleChildScrollView's
+                                            // unbounded height means Center
+                                            // just collapses to the top
+                                            // instead of the middle of the
+                                            // visible pane. Taller content
+                                            // still scrolls normally past
+                                            // this floor.
+                                            child: ConstrainedBox(
+                                              constraints: BoxConstraints(
+                                                minHeight:
+                                                    constraints.maxHeight,
+                                              ),
+                                              child: body,
+                                            ),
+                                          );
+                                        },
+                                  ),
+                                ),
+                                if (bottomBar != null) bottomBar!,
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

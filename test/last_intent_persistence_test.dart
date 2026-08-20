@@ -199,6 +199,26 @@ void main() {
     },
   );
 
+  test(
+    'in-stock completion survives clearing the session and looking up the same customer again',
+    () async {
+      final MockSegueRepository repository = MockSegueRepository();
+      final StaffWebSessionController controller = StaffWebSessionController(
+        repository: repository,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.lookupCustomer('010-1234-5678');
+      controller.markProductChecked(4);
+      controller.reset();
+
+      await controller.lookupCustomer('010-1234-5678');
+
+      expect(controller.state.currentCustomer?.id, 1);
+      expect(controller.state.checkedInStockSkuIds, contains(4));
+    },
+  );
+
   test('clearLookupResult() resets only the lookup-screen result, leaving '
       'currentCustomer/cart untouched', () async {
     final MockSegueRepository repository = MockSegueRepository();

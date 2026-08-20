@@ -70,6 +70,16 @@ class CartInventoryScreen extends StatelessWidget {
 
         final bool allComplete =
             items.isNotEmpty && items.every(isItemCompleted);
+        if (allComplete && !state.requiresFreshCustomerLookup) {
+          // Completion can be observed after the Last Intent route has
+          // already returned to this screen. Keep the fresh-lookup intent
+          // reliable even when that completion notification raced navigation.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              controller.requireFreshCustomerLookup();
+            }
+          });
+        }
 
         return SegueHeaderOnlyShell(
           heading: '쇼핑백 및 재고 확인',

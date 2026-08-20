@@ -93,8 +93,10 @@ void main() {
 
       // Never shows the "요청 접수 완료" hand-off screen for this actionType.
       expect(find.text('요청 접수 완료'), findsNothing);
-      // Lands back on the cart, with this SKU's row now marked complete.
+      // The other cart items are still unfinished, so completing this one
+      // Last Intent consultation must keep the current customer context.
       expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
+      expect(find.textContaining('김세계 님의 쇼핑백'), findsOneWidget);
       expect(find.text('상담 완료'), findsOneWidget);
     },
   );

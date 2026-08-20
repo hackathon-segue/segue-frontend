@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'models/models.dart';
 import 'providers/providers.dart';
 import 'repositories/repositories.dart';
 import 'screens/cart_inventory_screen.dart';
@@ -36,16 +37,47 @@ class _SegueAppState extends State<SegueApp> {
   // lifetime of the app so the CA's lookup/consent/cart state survives
   // navigation across the staff/tablet route stack (home → customer lookup
   // → consent), mirroring how RepositoryScope is already shared.
-  late final SegueRepository _repository =
-      widget.repository ??
-      (AppConfig.useMockData
-          ? MockSegueRepository(seedDemoConsultationResults: true)
-          : RealSegueRepository(apiClient: HttpSegueApiClient()));
-  late final StaffWebSessionController _staffSessionController =
-      StaffWebSessionController(repository: _repository)
-        ..onConsentChanged = _lastIntentSessionManager.resetForCustomer;
-  late final LastIntentSessionManager _lastIntentSessionManager =
-      LastIntentSessionManager(repository: _repository);
+  late final SegueRepository _repository;
+  late final StaffWebSessionController _staffSessionController;
+  late final LastIntentSessionManager _lastIntentSessionManager;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository =
+        widget.repository ??
+        (AppConfig.useMockData
+            ? MockSegueRepository(seedDemoConsultationResults: true)
+            : RealSegueRepository(apiClient: HttpSegueApiClient()));
+    _lastIntentSessionManager = LastIntentSessionManager(
+      repository: _repository,
+    );
+    _staffSessionController = StaffWebSessionController(repository: _repository)
+      ..onConsentChanged = _lastIntentSessionManager.resetForCustomer;
+    void resetIfAllCartItemsCompleted() {
+      final StaffWebSessionState state = _staffSessionController.state;
+      final Customer? customer = state.currentCustomer;
+      final List<CartItem> items = state.cartState.data ?? state.cartItems;
+      if (customer == null || items.isEmpty) {
+        return;
+      }
+
+      final bool allItemsCompleted = items.every((CartItem item) {
+        if (item.inventory.currentStoreInStock) {
+          return state.checkedInStockSkuIds.contains(item.skuId);
+        }
+        return _lastIntentSessionManager.isCompleted(customer.id, item.skuId);
+      });
+      if (allItemsCompleted) {
+        _staffSessionController.requireFreshCustomerLookup();
+      }
+    }
+
+    _staffSessionController.onCartCompletionChanged =
+        resetIfAllCartItemsCompleted;
+    _lastIntentSessionManager.onAllSessionsCompleted =
+        resetIfAllCartItemsCompleted;
+  }
 
   @override
   void dispose() {

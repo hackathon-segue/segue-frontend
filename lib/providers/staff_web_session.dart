@@ -17,6 +17,7 @@ class StaffWebSessionState {
     this.consentState = const AsyncValue<CustomerConsent>.idle(),
     this.cartState = const AsyncValue<List<CartItem>>.idle(),
     this.checkedInStockSkuIds = const <int>{},
+    this.requiresFreshCustomerLookup = false,
   });
 
   final int storeId;
@@ -44,6 +45,7 @@ class StaffWebSessionState {
   /// items have no Last Intent session (no structureIntent/decide/execute),
   /// so this is the only signal for their per-row "상담 완료" state.
   final Set<int> checkedInStockSkuIds;
+  final bool requiresFreshCustomerLookup;
 
   StaffWebSessionState copyWith({
     int? storeId,
@@ -53,6 +55,7 @@ class StaffWebSessionState {
     AsyncValue<CustomerConsent>? consentState,
     AsyncValue<List<CartItem>>? cartState,
     Set<int>? checkedInStockSkuIds,
+    bool? requiresFreshCustomerLookup,
   }) {
     return StaffWebSessionState(
       storeId: storeId ?? this.storeId,
@@ -62,6 +65,8 @@ class StaffWebSessionState {
       consentState: consentState ?? this.consentState,
       cartState: cartState ?? this.cartState,
       checkedInStockSkuIds: checkedInStockSkuIds ?? this.checkedInStockSkuIds,
+      requiresFreshCustomerLookup:
+          requiresFreshCustomerLookup ?? this.requiresFreshCustomerLookup,
     );
   }
 }
@@ -69,14 +74,19 @@ class StaffWebSessionState {
 class StaffWebSessionController extends ChangeNotifier {
   StaffWebSessionController({required SegueRepository repository})
     : _repository = repository {
+    _restoreCheckedInStockItems();
     _restoreCurrentCustomer();
   }
 
   final SegueRepository _repository;
 
   static const String _currentCustomerStorageKey = 'segue.currentCustomer';
+  static const String _checkedInStockStorageKey =
+      'segue.checkedInStockSkuIdsByCustomer';
+  static const String _freshLookupStorageKey = 'segue.requiresFreshLookup';
 
   StaffWebSessionState _state = const StaffWebSessionState();
+  final Map<int, Set<int>> _checkedInStockSkuIdsByCustomer = <int, Set<int>>{};
 
   StaffWebSessionState get state => _state;
 
@@ -87,6 +97,10 @@ class StaffWebSessionController extends ChangeNotifier {
   /// [LastIntentSessionManager.resetForCustomer], never a blanket reset,
   /// since other customers' in-progress sessions are unrelated.
   ValueChanged<int>? onConsentChanged;
+
+  /// Fired after an in-stock cart item is marked complete. The app wires this
+  /// to the same all-cart-items check used by Last Intent completion.
+  VoidCallback? onCartCompletionChanged;
 
   void setStoreId(int storeId) {
     _state = _state.copyWith(storeId: storeId);
@@ -99,7 +113,19 @@ class StaffWebSessionController extends ChangeNotifier {
   /// this customer (e.g. "고객 조회로 돌아가기" after a declined consent).
   void reset() {
     LocalStorage.removeItem(_currentCustomerStorageKey);
+    LocalStorage.removeItem(_freshLookupStorageKey);
     _state = StaffWebSessionState(storeId: _state.storeId);
+    notifyListeners();
+  }
+
+  /// Keeps the customer visible on the cart after the final item is done, but
+  /// makes the next CURRENT SESSION action start from customer lookup.
+  void requireFreshCustomerLookup() {
+    if (_state.currentCustomer == null || _state.requiresFreshCustomerLookup) {
+      return;
+    }
+    LocalStorage.setItem(_freshLookupStorageKey, 'true');
+    _state = _state.copyWith(requiresFreshCustomerLookup: true);
     notifyListeners();
   }
 
@@ -131,6 +157,9 @@ class StaffWebSessionController extends ChangeNotifier {
     _state = StaffWebSessionState(
       storeId: _state.storeId,
       currentCustomer: customer,
+      checkedInStockSkuIds:
+          _checkedInStockSkuIdsByCustomer[customer.id] ?? const <int>{},
+      requiresFreshCustomerLookup: false,
     );
     _persistCurrentCustomer(customer);
     notifyListeners();
@@ -158,6 +187,9 @@ class StaffWebSessionController extends ChangeNotifier {
         storeId: _state.storeId,
         currentCustomer: customer,
         lookupState: AsyncValue<Customer>.data(customer),
+        checkedInStockSkuIds:
+            _checkedInStockSkuIdsByCustomer[customer.id] ?? const <int>{},
+        requiresFreshCustomerLookup: false,
       );
       _persistCurrentCustomer(customer);
     } catch (error, stackTrace) {
@@ -193,7 +225,10 @@ class StaffWebSessionController extends ChangeNotifier {
         consentState: AsyncValue<CustomerConsent>.data(consent),
         cartItems: const <CartItem>[],
         cartState: const AsyncValue<List<CartItem>>.idle(),
+        checkedInStockSkuIds: const <int>{},
       );
+      _checkedInStockSkuIdsByCustomer.remove(updatedCustomer.id);
+      _persistCheckedInStockItems();
       _persistCurrentCustomer(updatedCustomer);
       onConsentChanged?.call(updatedCustomer.id);
     } catch (error, stackTrace) {
@@ -246,10 +281,19 @@ class StaffWebSessionController extends ChangeNotifier {
   /// "해당 제품 상담 완료" button) — the row on [CartInventoryScreen] reflects
   /// this immediately since both screens share this controller.
   void markProductChecked(int skuId) {
-    _state = _state.copyWith(
-      checkedInStockSkuIds: <int>{..._state.checkedInStockSkuIds, skuId},
-    );
+    final Customer? customer = _state.currentCustomer;
+    if (customer == null) {
+      return;
+    }
+    final Set<int> checked = <int>{
+      ...(_checkedInStockSkuIdsByCustomer[customer.id] ?? const <int>{}),
+      skuId,
+    };
+    _checkedInStockSkuIdsByCustomer[customer.id] = checked;
+    _persistCheckedInStockItems();
+    _state = _state.copyWith(checkedInStockSkuIds: checked);
     notifyListeners();
+    onCartCompletionChanged?.call();
   }
 
   /// Restores [StaffWebSessionState.currentCustomer] from a previous visit
@@ -272,7 +316,13 @@ class StaffWebSessionController extends ChangeNotifier {
         return;
       }
       final Customer restored = Customer.fromJson(asJsonMap(decoded));
-      _state = _state.copyWith(currentCustomer: restored);
+      _state = _state.copyWith(
+        currentCustomer: restored,
+        checkedInStockSkuIds:
+            _checkedInStockSkuIdsByCustomer[restored.id] ?? const <int>{},
+        requiresFreshCustomerLookup:
+            LocalStorage.getItem(_freshLookupStorageKey) == 'true',
+      );
       if (restored.hasConsented) {
         loadCart();
       }
@@ -286,5 +336,44 @@ class StaffWebSessionController extends ChangeNotifier {
       _currentCustomerStorageKey,
       jsonEncode(customer.toJson()),
     );
+  }
+
+  void _restoreCheckedInStockItems() {
+    final String? raw = LocalStorage.getItem(_checkedInStockStorageKey);
+    if (raw == null) {
+      return;
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return;
+      }
+      for (final MapEntry<Object?, Object?> entry in decoded.entries) {
+        final int? customerId = int.tryParse(entry.key.toString());
+        final Object? values = entry.value;
+        if (customerId == null || values is! List) {
+          continue;
+        }
+        _checkedInStockSkuIdsByCustomer[customerId] = <int>{
+          for (final Object? value in values)
+            if (value is num) value.toInt(),
+        };
+      }
+    } catch (_) {
+      LocalStorage.removeItem(_checkedInStockStorageKey);
+    }
+  }
+
+  void _persistCheckedInStockItems() {
+    final Map<String, List<int>> payload = <String, List<int>>{
+      for (final MapEntry<int, Set<int>> entry
+          in _checkedInStockSkuIdsByCustomer.entries)
+        entry.key.toString(): entry.value.toList(),
+    };
+    if (payload.isEmpty) {
+      LocalStorage.removeItem(_checkedInStockStorageKey);
+    } else {
+      LocalStorage.setItem(_checkedInStockStorageKey, jsonEncode(payload));
+    }
   }
 }
