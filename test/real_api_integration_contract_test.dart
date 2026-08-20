@@ -31,6 +31,35 @@ void main() {
     expect(customer.hasConsented, isTrue);
   });
 
+  test('real repository posts customer login credentials', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      postResponse: <String, Object?>{
+        'customerId': 1,
+        'name': '김세계',
+        'email': 'segye@example.com',
+        'phone': '010-1234-5678',
+        'hasConsented': true,
+      },
+    );
+    final RealSegueRepository repository = RealSegueRepository(
+      apiClient: apiClient,
+    );
+
+    final Customer customer = await repository.loginCustomer(
+      email: 'segye@example.com',
+      password: 'password123',
+    );
+
+    expect(apiClient.lastPostPath, '/api/customers/login');
+    expect(apiClient.lastPostBody, <String, Object?>{
+      'email': 'segye@example.com',
+      'password': 'password123',
+    });
+    expect(customer.id, 1);
+    expect(customer.email, 'segye@example.com');
+    expect(customer.phoneNumber, '010-1234-5678');
+  });
+
   test('real repository posts the staff consent decision', () async {
     final _RecordingApiClient apiClient = _RecordingApiClient(
       postResponse: <String, Object?>{

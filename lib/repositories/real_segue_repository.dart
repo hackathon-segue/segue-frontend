@@ -10,6 +10,18 @@ class RealSegueRepository implements SegueRepository {
   final SegueApiClient _apiClient;
 
   @override
+  Future<Customer> loginCustomer({
+    required String email,
+    required String password,
+  }) async {
+    final Object? response = await _apiClient.postJson(
+      '/api/customers/login',
+      body: <String, Object?>{'email': email, 'password': password},
+    );
+    return _customerFromResponse(response);
+  }
+
+  @override
   Future<Customer> lookupCustomerByPhone(String phoneNumber) async {
     final Object? response = await _apiClient.getJson(
       '/api/customers/lookup',
@@ -206,6 +218,17 @@ class RealSegueRepository implements SegueRepository {
   }
 }
 
+Customer _customerFromResponse(Object? response) {
+  final JsonMap json = asJsonMap(response);
+  for (final String key in <String>['customer', 'data', 'result']) {
+    final Object? nested = json[key];
+    if (nested is Map) {
+      return Customer.fromJson(asJsonMap(nested));
+    }
+  }
+  return Customer.fromJson(json);
+}
+
 List<MobileProduct> _mobileProductsFromResponse(Object? response) {
   final List<Object?> productItems = _extractProductList(response);
   if (productItems.isEmpty) {
@@ -265,7 +288,10 @@ MobileProduct _mobileProductFromJson(Object? value) {
     'categoryName',
     'category_name',
   ], defaultValue: '가방');
-  final List<MobileSkuOption> options = _mobileSkuOptionsFromJson(json);
+  final List<MobileSkuOption> options = _prioritizeRepresentativeOptions(
+    json,
+    _mobileSkuOptionsFromJson(json),
+  );
   final int visualValue = options.isEmpty
       ? 0xFF111827
       : options.first.swatchValue;
@@ -486,6 +512,83 @@ List<MobileSkuOption> _mobileSkuOptionsFromJson(JsonMap json) {
       .toList();
 }
 
+List<MobileSkuOption> _prioritizeRepresentativeOptions(
+  JsonMap json,
+  List<MobileSkuOption> options,
+) {
+  if (options.length < 2) {
+    return options;
+  }
+
+  final int? representativeSkuId = _nullableIntAny(json, <String>[
+    'skuId',
+    'sku_id',
+    'selectedSkuId',
+    'selected_sku_id',
+    'representativeSkuId',
+    'representative_sku_id',
+    'defaultSkuId',
+    'default_sku_id',
+  ]);
+  final String representativeColor = _stringValueAny(json, <String>[
+    'color',
+    'colorName',
+    'color_name',
+    'selectedColor',
+    'selected_color',
+    'representativeColor',
+    'representative_color',
+    'mainColor',
+    'main_color',
+  ]);
+  final String representativeSize = _stringValueAny(json, <String>[
+    'size',
+    'sizeName',
+    'size_name',
+    'selectedSize',
+    'selected_size',
+    'representativeSize',
+    'representative_size',
+    'mainSize',
+    'main_size',
+  ]);
+
+  final int representativeIndex = options.indexWhere((
+    MobileSkuOption option,
+  ) {
+    if (representativeSkuId != null && option.skuId == representativeSkuId) {
+      return true;
+    }
+
+    final bool colorMatches =
+        representativeColor.trim().isNotEmpty &&
+        _normalizedSkuText(option.color) ==
+            _normalizedSkuText(representativeColor);
+    final bool sizeMatches =
+        representativeSize.trim().isNotEmpty &&
+        _normalizedSkuText(option.size) == _normalizedSkuText(representativeSize);
+
+    if (colorMatches && representativeSize.trim().isEmpty) {
+      return true;
+    }
+    return colorMatches && sizeMatches;
+  });
+
+  if (representativeIndex <= 0) {
+    return options;
+  }
+
+  return <MobileSkuOption>[
+    options[representativeIndex],
+    for (int index = 0; index < options.length; index += 1)
+      if (index != representativeIndex) options[index],
+  ];
+}
+
+String _normalizedSkuText(String value) {
+  return value.trim().toLowerCase().replaceAll(' ', '');
+}
+
 bool _containsAnyKey(JsonMap json, Iterable<String> keys) {
   for (final String key in keys) {
     if (json.containsKey(key)) {
@@ -580,12 +683,24 @@ bool? _nullableBoolAny(JsonMap json, Iterable<String> keys) {
 }
 
 int _swatchValueFor(String color) {
-  return switch (color.toLowerCase()) {
-    'black' || '블랙' => 0xFF111827,
+  final String normalized = color.trim().toLowerCase().replaceAll(' ', '');
+  return switch (normalized) {
+    'black' || '블랙' => 0xFF111111,
     'navy' || '네이비' => 0xFF1E3A5F,
     'beige' || '베이지' => 0xFFE8D9C5,
     'orange' || '오렌지' => 0xFFE85F35,
-    'khaki' || '카키' => 0xFF66735F,
+    'khaki' || '카키' || 'green' || '그린' => 0xFF66735F,
+    'cognac' ||
+    '꼬냑' ||
+    '코냑' ||
+    'camel' ||
+    '카멜' ||
+    'brown' ||
+    '브라운' => 0xFFB87945,
+    'darkbrown' || '다크브라운' => 0xFF5B3A24,
+    'pink' || '핑크' => 0xFFE9B5C4,
+    'white' || '화이트' => 0xFFF7F7F7,
+    'gray' || 'grey' || '그레이' => 0xFF9CA3AF,
     _ => 0xFFB87945,
   };
 }

@@ -46,7 +46,9 @@ void main() {
     // now the real customer-facing app) — reach staff routes via a direct
     // named push instead, same as the app's own wireframe QA does.
     Navigator.of(
-      tester.element(find.text('LXXVI')),
+      tester.element(
+        find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+      ),
     ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
 

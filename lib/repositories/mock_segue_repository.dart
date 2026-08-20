@@ -29,6 +29,22 @@ class MockSegueRepository implements SegueRepository {
   int _nextConsultationResultId = 100;
 
   @override
+  Future<Customer> loginCustomer({
+    required String email,
+    required String password,
+  }) async {
+    if (email.trim() == MockDemoFixtures.consentedCustomerEmail &&
+        password == MockDemoFixtures.consentedCustomerPassword) {
+      return MockDemoFixtures.consentedCustomer;
+    }
+    throw const ApiException(
+      '이메일 또는 비밀번호가 일치하지 않습니다.',
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+    );
+  }
+
+  @override
   Future<Customer> lookupCustomerByPhone(String phoneNumber) async {
     return switch (phoneNumber) {
       MockDemoFixtures.consentedCustomerPhone =>

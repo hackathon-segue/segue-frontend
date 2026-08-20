@@ -29,7 +29,9 @@ void main() {
 
     await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
     Navigator.of(
-      tester.element(find.text('LXXVI')),
+      tester.element(
+        find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+      ),
     ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
 

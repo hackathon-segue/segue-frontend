@@ -41,6 +41,8 @@ abstract final class MockDemoFixtures {
   static const int originalProductId = 1;
   static const String consentedCustomerPhone = '010-1234-5678';
   static const String unconsentedCustomerPhone = '010-9876-5432';
+  static const String consentedCustomerEmail = '1234@1234.com';
+  static const String consentedCustomerPassword = '12345678';
   static const String originalProductName = 'MCM 백팩 미디움';
   static const String consentScope = '장바구니 조회, 구매 의도·상담 결과 저장, 고객 모바일 재확인';
 
@@ -51,6 +53,7 @@ abstract final class MockDemoFixtures {
     name: '김세계',
     phoneNumber: consentedCustomerPhone,
     hasConsented: true,
+    email: consentedCustomerEmail,
   );
 
   static const Customer unconsentedCustomer = Customer(

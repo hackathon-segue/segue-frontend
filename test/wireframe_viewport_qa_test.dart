@@ -13,6 +13,12 @@ import 'package:segue_frontend/widgets/staff_button.dart';
 
 const double _minTapTarget = 44;
 
+Future<void> _enterDemoLoginCredentials(WidgetTester tester) async {
+  await tester.enterText(find.byType(TextField).at(0), '1234@1234.com');
+  await tester.enterText(find.byType(TextField).at(1), '12345678');
+  await tester.pump();
+}
+
 void main() {
   group('customer mobile wireframe viewport QA', () {
     const List<(String, Size)> mobileViewports = <(String, Size)>[
@@ -33,8 +39,11 @@ void main() {
           ),
         );
         _expectScreenReady(tester, 'mobile start');
-        _expectVisibleTextInViewport(tester, 'LXXVI');
-        _expectVisibleTextInViewport(tester, '1976');
+        _expectFinderInViewport(
+          tester,
+          find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+          'customer mobile start logo',
+        );
         _expectTapTarget(tester, find.byTooltip('메뉴 열기'), '메뉴 열기');
 
         await tester.tap(find.byTooltip('메뉴 열기'));
@@ -45,6 +54,7 @@ void main() {
 
         await tester.tap(find.text('로그인'));
         await tester.pumpAndSettle();
+        await _enterDemoLoginCredentials(tester);
         await tester.tap(find.text('로그인').last);
         await tester.pumpAndSettle();
 
@@ -53,8 +63,10 @@ void main() {
 
         await tester.tap(find.text('신상품').last);
         await tester.pumpAndSettle();
+        await tester.tap(find.text('AUTUMN WINTER 2026'));
+        await tester.pumpAndSettle();
         _expectScreenReady(tester, 'mobile product list');
-        _expectVisibleTextInViewport(tester, 'AUTUMN WINTER 2026');
+        _expectVisibleTextInViewport(tester, '정렬 기준 / 필터');
         await tester.ensureVisible(find.text('Diamond 3D 카프스킨 숄더백').first);
         _expectVisibleTextInViewport(tester, 'Diamond 3D 카프스킨 숄더백');
 
@@ -68,7 +80,7 @@ void main() {
 
         await _tapMaterialButton(tester, '쇼핑백에 추가');
         _expectScreenReady(tester, 'mobile cart added');
-        _expectVisibleTextInViewport(tester, '새로운 상품이 쇼핑백에 추가되었습니다!');
+        _expectVisibleTextInViewport(tester, '새로운 상품이 추가되었습니다!');
         _expectMaterialTapTarget(tester, '쇼핑백 확인하기');
         _expectMaterialTapTarget(tester, '계속 쇼핑하기');
 
@@ -90,6 +102,8 @@ void main() {
         _expectScreenReady(tester, 'mobile segue result detail');
         _expectVisibleTextInViewport(tester, 'SEGUE 결과');
         _expectVisibleTextInViewport(tester, '핵심 조건');
+        await tester.ensureVisible(find.text('상담 완료'));
+        await tester.pumpAndSettle();
         _expectVisibleTextInViewport(tester, '상담 완료');
       });
     }
@@ -438,7 +452,9 @@ Future<void> _openStaffHome(WidgetTester tester) async {
     ),
   );
   Navigator.of(
-    tester.element(find.text('LXXVI')),
+    tester.element(
+      find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+    ),
   ).pushNamed(AppRoutes.staffHome);
   await tester.pumpAndSettle();
 }
@@ -542,6 +558,11 @@ void _expectVisibleTextInViewport(WidgetTester tester, String text) {
   final Finder finder = find.text(text);
   expect(finder, findsWidgets, reason: _renderedTextSnapshot(tester));
   _expectRectInViewport(tester, tester.getRect(finder.first), text);
+}
+
+void _expectFinderInViewport(WidgetTester tester, Finder finder, String label) {
+  expect(finder, findsWidgets, reason: '$label should be rendered.');
+  _expectRectInViewport(tester, tester.getRect(finder.first), label);
 }
 
 void _expectAnyVisibleTextInViewport(WidgetTester tester, List<String> texts) {

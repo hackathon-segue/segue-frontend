@@ -22,14 +22,20 @@ class Customer {
     required this.name,
     required this.phoneNumber,
     required this.hasConsented,
+    this.email = '',
   });
 
   factory Customer.fromJson(JsonMap json) {
     return Customer(
-      id: intValue(json, 'id'),
+      id: intValue(json, 'id', defaultValue: intValue(json, 'customerId')),
       name: stringValue(json, 'name'),
-      phoneNumber: stringValue(json, 'phoneNumber'),
+      phoneNumber: stringValue(
+        json,
+        'phoneNumber',
+        defaultValue: stringValue(json, 'phone'),
+      ),
       hasConsented: boolValue(json, 'hasConsented'),
+      email: stringValue(json, 'email'),
     );
   }
 
@@ -37,13 +43,15 @@ class Customer {
   final String name;
   final String phoneNumber;
   final bool hasConsented;
+  final String email;
 
-  Customer copyWith({bool? hasConsented}) {
+  Customer copyWith({bool? hasConsented, String? email}) {
     return Customer(
       id: id,
       name: name,
       phoneNumber: phoneNumber,
       hasConsented: hasConsented ?? this.hasConsented,
+      email: email ?? this.email,
     );
   }
 
@@ -53,6 +61,7 @@ class Customer {
       'name': name,
       'phoneNumber': phoneNumber,
       'hasConsented': hasConsented,
+      'email': email,
     };
   }
 }

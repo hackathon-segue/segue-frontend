@@ -13,6 +13,8 @@ Future<void> _openNewProducts(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('신상품').last);
   await tester.pumpAndSettle();
+  await tester.tap(find.text('AUTUMN WINTER 2026'));
+  await tester.pumpAndSettle();
 }
 
 Future<void> _loginMobileCustomer(WidgetTester tester) async {
@@ -20,8 +22,15 @@ Future<void> _loginMobileCustomer(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('로그인'));
   await tester.pumpAndSettle();
+  await _enterDemoLoginCredentials(tester);
   await tester.tap(find.text('로그인').last);
   await tester.pumpAndSettle();
+}
+
+Future<void> _enterDemoLoginCredentials(WidgetTester tester) async {
+  await tester.enterText(find.byType(TextField).at(0), '1234@1234.com');
+  await tester.enterText(find.byType(TextField).at(1), '12345678');
+  await tester.pump();
 }
 
 Future<void> _openSegueHistoryFromMenu(WidgetTester tester) async {
@@ -42,18 +51,27 @@ void main() {
 
     await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
 
-    expect(find.text('LXXVI'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
 
     expect(find.text('쇼핑백'), findsOneWidget);
+    expect(find.text('2026 가을-겨울 컬렉션 둘러보기'), findsOneWidget);
+    expect(find.text('MCM X DJ KHALED X WE THE BEST 둘러보기'), findsOneWidget);
+
+    await tester.tap(find.text('가방'));
+    await tester.pumpAndSettle();
+
     expect(find.text('토트백 & 쇼퍼백'), findsWidgets);
 
     await tester.tap(find.text('모두보기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('AUTUMN WINTER 2026'), findsOneWidget);
+    expect(find.text('정렬 기준 / 필터'), findsOneWidget);
     expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
   });
 
@@ -79,6 +97,38 @@ void main() {
     expect(find.text('계정이 없으신가요? 회원가입하기'), findsOneWidget);
   });
 
+  testWidgets('customer mobile menu opens the SEGUE intro screen', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SEGUE 소개'));
+    await tester.pumpAndSettle();
+    expect(find.text('SEGUE와 함께 이어나가는 여정'), findsOneWidget);
+    await tester.tap(find.text('SEGUE와 함께 이어나가는 여정'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SEGUE, 온라인에서 시작된 선택을 매장에서 이어갑니다.'), findsOneWidget);
+    expect(find.text('단순히 가장 비슷한 제품이 아닌 가장 적합한 다음 경험'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('SEGUE 내역 확인'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('SEGUE 내역 확인'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('해당 기능은 로그인 이후에 가능합니다.'), findsOneWidget);
+  });
+
   testWidgets('menu login row changes to my account after login', (
     WidgetTester tester,
   ) async {
@@ -95,6 +145,7 @@ void main() {
 
     await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
+    await _enterDemoLoginCredentials(tester);
     await tester.tap(find.text('로그인').last);
     await tester.pumpAndSettle();
 
@@ -109,6 +160,39 @@ void main() {
 
     expect(find.text('계정 상세정보'), findsOneWidget);
     expect(find.text('1234@1234.com'), findsOneWidget);
+  });
+
+  testWidgets('customer mobile login mismatch shows the error dialog', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('로그인'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'wrong@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'wrong-password');
+    await tester.tap(find.text('로그인').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('이메일 또는 비밀번호가 일치하지 않습니다.'), findsOneWidget);
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey<String>('login-mismatch-dialog-panel')),
+      ),
+      const Size(302, 84),
+    );
+
+    await tester.tap(find.byTooltip('로그인 오류 닫기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('이메일 또는 비밀번호가 일치하지 않습니다.'), findsNothing);
   });
 
   testWidgets('top profile icon opens my account from product detail', (
@@ -133,7 +217,7 @@ void main() {
     expect(find.text('계정 상세정보'), findsOneWidget);
   });
 
-  testWidgets('shopping bag requires login before opening', (
+  testWidgets('shopping bag opens empty login prompt before login', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -148,22 +232,44 @@ void main() {
     await tester.tap(find.text('쇼핑백'));
     await tester.pumpAndSettle();
 
+    expect(find.text('나의 쇼핑백(0개 품목)'), findsOneWidget);
+    expect(find.text('쇼핑백이 비어 있습니다.'), findsOneWidget);
+    expect(find.text('로그인'), findsOneWidget);
+    expect(find.text(' 후 쇼핑백 확인하러 가기'), findsOneWidget);
+
+    await tester.tap(find.text('로그인'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('로그인 닫기'), findsOneWidget);
+  });
+
+  testWidgets('adding a product to the shopping bag requires login', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
+    await _openNewProducts(tester);
+
+    await tester.tap(find.text('Diamond 3D 카프스킨 숄더백').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('쇼핑백에 추가'));
+    await tester.pumpAndSettle();
+
     expect(find.text('해당 기능은 로그인 이후에 가능합니다.'), findsOneWidget);
-    expect(find.text('회원가입!'), findsOneWidget);
-    expect(find.text('로그인'), findsWidgets);
+    expect(find.text('새로운 상품이 추가되었습니다!'), findsNothing);
     expect(
       tester
           .getSize(
             find.byKey(const ValueKey<String>('login-required-dialog-panel')),
           )
-          .width,
-      lessThanOrEqualTo(390 - 44),
+          .height,
+      lessThanOrEqualTo(200),
     );
-
-    await tester.tap(find.text('로그인').last);
-    await tester.pumpAndSettle();
-
-    expect(find.byTooltip('로그인 닫기'), findsOneWidget);
   });
 
   testWidgets('SEGUE history requires login before opening', (
@@ -213,11 +319,15 @@ void main() {
     final Text seasonMenuItem = tester.widget<Text>(
       find.text('AUTUMN WINTER 2026'),
     );
-    expect(seasonMenuItem.style?.fontFamily, 'Montserrat');
+    final TextSpan seasonTextSpan = seasonMenuItem.textSpan! as TextSpan;
+    final TextSpan seasonLabelSpan =
+        seasonTextSpan.children!.single as TextSpan;
+    expect(seasonLabelSpan.style?.fontFamily, 'Montserrat');
 
     await tester.tap(find.text('AUTUMN WINTER 2026'));
     await tester.pumpAndSettle();
 
+    expect(find.text('정렬 기준 / 필터'), findsOneWidget);
     expect(find.text('Diamond 3D 카프스킨 숄더백'), findsOneWidget);
   });
 
@@ -279,6 +389,8 @@ void main() {
 
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('가방'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('탑 핸들백').last);
     await tester.pumpAndSettle();
 
@@ -330,7 +442,7 @@ void main() {
     await tester.tap(find.text('쇼핑백에 추가'));
     await tester.pumpAndSettle();
 
-    expect(find.text('새로운 상품이 쇼핑백에 추가되었습니다!'), findsOneWidget);
+    expect(find.text('새로운 상품이 추가되었습니다!'), findsOneWidget);
     expect(find.text('(1개 품목)'), findsOneWidget);
     expect(find.text('오렌지'), findsOneWidget);
     expect(find.text('스몰'), findsOneWidget);
@@ -372,6 +484,11 @@ void main() {
     expect(find.text('색상: 코냑'), findsOneWidget);
     expect(find.text('사이즈: 미디움'), findsOneWidget);
     expect(find.text('소재 및 상세 정보'), findsOneWidget);
+    expect(find.text('비세토스 캔버스'), findsNothing);
+
+    await tester.tap(find.text('소재 및 상세 정보'));
+    await tester.pumpAndSettle();
+
     expect(find.text('비세토스 캔버스'), findsOneWidget);
     expect(find.text('내부 포켓 2개'), findsOneWidget);
     expect(find.text('토트'), findsOneWidget);
