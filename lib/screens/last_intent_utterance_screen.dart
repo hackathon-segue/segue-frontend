@@ -188,6 +188,7 @@ class _LastIntentUtteranceScreenState extends State<LastIntentUtteranceScreen> {
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
       sessionCount: manager.activeCount,
+      guardedSession: session,
       // Figma (98:1881): a literal "2/5" step badge, same convention as
       // every other screen in this flow.
       stepBadge: '2/5',

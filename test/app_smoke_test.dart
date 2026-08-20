@@ -64,7 +64,7 @@ void main() {
   );
 
   testWidgets(
-    'looking up a consented customer shows the result card and consent CTA',
+    'looking up a consented customer shows the result card and cart CTA',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1;
@@ -81,10 +81,10 @@ void main() {
 
       // Issue #48 (89:1001): the result card itself has no cart-preview
       // list — that now lives only on CartInventoryScreen — but the
-      // customer identity and consent CTA are still real, live-looked-up
+      // customer identity and next CTA are still real, live-looked-up
       // data/state, not fabricated.
       expect(find.text('김세계'), findsOneWidget);
-      expect(find.text('상담 데이터 이용 동의 확인'), findsOneWidget);
+      expect(find.text('쇼핑백 확인'), findsOneWidget);
     },
   );
 

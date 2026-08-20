@@ -107,6 +107,7 @@ class _LastIntentFollowUpScreenState extends State<LastIntentFollowUpScreen> {
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
       sessionCount: manager.activeCount,
+      guardedSession: session,
       // Figma (98:1981): a literal "2/5" step badge — the follow-up
       // question is a sub-step of step 2, same convention as every other
       // screen in this flow.

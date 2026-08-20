@@ -23,7 +23,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Loading...'), findsOneWidget);
     expect(find.text('표시할 내용이 없습니다'), findsOneWidget);
     expect(find.text('다시 확인이 필요합니다'), findsOneWidget);
     expect(find.text('완료되었습니다'), findsOneWidget);

@@ -4,7 +4,6 @@ import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/screens/last_intent_completion_screen.dart';
 import 'package:segue_frontend/utils/app_config.dart';
-import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// Issue #46/#64: ADDITIONAL_CONSULTATION detail screen — Figma 169:3683
 /// ("진행" checked) / 169:3821 ("미진행" checked), a single screen with a
@@ -40,18 +39,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < tester.widgetList(checkRows).length; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
-    }
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
+    final Finder cartButton = find.text('쇼핑백 확인');
+    await tester.ensureVisible(cartButton);
+    await tester.tap(cartButton);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Last Intent 시작').first);

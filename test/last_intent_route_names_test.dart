@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
-import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// "브라우저 뒤로가기가 가끔 앱 홈으로 튐" 버그 — this app has no
 /// usePathUrlStrategy()/Router2 setup, so on Flutter Web an UNNAMED pushed
@@ -46,18 +45,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < tester.widgetList(checkRows).length; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
-    }
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
+    final Finder cartButton = find.text('쇼핑백 확인');
+    await tester.ensureVisible(cartButton);
+    await tester.tap(cartButton);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Last Intent 시작').first);
@@ -97,7 +87,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(currentRouteName(tester), AppRoutes.lastIntentEdit);
     // Back to confirm — a plain pop, unaffected by naming.
-    final Finder cancelButton = find.text('취소');
+    final Finder cancelButton = find.text('이전으로 돌아가기');
     await tester.ensureVisible(cancelButton);
     await tester.tap(cancelButton);
     await tester.pumpAndSettle();

@@ -39,17 +39,23 @@ void main() {
     await tester.pumpAndSettle();
 
     final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < tester.widgetList(checkRows).length; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
+    if (consentButton.evaluate().isNotEmpty) {
+      await tester.ensureVisible(consentButton);
+      await tester.tap(consentButton);
+      await tester.pumpAndSettle();
+      final Finder checkRows = find.byType(SegueCheckboxRow);
+      for (int i = 0; i < tester.widgetList(checkRows).length; i++) {
+        await tester.tap(checkRows.at(i));
+        await tester.pump();
+      }
+      final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
+      await tester.ensureVisible(agreeButton);
+      await tester.tap(agreeButton);
+    } else {
+      final Finder cartButton = find.text('쇼핑백 확인');
+      await tester.ensureVisible(cartButton);
+      await tester.tap(cartButton);
     }
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
     await tester.pumpAndSettle();
   }
 
@@ -70,11 +76,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('고객 의도 입력 - 보충 질문'), findsOneWidget);
 
-    // Leave without answering the follow-up question — via the sidebar's
-    // HOME link, not completing the consultation. ("처음으로 돌아가기" no
-    // longer means Home here — it means SEGUE step 1, see
-    // navigateToLastIntentIntro — so it's not used for this exit.)
-    await tester.tap(find.text('HOME'));
+    // Leave without answering the follow-up question — directly via the
+    // Navigator (not the sidebar's HOME link/navigateToTabletRoute), same
+    // as this file's other tests below. The sidebar link itself now goes
+    // through the exit-consultation guard (Figma 500:3875, see
+    // navigation_guard_test.dart) which would intercept a raw tap here;
+    // this test's own concern is resume-by-step, not the guard.
+    Navigator.of(
+      tester.element(find.text('고객 의도 입력 - 보충 질문')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
     await tester.pumpAndSettle();
     expect(find.text('SEGUE HOME'), findsOneWidget);
 

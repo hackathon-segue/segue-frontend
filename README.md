@@ -21,57 +21,20 @@ Install dependencies first.
 flutter pub get
 ```
 
-Run Web — swap `API_BASE_URL` for whatever backend you're pointing at
-(a local server, an ngrok tunnel, a deployed URL). This runs against
+Run Web, Android, or iOS with `API_BASE_URL` supplied through
+`--dart-define` for the backend you want to target. This runs against
 the **real** `/api/...` endpoints by default (see [Environment
 Values](#environment-values)); no other flag is needed.
-
-```powershell
-flutter run -d chrome --web-port 5173 --dart-define=API_BASE_URL=https://genius-barrel-wilderness-olympic.trycloudflare.com --dart-define=APP_ENV=local
-```
-
-Run Android.
-
-```powershell
-flutter devices
-flutter run -d <android-device-id> --dart-define=API_BASE_URL=https://genius-barrel-wilderness-olympic.trycloudflare.com --dart-define=APP_ENV=local
-```
-
-Run iOS on macOS.
-
-```bash
-flutter devices
-flutter run -d <ios-device-id> --dart-define=API_BASE_URL=https://genius-barrel-wilderness-olympic.trycloudflare.com --dart-define=APP_ENV=local
-```
 
 ### Running against mock data instead
 
 To develop screens without a backend, add `--dart-define=USE_MOCK_DATA=true`
 to switch `RepositoryScope` to `MockSegueRepository`:
 
-```powershell
-flutter run -d chrome --web-port 5173 --dart-define=USE_MOCK_DATA=true --dart-define=API_BASE_URL=https://genius-barrel-wilderness-olympic.trycloudflare.com --dart-define=APP_ENV=local
-```
-
 ## Build
 
-Build Web.
-
-```powershell
-flutter build web --release --dart-define=API_BASE_URL=https://genius-barrel-wilderness-olympic.trycloudflare.com --dart-define=APP_ENV=production
-```
-
-Build Android.
-
-```powershell
-flutter build apk --release --dart-define=API_BASE_URL=https://genius-barrel-wilderness-olympic.trycloudflare.com --dart-define=APP_ENV=production
-```
-
-Build iOS on macOS.
-
-```bash
-flutter build ios --release --dart-define=API_BASE_URL=https://genius-barrel-wilderness-olympic.trycloudflare.com --dart-define=APP_ENV=production
-```
+Build Web, Android, or iOS with `APP_ENV` and `API_BASE_URL` supplied
+through `--dart-define` for the target environment.
 
 ## Routes
 
@@ -86,13 +49,12 @@ Runtime configuration is read through Dart compile-time defines.
 | Key | Default | Description |
 | --- | --- | --- |
 | `APP_ENV` | `local` | Current frontend environment name |
-| `API_BASE_URL` | `https://genius-barrel-wilderness-olympic.trycloudflare.com` | Backend API base URL |
+| `API_BASE_URL` | `http://localhost:8080` | Backend API base URL |
 | `USE_MOCK_DATA` | `false` | `true` switches `RepositoryScope` to `MockSegueRepository` instead of the real `RealSegueRepository` (HTTP calls to `API_BASE_URL`) |
 | `STORE_ID` | `1` | Store id sent with cart/consultation requests |
 
 ## Project Contracts
 
-- Backend demo base URL: `https://genius-barrel-wilderness-olympic.trycloudflare.com`
 - Customer mobile app starts the flow with `POST /api/cart`.
 - Staff web continues with customer lookup, consent, cart/inventory, Last Intent, execution, and status updates.
 - Backend does not keep a consultation session. The frontend keeps `structuredIntent` and `/decide` response values locally and sends them to the next request.

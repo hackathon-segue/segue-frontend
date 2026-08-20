@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
-import 'package:segue_frontend/widgets/segue_card_shell.dart';
 import 'package:segue_frontend/widgets/segue_product_image.dart';
 
 /// Issue #12: 의도 요약 확인 / 의도 수정 화면 — 표시, 저장, 취소, "맞아요" -> decide()
@@ -40,19 +39,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
-
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < 3; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
-    }
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
+    final Finder cartButton = find.text('쇼핑백 확인');
+    await tester.ensureVisible(cartButton);
+    await tester.tap(cartButton);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Last Intent 시작').first);
@@ -111,29 +100,32 @@ void main() {
     expect(find.text('고객 모바일'), findsNothing);
   });
 
-  testWidgets('수정할게요 -> edit fields -> 저장 reflects on the summary screen', (
-    WidgetTester tester,
-  ) async {
-    await reachConfirmScreen(tester);
+  testWidgets(
+    '수정할게요 -> edit fields -> 다음 단계로 reaches the Last Intent Card with the edit applied',
+    (WidgetTester tester) async {
+      await reachConfirmScreen(tester);
 
-    await tester.tap(find.text('수정할게요'));
-    await tester.pumpAndSettle();
-    expect(find.text('고객 구매 조건 수정'), findsOneWidget);
+      await tester.tap(find.text('수정할게요'));
+      await tester.pumpAndSettle();
+      expect(find.text('고객 구매 조건 수정'), findsOneWidget);
 
-    final Finder purposeField = find.byType(TextFormField).first;
-    await tester.enterText(purposeField, '출장용으로 매일 들 예정');
-    await tester.pump();
+      final Finder purposeField = find.byType(TextFormField).first;
+      await tester.enterText(purposeField, '출장용으로 매일 들 예정');
+      await tester.pump();
 
-    final Finder saveButton = find.text('저장');
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
+      // The edit screen's own "다음 단계로" saves AND calls decide()
+      // directly, landing on the Last Intent Card — not back on the
+      // summary screen.
+      final Finder nextButton = find.text('다음 단계로');
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
 
-    expect(find.text('고객 의도 요약 확인'), findsOneWidget);
-    expect(find.text('출장용으로 매일 들 예정'), findsOneWidget);
-  });
+      expect(find.text('SEGUE CARD'), findsOneWidget);
+    },
+  );
 
-  testWidgets('수정할게요 -> edit -> 취소 discards the change', (
+  testWidgets('수정할게요 -> edit -> 이전으로 돌아가기 discards the change', (
     WidgetTester tester,
   ) async {
     await reachConfirmScreen(tester);
@@ -145,9 +137,9 @@ void main() {
     await tester.enterText(purposeField, '이 값은 저장되면 안 됨');
     await tester.pump();
 
-    final Finder cancelButton = find.text('취소');
-    await tester.ensureVisible(cancelButton);
-    await tester.tap(cancelButton);
+    final Finder backButton = find.text('이전으로 돌아가기');
+    await tester.ensureVisible(backButton);
+    await tester.tap(backButton);
     await tester.pumpAndSettle();
 
     expect(find.text('고객 의도 요약 확인'), findsOneWidget);

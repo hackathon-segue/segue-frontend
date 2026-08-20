@@ -24,7 +24,7 @@ void main() {
     await tester.tap(find.text('START SEGUE'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
+    await tester.enterText(find.byType(TextFormField).at(1), '010-9876-5432');
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
     await tester.tap(

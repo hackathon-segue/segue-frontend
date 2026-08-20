@@ -14,10 +14,7 @@ void main() {
 
     final Image image = tester.widget<Image>(find.byType(Image));
     final NetworkImage provider = _networkImageOf(image);
-    expect(
-      provider.url,
-      'https://genius-barrel-wilderness-olympic.trycloudflare.com/images/products/bag1.png',
-    );
+    expect(provider.url, 'http://localhost:8080/images/products/bag1.png');
     expect(provider.headers, isNull);
   });
 
@@ -48,10 +45,7 @@ void main() {
 
     final Image image = tester.widget<Image>(find.byType(Image));
     final NetworkImage provider = _networkImageOf(image);
-    expect(
-      provider.url,
-      'https://genius-barrel-wilderness-olympic.trycloudflare.com/images/products/bag1.png',
-    );
+    expect(provider.url, 'http://localhost:8080/images/products/bag1.png');
   });
 
   testWidgets('shows the placeholder when imageUrl is null or empty', (

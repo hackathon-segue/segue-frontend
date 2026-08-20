@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
-import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// Issue #7 requires the staff/tablet shell to avoid overflow across a
 /// small tablet, a regular tablet, tablet landscape, and a desktop web
@@ -41,7 +40,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      // Consented test customer: exercises the populated cart preview list.
+      // Consented test customer: opens the populated cart list directly.
       await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pump();
@@ -51,27 +50,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-      await tester.ensureVisible(consentButton);
-      await tester.tap(consentButton);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-
-      // "동의하고 쇼핑백 확인" stays disabled until all three 동의 범위
-      // checkboxes are confirmed.
-      final Finder checkRows = find.byType(SegueCheckboxRow);
-      expect(checkRows, findsNWidgets(3));
-      for (int i = 0; i < 3; i++) {
-        await tester.tap(checkRows.at(i));
-        await tester.pump();
-      }
-
-      // Continue through to the dedicated cart/inventory screen (Figma
-      // 14:1051), which has its own item-row layout distinct from the
-      // lookup screen's cart preview.
-      final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-      await tester.ensureVisible(agreeButton);
-      await tester.tap(agreeButton);
+      final Finder cartButton = find.text('쇼핑백 확인');
+      await tester.ensureVisible(cartButton);
+      await tester.tap(cartButton);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);

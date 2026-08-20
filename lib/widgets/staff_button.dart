@@ -34,9 +34,9 @@ class StaffButton extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minWidth: 60),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: StaffColors.primary,
-              borderRadius: BorderRadius.circular(StaffRadii.button),
+              borderRadius: BorderRadius.zero,
             ),
             child: Text(
               label,
@@ -54,7 +54,7 @@ class StaffButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: StaffColors.ink),
-              borderRadius: BorderRadius.circular(StaffRadii.button),
+              borderRadius: BorderRadius.zero,
             ),
             child: Text(
               label,
@@ -72,7 +72,7 @@ class StaffButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: StaffColors.chipBg,
               border: Border.all(color: StaffColors.cardBorder),
-              borderRadius: BorderRadius.circular(StaffRadii.chip),
+              borderRadius: BorderRadius.zero,
             ),
             child: Text(
               label,
@@ -91,7 +91,7 @@ class StaffButton extends StatelessWidget {
       type: MaterialType.transparency,
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(StaffRadii.button),
+        borderRadius: BorderRadius.zero,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 44),
           child: Center(widthFactor: 1, heightFactor: 1, child: child),

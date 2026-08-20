@@ -37,6 +37,27 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
 
   static final RegExp _phonePattern = RegExp(r'^01[0-9]-\d{3,4}-\d{4}$');
 
+  String? _phoneError;
+
+  // Shared by the Form's validator (drives the field's red border) and
+  // _submit (drives the visible message Text below the field) so the two
+  // never say different things.
+  static String? _phoneErrorMessage(String value, RegExp phonePattern) {
+    final String trimmed = value.trim();
+    // API.md: 고객 조회는 `GET /api/customers/lookup?phoneNumber=` 하나뿐이고
+    // 회원번호로 조회하는 API는 없다 — 회원번호만 입력하고 전화번호를 비워두면
+    // 예전엔 검증을 통과해 빈 전화번호로 조회를 시도해 항상 "조회 결과가
+    // 없습니다"로 실패했다. 전화번호를 항상 필수로 만들어 그 실패를 명확한
+    // 안내 문구로 바꾼다.
+    if (trimmed.isEmpty) {
+      return '휴대전화 번호를 입력해 주세요.';
+    }
+    if (!phonePattern.hasMatch(trimmed)) {
+      return '010-0000-0000 형식으로 입력해 주세요.';
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,7 +82,13 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
   }
 
   void _submit(StaffWebSessionController controller) {
-    if (_formKey.currentState?.validate() != true) {
+    final bool valid = _formKey.currentState?.validate() ?? false;
+    setState(() {
+      _phoneError = valid
+          ? null
+          : _phoneErrorMessage(_phoneController.text, _phonePattern);
+    });
+    if (!valid) {
       return;
     }
     controller.lookupCustomer(_phoneController.text.trim());
@@ -101,11 +128,15 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
                 memberNumberController: _memberNumberController,
                 phoneController: _phoneController,
                 phonePattern: _phonePattern,
+                phoneError: _phoneError,
                 onSubmit: () => _submit(controller),
               );
               final Widget result = _ResultPanel(
+                controller: controller,
                 state: state,
-                onRetryLookup: _phoneController.text.trim().isEmpty ? null : () => _submit(controller),
+                onRetryLookup: _phoneController.text.trim().isEmpty
+                    ? null
+                    : () => _submit(controller),
               );
 
               // Figma: search column (335) → result card left 725, content
@@ -113,7 +144,11 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
               if (constraints.maxWidth < 700) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[search, const SizedBox(height: 24), result],
+                  children: <Widget>[
+                    search,
+                    const SizedBox(height: 24),
+                    result,
+                  ],
                 );
               }
               return Row(
@@ -138,6 +173,7 @@ class _SearchPanel extends StatelessWidget {
     required this.memberNumberController,
     required this.phoneController,
     required this.phonePattern,
+    required this.phoneError,
     required this.onSubmit,
   });
 
@@ -145,6 +181,12 @@ class _SearchPanel extends StatelessWidget {
   final TextEditingController memberNumberController;
   final TextEditingController phoneController;
   final RegExp phonePattern;
+
+  /// Shown as a plain red Text below the phone field — kept outside
+  /// SegueTextField's own fixed-height decoration so a validation failure
+  /// never distorts the field's pixel-exact 42px box (see SegueTextField's
+  /// `errorStyle`).
+  final String? phoneError;
   final VoidCallback onSubmit;
 
   @override
@@ -169,29 +211,35 @@ class _SearchPanel extends StatelessWidget {
             hintText: '전화번호',
             controller: phoneController,
             keyboardType: TextInputType.phone,
-            validator: (String? value) {
-              final String trimmed = value?.trim() ?? '';
-              // API.md: 고객 조회는 `GET /api/customers/lookup?phoneNumber=`
-              // 하나뿐이고 회원번호로 조회하는 API는 없다 — 회원번호만 입력하고
-              // 전화번호를 비워두면 예전엔 검증을 통과해 빈 전화번호로 조회를
-              // 시도해 항상 "조회 결과가 없습니다"로 실패했다. 전화번호를 항상
-              // 필수로 만들어 그 실패를 명확한 안내 문구로 바꾼다.
-              if (trimmed.isEmpty) {
-                return '휴대전화 번호를 입력해 주세요.';
-              }
-              if (!phonePattern.hasMatch(trimmed)) {
-                return '010-0000-0000 형식으로 입력해 주세요.';
-              }
-              return null;
-            },
+            // Returns '' (not the real message) on failure: this only
+            // needs to flip the field into its error-border state — the
+            // actual message renders once, below, as `phoneError`. Reusing
+            // the real message here would duplicate it in the widget tree.
+            validator: (String? value) =>
+                _CustomerLookupScreenState._phoneErrorMessage(
+                      value ?? '',
+                      phonePattern,
+                    ) ==
+                    null
+                ? null
+                : '',
           ),
+          if (phoneError != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              phoneError!,
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
           // Figma: input2 bottom 319+42=361 → button top 382 = 21px.
           const SizedBox(height: 21),
           SegueCompactButton(
             label: '고객 조회',
             backgroundColor: SegueCardColors.ctaBg,
             height: 32,
-            textStyle: SegueCardText.compactButtonLabel15.copyWith(fontSize: 14),
+            textStyle: SegueCardText.compactButtonLabel15.copyWith(
+              fontSize: 14,
+            ),
             onPressed: onSubmit,
           ),
         ],
@@ -201,8 +249,13 @@ class _SearchPanel extends StatelessWidget {
 }
 
 class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({required this.state, required this.onRetryLookup});
+  const _ResultPanel({
+    required this.controller,
+    required this.state,
+    required this.onRetryLookup,
+  });
 
+  final StaffWebSessionController controller;
   final StaffWebSessionState state;
 
   /// Null when the phone field is empty (nothing to retry with yet), same
@@ -212,11 +265,15 @@ class _ResultPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.lookupState.isLoading) {
-      return const AppStateView.loading(title: '고객 정보를 조회하고 있습니다');
+      // No loading UI for customer lookup — stays blank until the result
+      // (or error) resolves.
+      return const SizedBox.shrink();
     }
     if (state.lookupState.hasError) {
       final Object? error = state.lookupState.error;
-      final String message = error is AppException ? error.message : '회원 정보를 다시 확인해 주세요.';
+      final String message = error is AppException
+          ? error.message
+          : '회원 정보를 다시 확인해 주세요.';
       final bool notFound =
           (error is ApiException && error.statusCode == 404) ||
           (error is AppException && error.code == 'CUSTOMER_NOT_FOUND');
@@ -256,11 +313,20 @@ class _ResultPanel extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               );
               final Widget cta = SegueCompactButton(
-                label: '상담 데이터 이용 동의 확인',
+                label: customer.hasConsented ? '쇼핑백 확인' : '상담 데이터 이용 동의 확인',
                 backgroundColor: SegueCardColors.ctaBg,
                 showArrow: true,
                 textStyle: SegueCardText.compactButtonLabel16,
-                onPressed: () => Navigator.of(context).pushNamed(AppRoutes.customerConsent),
+                onPressed: () {
+                  if (!customer.hasConsented) {
+                    Navigator.of(context).pushNamed(AppRoutes.customerConsent);
+                    return;
+                  }
+                  if (state.cartState.isIdle) {
+                    controller.loadCart();
+                  }
+                  Navigator.of(context).pushNamed(AppRoutes.cartInventory);
+                },
               );
               // The button's auto-width label has no narrower Figma
               // variant, so this app's own responsive fallback drops it
@@ -268,7 +334,11 @@ class _ResultPanel extends StatelessWidget {
               if (constraints.maxWidth >= 500) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[Expanded(child: name), const SizedBox(width: 12), cta],
+                  children: <Widget>[
+                    Expanded(child: name),
+                    const SizedBox(width: 12),
+                    cta,
+                  ],
                 );
               }
               return Column(
@@ -282,18 +352,30 @@ class _ResultPanel extends StatelessWidget {
           Text.rich(
             TextSpan(
               children: <InlineSpan>[
-                const TextSpan(text: '회원번호', style: SegueCardText.detailLabel16),
+                const TextSpan(
+                  text: '회원번호',
+                  style: SegueCardText.detailLabel16,
+                ),
                 const TextSpan(text: '   ', style: SegueCardText.detailLabel16),
-                TextSpan(text: '${customer.id}', style: SegueCardText.detailValue16),
+                TextSpan(
+                  text: '${customer.id}',
+                  style: SegueCardText.detailValue16,
+                ),
               ],
             ),
           ),
           Text.rich(
             TextSpan(
               children: <InlineSpan>[
-                const TextSpan(text: '전화번호', style: SegueCardText.detailLabel16),
+                const TextSpan(
+                  text: '전화번호',
+                  style: SegueCardText.detailLabel16,
+                ),
                 const TextSpan(text: '   ', style: SegueCardText.detailLabel16),
-                TextSpan(text: customer.phoneNumber, style: SegueCardText.detailValue16),
+                TextSpan(
+                  text: customer.phoneNumber,
+                  style: SegueCardText.detailValue16,
+                ),
               ],
             ),
           ),

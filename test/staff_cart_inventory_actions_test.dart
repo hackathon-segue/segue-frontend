@@ -44,19 +44,25 @@ void main() {
     await tester.pumpAndSettle();
 
     final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
+    if (consentButton.evaluate().isNotEmpty) {
+      await tester.ensureVisible(consentButton);
+      await tester.tap(consentButton);
+      await tester.pumpAndSettle();
 
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < 3; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
+      final Finder checkRows = find.byType(SegueCheckboxRow);
+      for (int i = 0; i < 3; i++) {
+        await tester.tap(checkRows.at(i));
+        await tester.pump();
+      }
+
+      final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
+      await tester.ensureVisible(agreeButton);
+      await tester.tap(agreeButton);
+    } else {
+      final Finder cartButton = find.text('쇼핑백 확인');
+      await tester.ensureVisible(cartButton);
+      await tester.tap(cartButton);
     }
-
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
     await tester.pumpAndSettle();
     expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
 
