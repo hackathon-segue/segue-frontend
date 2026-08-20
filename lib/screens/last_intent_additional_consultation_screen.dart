@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
+import '../utils/product_option_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../utils/structured_intent_vocabulary.dart';
 import '../widgets/app_state_view.dart';
@@ -206,7 +207,7 @@ class _LastIntentAdditionalConsultationScreenState
                         SegueLabelValueRow(
                           label: '관심 제품',
                           value:
-                              '${widget.cartItem.productName} ${widget.cartItem.color}',
+                              '${widget.cartItem.productName} ${displayProductColor(widget.cartItem.color)}',
                         ),
                         SegueLabelValueRow(
                           label: '고객 핵심 조건',
@@ -328,9 +329,7 @@ class _Scaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LastIntentSessionManager manager = LastIntentSessionScope.of(
-      context,
-    );
+    final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
     return SegueCardShell(
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,

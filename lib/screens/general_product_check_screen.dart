@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
+import '../utils/product_option_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
@@ -74,7 +75,8 @@ class GeneralProductCheckScreen extends StatelessWidget {
                           style: SegueCardText.cartProductLabel20,
                         ),
                         TextSpan(
-                          text: '${cartItem.productName} ${cartItem.color}',
+                          text:
+                              '${cartItem.productName} ${displayProductColor(cartItem.color)}',
                           style: SegueCardText.cartProductValue20,
                         ),
                       ],

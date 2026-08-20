@@ -2653,7 +2653,8 @@ class _SegueIntroTitleText extends StatelessWidget {
     fontFamily: 'Montserrat',
     fontSize: 18.321,
     fontStyle: FontStyle.normal,
-    fontWeight: FontWeight.w300,
+    fontWeight: FontWeight.w100,
+    fontVariations: <FontVariation>[FontVariation('wght', 100)],
     height: 1.21809,
     letterSpacing: 0,
   );
@@ -2697,7 +2698,8 @@ class _SegueIntroParagraphText extends StatelessWidget {
     fontFamily: 'Montserrat',
     fontSize: 12.824,
     fontStyle: FontStyle.normal,
-    fontWeight: FontWeight.w200,
+    fontWeight: FontWeight.w100,
+    fontVariations: <FontVariation>[FontVariation('wght', 100)],
     height: _lineHeight,
     letterSpacing: 0,
   );
@@ -4761,12 +4763,12 @@ class _ProductDetailScreen extends StatelessWidget {
         : Color(product.optionForColor(selectedColor!).swatchValue);
     final List<String> availableColors = product.colors;
     final List<String> availableSizes = product.sizesForColor(selectedColor);
-    final String colorLabel =
-        selectedColor ??
-        (availableColors.isEmpty ? '정보 없음' : availableColors.first);
-    final String sizeLabel =
-        selectedSize ??
-        (availableSizes.isEmpty ? '정보 없음' : availableSizes.first);
+    final String colorLabel = selectedColor == null && availableColors.isEmpty
+        ? '정보 없음'
+        : displayProductColor(selectedColor ?? availableColors.first);
+    final String sizeLabel = selectedSize == null && availableSizes.isEmpty
+        ? '정보 없음'
+        : displayProductSize(selectedSize ?? availableSizes.first);
     final List<(String, String)> skuDetailRows = <(String, String)>[
       if ((selectedSku?.material ?? product.material).trim().isNotEmpty)
         ('소재', selectedSku?.material ?? product.material),
@@ -4907,7 +4909,7 @@ class _ProductDetailScreen extends StatelessWidget {
                             children: <Widget>[
                               for (final String color in availableColors)
                                 _McmOptionChip(
-                                  label: color,
+                                  label: displayProductColor(color),
                                   selected: selectedColor == color,
                                   onTap: () => onColorSelected(color),
                                 ),
@@ -4921,7 +4923,7 @@ class _ProductDetailScreen extends StatelessWidget {
                             children: <Widget>[
                               for (final String size in availableSizes)
                                 _McmOptionChip(
-                                  label: size,
+                                  label: displayProductSize(size),
                                   selected: selectedSize == size,
                                   onTap: () => onSizeSelected(size),
                                 ),
@@ -7184,38 +7186,7 @@ String _formatCompactDateTime(DateTime date) {
 }
 
 String _formatResultProductColor(String color) {
-  final String normalized = color.trim().toLowerCase().replaceAll(' ', '');
-  final String? directColor = switch (normalized) {
-    'black' || '블랙' => 'Black',
-    'beige' || '베이지' => 'Beige',
-    'brown' || '브라운' => 'Brown',
-    'cognac' || '꼬냑' || '코냑' => 'Cognac',
-    'orange' || '오렌지' => 'Orange',
-    'green' || '그린' || 'khaki' || '카키' => 'Green',
-    'navy' || '네이비' => 'Navy',
-    'pink' || '핑크' => 'Pink',
-    'white' || '화이트' => 'White',
-    'gray' || 'grey' || '그레이' => 'Gray',
-    _ => null,
-  };
-  if (directColor != null) {
-    return directColor;
-  }
-
-  final String displayColor = displayProductColor(color);
-  return switch (displayColor.toUpperCase()) {
-    'BLACK' => 'Black',
-    'BEIGE' => 'Beige',
-    'BROWN' => 'Brown',
-    'COGNAC' => 'Cognac',
-    'ORANGE' => 'Orange',
-    'GREEN' => 'Green',
-    'NAVY' => 'Navy',
-    'PINK' => 'Pink',
-    'WHITE' => 'White',
-    'GRAY' || 'GREY' => 'Gray',
-    _ => displayColor,
-  };
+  return displayProductColor(color);
 }
 
 String _formatWon(int price) {

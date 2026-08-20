@@ -15,11 +15,13 @@ abstract final class SegueTheme {
       ),
       fontFamily: englishFontFamily,
       fontFamilyFallback: _fontFamilyFallback,
+      splashFactory: InkRipple.splashFactory,
       useMaterial3: true,
     );
 
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.canvas,
+      splashFactory: InkRipple.splashFactory,
       textTheme: _textTheme(base.textTheme),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

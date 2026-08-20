@@ -4,6 +4,7 @@ import '../exceptions/app_exception.dart';
 import '../models/models.dart';
 import '../repositories/repositories.dart';
 import '../utils/app_config.dart';
+import '../utils/product_option_display.dart';
 import 'async_value.dart';
 
 /// Which Last Intent screen this SKU's session should resume into — set by
@@ -493,7 +494,7 @@ class LastIntentSessionController extends ChangeNotifier {
       // AC: Last Intent Card와 저장 결과가 일치 — Card가 보여준 것과 같은 규칙
       // (recommendedProduct 있으면 제품, 없으면 확보 경로)으로 저장한다.
       recommendedPath: recommended != null
-          ? '${recommended.productName} (${recommended.color})'
+          ? '${recommended.productName} (${displayProductColor(recommended.color)})'
           : decisionResult.pathDescription,
       coreConditions: decisionResult.coreConditions,
       consultedAt: DateTime.now(),
