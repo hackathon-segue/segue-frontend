@@ -166,6 +166,45 @@ void main() {
     expect(items.single.inventory.otherStoreInStock, isTrue);
   });
 
+  test('real repository fetches the customer own cart from /api/cart/mine', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      getResponse: <Object?>[
+        <String, Object?>{
+          'cartItemId': 1,
+          'productId': 1,
+          'productName': 'MCM 백팩 미디움',
+          'imageUrl': 'https://example.com/backpack.png',
+          'category': '백팩',
+          'skuId': 1,
+          'color': '블랙',
+          'size': '미디움',
+          'currentStoreInStock': false,
+          'otherStoreInStock': true,
+          'restockPlanned': false,
+          'actionButtonLabel': 'Last Intent 시작',
+          'savedAt': '2026-08-16T16:54:29',
+        },
+      ],
+    );
+    final RealSegueRepository repository = RealSegueRepository(
+      apiClient: apiClient,
+    );
+
+    final List<CartItem> items = await repository.fetchOwnCart(
+      customerId: 1,
+      storeId: 1,
+    );
+
+    // /api/cart 는 동의 게이트가 걸린 CA 경로다. 고객 본인 조회가 그쪽으로 가면
+    // 동의 전 고객과 신규 가입 고객이 자기 쇼핑백에서 403 을 받는다.
+    expect(apiClient.lastGetPath, '/api/cart/mine');
+    expect(apiClient.lastGetQueryParameters, <String, Object?>{
+      'customerId': 1,
+      'storeId': 1,
+    });
+    expect(items.single.skuId, 1);
+  });
+
   test(
     'real repository fetches customer mobile products from /api/products',
     () async {

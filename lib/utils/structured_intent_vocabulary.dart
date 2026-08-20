@@ -6,6 +6,11 @@ import '../models/models.dart';
 /// summary (display) and edit screens both stay within this contract
 /// instead of drifting into arbitrary key/value strings that would break
 /// the `/decide` API contract.
+///
+/// 여기 없는 key 는 화면에 영문 그대로 노출되고(라벨 조회가 key 를 그대로 반환한다),
+/// 여기 없는 value 는 조건 수정 화면의 드롭다운에서 빈 선택지로 보인다. 백엔드가
+/// 실제로 내려주는 어휘의 원본은 `prompts/intent.txt` 이고 API.md 표가 그 사본이므로,
+/// 셋 중 하나가 바뀌면 나머지도 함께 맞춰야 한다.
 abstract final class StructuredIntentVocabulary {
   /// Attribute key (wire value, e.g. "colorFamily") -> Korean label.
   static const Map<String, String> attributeLabels = <String, String>{
@@ -25,14 +30,16 @@ abstract final class StructuredIntentVocabulary {
     'weightGrade': '무게감',
     'lockType': '잠금 방식',
     'internalStorageLevel': '내부 수납',
+    'handleType': '핸들 디자인',
     'laptopCompatible': '노트북 수납 가능 여부',
+    'laptopMaxInch': '노트북 최대 인치',
   };
 
   /// Attribute key -> its allowed wire values, in table order. Matches
   /// API.md's "속성 어휘" table exactly — no keys/values beyond what that
   /// table lists.
   static const Map<String, List<String>> attributeValues = <String, List<String>>{
-    'colorFamily': <String>['블랙', '브라운', '베이지'],
+    'colorFamily': <String>['블랙', '브라운', '베이지', '꼬냑', '오렌지', '그린'],
     'colorTone': <String>['웜', '쿨', '뉴트럴'],
     'material': <String>['가죽', '캔버스', '패브릭'],
     'glossLevel': <String>['높음', '중간', '낮음'],
@@ -48,8 +55,11 @@ abstract final class StructuredIntentVocabulary {
     'weightGrade': <String>['가벼움', '보통', '무거움'],
     'lockType': <String>['지퍼', '플립', '마그네틱'],
     'internalStorageLevel': <String>['심플', '구획많음'],
+    'handleType': <String>['다이아몬드컷아웃', '일반'],
     // API.md: boolean이 아니라 문자열 "true"/"false"로 전달한다.
     'laptopCompatible': <String>['true', 'false'],
+    // laptopMaxInch 도 문자열이다. laptopCompatible=false 면 이 key 는 쓰이지 않는다.
+    'laptopMaxInch': <String>['13', '16'],
   };
 
   static String attributeLabel(String key) => attributeLabels[key] ?? key;
@@ -59,6 +69,9 @@ abstract final class StructuredIntentVocabulary {
   static String attributeValueLabel(String key, String value) {
     if (key == 'laptopCompatible') {
       return value == 'true' ? '예' : '아니오';
+    }
+    if (key == 'laptopMaxInch') {
+      return '$value인치';
     }
     return value;
   }

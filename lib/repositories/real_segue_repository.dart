@@ -92,8 +92,33 @@ class RealSegueRepository implements SegueRepository {
     required int customerId,
     required int storeId,
   }) async {
-    final Object? response = await _apiClient.getJson(
+    return _fetchCartFrom(
       '/api/cart',
+      customerId: customerId,
+      storeId: storeId,
+    );
+  }
+
+  @override
+  Future<List<CartItem>> fetchOwnCart({
+    required int customerId,
+    required int storeId,
+  }) async {
+    return _fetchCartFrom(
+      '/api/cart/mine',
+      customerId: customerId,
+      storeId: storeId,
+    );
+  }
+
+  /// 두 경로는 응답 형태가 같고 동의 게이트 유무만 다르므로 파싱을 공유한다.
+  Future<List<CartItem>> _fetchCartFrom(
+    String path, {
+    required int customerId,
+    required int storeId,
+  }) async {
+    final Object? response = await _apiClient.getJson(
+      path,
       queryParameters: <String, Object?>{
         'customerId': customerId,
         'storeId': storeId,

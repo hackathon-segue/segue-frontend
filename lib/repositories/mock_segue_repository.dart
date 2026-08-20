@@ -146,7 +146,19 @@ class MockSegueRepository implements SegueRepository {
         code: 'CONSENT_REQUIRED',
       );
     }
+    return _cartItemsFor(customerId);
+  }
 
+  /// 고객 본인 조회라 동의 게이트를 두지 않는다 (실제 백엔드의 `/api/cart/mine` 과 동일).
+  @override
+  Future<List<CartItem>> fetchOwnCart({
+    required int customerId,
+    required int storeId,
+  }) async {
+    return _cartItemsFor(customerId);
+  }
+
+  List<CartItem> _cartItemsFor(int customerId) {
     final List<CartItem> savedItems =
         _savedCartItems[customerId] ?? <CartItem>[];
     final List<CartItem> seededItems = MockDemoFixtures.seededCartItems();
