@@ -243,6 +243,7 @@ class _CustomerSearchFooterImage extends StatelessWidget {
               child: Image.asset(
                 'assets/images/customer_search_footer.png',
                 fit: BoxFit.cover,
+                alignment: Alignment.centerRight,
               ),
             ),
           ),
