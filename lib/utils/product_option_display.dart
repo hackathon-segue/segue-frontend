@@ -7,6 +7,7 @@ String displayProductColor(String color) {
     'cognac' || '꼬냑' || '코냑' => 'Cognac',
     'camel' || '카멜' => 'Camel',
     'orange' || '오렌지' => 'Orange',
+    'orangeaid' || '오렌지에이드' => 'Orange Aid',
     'green' || '그린' => 'Green',
     'khaki' || '카키' => 'Khaki',
     'navy' || '네이비' => 'Navy',

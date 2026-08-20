@@ -423,6 +423,7 @@ class SegueCardShell extends StatelessWidget {
                                           BoxConstraints constraints,
                                         ) {
                                           return SingleChildScrollView(
+                                            clipBehavior: Clip.none,
                                             // Gives short content (loading/
                                             // empty/error states, all of
                                             // which Center themselves) a real
