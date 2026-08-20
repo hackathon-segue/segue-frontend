@@ -9,9 +9,16 @@ abstract final class AppConfig {
     defaultValue: 'local',
   );
 
+  /// Empty by default (not a hardcoded host) so every request built from
+  /// this — `HttpSegueApiClient`'s URIs and `SegueProductImage`'s
+  /// backend-relative photo URLs alike — resolves to a same-origin path
+  /// (`/api/...`, `/images/...`) unless a real dev backend is supplied via
+  /// `--dart-define=API_BASE_URL=...`. This is what lets a Vercel deploy's
+  /// `rewrites` (see `vercel.json`) proxy those paths to the real backend
+  /// without ever baking that backend's address into the compiled app.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: '',
   );
 
   static const int defaultStoreId = int.fromEnvironment(

@@ -5,7 +5,15 @@
   "outputDirectory": "build/web",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/:path*",
+      "destination": "http://1.201.116.73/api/:path*"
+    },
+    {
+      "source": "/images/:path*",
+      "destination": "http://1.201.116.73/images/:path*"
+    },
+    {
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
