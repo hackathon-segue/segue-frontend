@@ -1,6 +1,11 @@
 import '../models/models.dart';
 
 abstract interface class SegueRepository {
+  Future<Customer> loginCustomer({
+    required String email,
+    required String password,
+  });
+
   Future<Customer> lookupCustomerByPhone(String phoneNumber);
 
   Future<CustomerConsent> submitCustomerConsent({

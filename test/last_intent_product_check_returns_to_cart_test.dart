@@ -23,7 +23,11 @@ void main() {
       // The mobile customer entry screen no longer has a "직원 웹" button
       // (it's now the real customer-facing app) — reach staff routes via a
       // direct named push instead, same as the app's own wireframe QA does.
-      Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
+      Navigator.of(
+        tester.element(
+          find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+        ),
+      ).pushNamed(AppRoutes.staffHome);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('START SEGUE'));
@@ -31,7 +35,9 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pump();
-      await tester.tap(find.descendant(of: find.byType(Form), matching: find.text('고객 조회')));
+      await tester.tap(
+        find.descendant(of: find.byType(Form), matching: find.text('고객 조회')),
+      );
       await tester.pumpAndSettle();
 
       final Finder consentButton = find.text('상담 데이터 이용 동의 확인');

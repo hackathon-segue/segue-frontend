@@ -22,7 +22,11 @@ void main() {
     // The mobile customer entry screen no longer has a "직원 웹" button (it's
     // now the real customer-facing app) — reach staff routes via a direct
     // named push instead, same as the app's own wireframe QA does.
-    Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
+    Navigator.of(
+      tester.element(
+        find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+      ),
+    ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
 
     tester.view.physicalSize = const Size(1440, 900);
@@ -179,7 +183,9 @@ void main() {
       final LastIntentSessionManager manager = LastIntentSessionScope.of(
         context,
       );
-      final Customer customer = StaffSessionScope.of(context).state.currentCustomer!;
+      final Customer customer = StaffSessionScope.of(
+        context,
+      ).state.currentCustomer!;
       final List<CartItem> items = StaffSessionScope.of(
         context,
       ).state.cartState.data!;

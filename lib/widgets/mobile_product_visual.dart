@@ -11,6 +11,7 @@ class MobileProductVisual extends StatelessWidget {
     this.compact = false,
     this.imageFit = BoxFit.contain,
     this.showFrame = true,
+    this.backgroundColor,
     super.key,
   });
 
@@ -19,6 +20,7 @@ class MobileProductVisual extends StatelessWidget {
   final bool compact;
   final BoxFit imageFit;
   final bool showFrame;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -34,17 +36,20 @@ class MobileProductVisual extends StatelessWidget {
         isBackpack: product.category == '백팩',
       ),
     );
+    final Color visualBackground =
+        backgroundColor ??
+        Color.alphaBlend(
+          productColor.withValues(alpha: 0.08),
+          AppColors.surface,
+        );
     final BoxDecoration decoration = BoxDecoration(
-      color: Color.alphaBlend(
-        productColor.withValues(alpha: 0.08),
-        AppColors.surface,
-      ),
+      color: visualBackground,
       borderRadius: borderRadius,
       border: Border.all(color: AppColors.border),
     );
     final BoxDecoration imageDecoration = showFrame
         ? decoration
-        : const BoxDecoration(color: AppColors.surface);
+        : BoxDecoration(color: backgroundColor ?? AppColors.surface);
 
     Widget fallbackVisual() {
       final String? assetImagePath = product.assetImagePath;

@@ -17,12 +17,17 @@ void main() {
 
     await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
     Navigator.of(
-      tester.element(find.text('LXXVI')),
+      tester.element(
+        find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+      ),
     ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
   }
 
-  Future<void> lookupAndConsent(WidgetTester tester, {String phone = '010-1234-5678'}) async {
+  Future<void> lookupAndConsent(
+    WidgetTester tester, {
+    String phone = '010-1234-5678',
+  }) async {
     await tester.tap(find.text('START SEGUE'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), phone);
@@ -48,210 +53,197 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets(
-    '발화 제출 후 보충 질문 단계에서 홈으로 나갔다가 "상담 이어서 진행"을 누르면 '
-    '처음(발화 입력)이 아니라 보충 질문 화면부터 정확히 재개된다',
-    (WidgetTester tester) async {
-      await reachStaffHome(tester);
-      await lookupAndConsent(tester);
+  testWidgets('발화 제출 후 보충 질문 단계에서 홈으로 나갔다가 "상담 이어서 진행"을 누르면 '
+      '처음(발화 입력)이 아니라 보충 질문 화면부터 정확히 재개된다', (WidgetTester tester) async {
+    await reachStaffHome(tester);
+    await lookupAndConsent(tester);
 
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('고객 의도 입력 시작'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('고객 의도 입력 시작'));
+    await tester.pumpAndSettle();
 
-      // mock_segue_repository.dart: "비슷" triggers needsFollowUp.
-      await tester.enterText(find.byType(TextField), '비슷한 제품이어도 괜찮아요');
-      await tester.pump();
-      await tester.tap(find.text('고객 의도 구조화하기'));
-      await tester.pumpAndSettle();
-      expect(find.text('고객 의도 입력 - 보충 질문'), findsOneWidget);
+    // mock_segue_repository.dart: "비슷" triggers needsFollowUp.
+    await tester.enterText(find.byType(TextField), '비슷한 제품이어도 괜찮아요');
+    await tester.pump();
+    await tester.tap(find.text('고객 의도 구조화하기'));
+    await tester.pumpAndSettle();
+    expect(find.text('고객 의도 입력 - 보충 질문'), findsOneWidget);
 
-      // Leave without answering the follow-up question — via the sidebar's
-      // HOME link, not completing the consultation. ("처음으로 돌아가기" no
-      // longer means Home here — it means SEGUE step 1, see
-      // navigateToLastIntentIntro — so it's not used for this exit.)
-      await tester.tap(find.text('HOME'));
-      await tester.pumpAndSettle();
-      expect(find.text('SEGUE HOME'), findsOneWidget);
+    // Leave without answering the follow-up question — via the sidebar's
+    // HOME link, not completing the consultation. ("처음으로 돌아가기" no
+    // longer means Home here — it means SEGUE step 1, see
+    // navigateToLastIntentIntro — so it's not used for this exit.)
+    await tester.tap(find.text('HOME'));
+    await tester.pumpAndSettle();
+    expect(find.text('SEGUE HOME'), findsOneWidget);
 
-      final Finder resumeButton = find.text('상담 이어서 진행');
-      expect(resumeButton, findsOneWidget);
-      await tester.tap(resumeButton);
-      await tester.pumpAndSettle();
+    final Finder resumeButton = find.text('상담 이어서 진행');
+    expect(resumeButton, findsOneWidget);
+    await tester.tap(resumeButton);
+    await tester.pumpAndSettle();
 
-      // Landed directly on the follow-up screen — never re-showed the
-      // utterance input the CA already filled in.
-      expect(find.text('고객 의도 입력 - 보충 질문'), findsOneWidget);
-      expect(find.text('고객 의도 입력'), findsNothing);
-    },
-  );
+    // Landed directly on the follow-up screen — never re-showed the
+    // utterance input the CA already filled in.
+    expect(find.text('고객 의도 입력 - 보충 질문'), findsOneWidget);
+    expect(find.text('고객 의도 입력'), findsNothing);
+  });
 
-  testWidgets(
-    'Customer Lookup 화면은 재진입할 때마다 이전 조회 결과 없이 항상 빈 상태로 뜨지만, '
-    'Home의 진행 중 상담은 그대로 유지된다',
-    (WidgetTester tester) async {
-      await reachStaffHome(tester);
-      await lookupAndConsent(tester);
+  testWidgets('Customer Lookup 화면은 재진입할 때마다 이전 조회 결과 없이 항상 빈 상태로 뜨지만, '
+      'Home의 진행 중 상담은 그대로 유지된다', (WidgetTester tester) async {
+    await reachStaffHome(tester);
+    await lookupAndConsent(tester);
 
-      // Start a Last Intent session so Home has an active consultation to
-      // preserve across the Customer Lookup round-trip below.
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      Navigator.of(
-        tester.element(find.text('상담 대상 제품')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
-      expect(find.text('상담 이어서 진행'), findsOneWidget);
+    // Start a Last Intent session so Home has an active consultation to
+    // preserve across the Customer Lookup round-trip below.
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    Navigator.of(
+      tester.element(find.text('상담 대상 제품')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
+    expect(find.text('상담 이어서 진행'), findsOneWidget);
 
-      // Re-enter Customer Lookup — must NOT show 김세계's card again even
-      // though currentCustomer/the active consultation both still exist.
-      await tester.tap(find.text('START SEGUE'));
-      await tester.pumpAndSettle();
-      expect(find.text('김세계'), findsNothing);
-      for (final TextFormField field in tester
-          .widgetList<TextFormField>(find.byType(TextFormField))) {
-        expect(field.controller?.text ?? '', isEmpty);
-      }
+    // Re-enter Customer Lookup — must NOT show 김세계's card again even
+    // though currentCustomer/the active consultation both still exist.
+    await tester.tap(find.text('START SEGUE'));
+    await tester.pumpAndSettle();
+    expect(find.text('김세계'), findsNothing);
+    for (final TextFormField field in tester.widgetList<TextFormField>(
+      find.byType(TextFormField),
+    )) {
+      expect(field.controller?.text ?? '', isEmpty);
+    }
 
-      // Back to Home — the active consultation card is still there.
-      Navigator.of(
-        tester.element(find.text('고객 검색')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
-      expect(find.text('상담 이어서 진행'), findsOneWidget);
-    },
-  );
+    // Back to Home — the active consultation card is still there.
+    Navigator.of(
+      tester.element(find.text('고객 검색')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
+    expect(find.text('상담 이어서 진행'), findsOneWidget);
+  });
 
-  testWidgets(
-    '발화 입력 단계(아직 제출 전)에서 나갔다가 "상담 이어서 진행"으로 재진입한 뒤 '
-    '"처음으로 돌아가기"를 누르면 Home이 아니라 상담 대상 제품(직전 단계) 화면으로 간다',
-    (WidgetTester tester) async {
-      await reachStaffHome(tester);
-      await lookupAndConsent(tester);
+  testWidgets('발화 입력 단계(아직 제출 전)에서 나갔다가 "상담 이어서 진행"으로 재진입한 뒤 '
+      '"처음으로 돌아가기"를 누르면 Home이 아니라 상담 대상 제품(직전 단계) 화면으로 간다', (
+    WidgetTester tester,
+  ) async {
+    await reachStaffHome(tester);
+    await lookupAndConsent(tester);
 
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('고객 의도 입력 시작'));
-      await tester.pumpAndSettle();
-      expect(find.text('고객 의도 입력'), findsOneWidget);
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('고객 의도 입력 시작'));
+    await tester.pumpAndSettle();
+    expect(find.text('고객 의도 입력'), findsOneWidget);
 
-      // Leave before ever submitting an utterance — currentStep stays at
-      // its default (utterance).
-      Navigator.of(
-        tester.element(find.text('고객 의도 입력')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
+    // Leave before ever submitting an utterance — currentStep stays at
+    // its default (utterance).
+    Navigator.of(
+      tester.element(find.text('고객 의도 입력')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('상담 이어서 진행'));
-      await tester.pumpAndSettle();
-      expect(find.text('고객 의도 입력'), findsOneWidget);
+    await tester.tap(find.text('상담 이어서 진행'));
+    await tester.pumpAndSettle();
+    expect(find.text('고객 의도 입력'), findsOneWidget);
 
-      await tester.tap(find.text('처음으로 돌아가기'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('처음으로 돌아가기'));
+    await tester.pumpAndSettle();
 
-      // The real previous step (LastIntentIntroScreen), not Home.
-      expect(find.text('상담 대상 제품'), findsOneWidget);
-      expect(find.text('SEGUE HOME'), findsNothing);
-    },
-  );
+    // The real previous step (LastIntentIntroScreen), not Home.
+    expect(find.text('상담 대상 제품'), findsOneWidget);
+    expect(find.text('SEGUE HOME'), findsNothing);
+  });
 
-  testWidgets(
-    '진행 중인 상담 카드의 "쇼핑백 확인" 버튼을 누르면 현재 고객의 쇼핑백 화면으로 이동한다',
-    (WidgetTester tester) async {
-      await reachStaffHome(tester);
-      await lookupAndConsent(tester);
+  testWidgets('진행 중인 상담 카드의 "쇼핑백 확인" 버튼을 누르면 현재 고객의 쇼핑백 화면으로 이동한다', (
+    WidgetTester tester,
+  ) async {
+    await reachStaffHome(tester);
+    await lookupAndConsent(tester);
 
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      Navigator.of(
-        tester.element(find.text('상담 대상 제품')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    Navigator.of(
+      tester.element(find.text('상담 대상 제품')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('쇼핑백 확인'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('쇼핑백 확인'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
-      expect(find.textContaining('김세계 님의 쇼핑백'), findsOneWidget);
-    },
-  );
+    expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
+    expect(find.textContaining('김세계 님의 쇼핑백'), findsOneWidget);
+  });
 
-  testWidgets(
-    '서로 다른 두 고객이 각각 진행 중인 상담을 갖고 있으면 Home에 카드가 1개가 아니라 '
-    '2개 다 뜬다',
-    (WidgetTester tester) async {
-      await reachStaffHome(tester);
+  testWidgets('서로 다른 두 고객이 각각 진행 중인 상담을 갖고 있으면 Home에 카드가 1개가 아니라 '
+      '2개 다 뜬다', (WidgetTester tester) async {
+    await reachStaffHome(tester);
 
-      // Customer A (김세계) starts a Last Intent session, then leaves.
-      await lookupAndConsent(tester, phone: '010-1234-5678');
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      Navigator.of(
-        tester.element(find.text('상담 대상 제품')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
-      expect(find.text('상담 이어서 진행'), findsOneWidget);
+    // Customer A (김세계) starts a Last Intent session, then leaves.
+    await lookupAndConsent(tester, phone: '010-1234-5678');
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    Navigator.of(
+      tester.element(find.text('상담 대상 제품')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
+    expect(find.text('상담 이어서 진행'), findsOneWidget);
 
-      // Customer B (이수현) looks up separately and also starts one.
-      await lookupAndConsent(tester, phone: '010-9876-5432');
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      Navigator.of(
-        tester.element(find.text('상담 대상 제품')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
+    // Customer B (이수현) looks up separately and also starts one.
+    await lookupAndConsent(tester, phone: '010-9876-5432');
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    Navigator.of(
+      tester.element(find.text('상담 대상 제품')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
 
-      // Both customers' cards show — 김세계's session wasn't wiped by
-      // looking up 이수현.
-      expect(find.text('김세계'), findsOneWidget);
-      expect(find.text('이수현'), findsOneWidget);
-      expect(find.text('상담 이어서 진행'), findsNWidgets(2));
-      expect(find.text('현재 진행 중 상담'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-    },
-  );
+    // Both customers' cards show — 김세계's session wasn't wiped by
+    // looking up 이수현.
+    expect(find.text('김세계'), findsOneWidget);
+    expect(find.text('이수현'), findsOneWidget);
+    expect(find.text('상담 이어서 진행'), findsNWidgets(2));
+    expect(find.text('현재 진행 중 상담'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
 
-  testWidgets(
-    '진행 중인 상담 카드가 2개일 때, currentCustomer가 다른 고객을 가리키고 있어도 '
-    '각 카드의 "쇼핑백 확인"은 항상 그 카드 자신의 고객 쇼핑백을 연다 — 마지막으로 '
-    '조회했던(또는 완료되어 사라진) 다른 고객의 쇼핑백이 잘못 뜨면 안 된다',
-    (WidgetTester tester) async {
-      await reachStaffHome(tester);
+  testWidgets('진행 중인 상담 카드가 2개일 때, currentCustomer가 다른 고객을 가리키고 있어도 '
+      '각 카드의 "쇼핑백 확인"은 항상 그 카드 자신의 고객 쇼핑백을 연다 — 마지막으로 '
+      '조회했던(또는 완료되어 사라진) 다른 고객의 쇼핑백이 잘못 뜨면 안 된다', (WidgetTester tester) async {
+    await reachStaffHome(tester);
 
-      await lookupAndConsent(tester, phone: '010-1234-5678'); // 김세계
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      Navigator.of(
-        tester.element(find.text('상담 대상 제품')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
+    await lookupAndConsent(tester, phone: '010-1234-5678'); // 김세계
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    Navigator.of(
+      tester.element(find.text('상담 대상 제품')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
 
-      await lookupAndConsent(tester, phone: '010-9876-5432'); // 이수현
-      await tester.tap(find.text('Last Intent 시작').first);
-      await tester.pumpAndSettle();
-      Navigator.of(
-        tester.element(find.text('상담 대상 제품')),
-      ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
-      await tester.pumpAndSettle();
+    await lookupAndConsent(tester, phone: '010-9876-5432'); // 이수현
+    await tester.tap(find.text('Last Intent 시작').first);
+    await tester.pumpAndSettle();
+    Navigator.of(
+      tester.element(find.text('상담 대상 제품')),
+    ).popUntil(ModalRoute.withName(AppRoutes.staffHome));
+    await tester.pumpAndSettle();
 
-      // At this point currentCustomer is 이수현 (looked up most recently).
-      // Tapping 김세계's card's "쇼핑백 확인" must still show 김세계's cart,
-      // not 이수현's (the bug: it used to just navigate to whatever
-      // currentCustomer already was).
-      final Finder shoppingBagButtons = find.text('쇼핑백 확인');
-      expect(shoppingBagButtons, findsNWidgets(2));
-      final Finder kimCard = find.ancestor(
-        of: find.text('김세계'),
-        matching: find.byType(Container),
-      );
-      await tester.tap(
-        find.descendant(of: kimCard.first, matching: find.text('쇼핑백 확인')),
-      );
-      await tester.pumpAndSettle();
+    // At this point currentCustomer is 이수현 (looked up most recently).
+    // Tapping 김세계's card's "쇼핑백 확인" must still show 김세계's cart,
+    // not 이수현's (the bug: it used to just navigate to whatever
+    // currentCustomer already was).
+    final Finder shoppingBagButtons = find.text('쇼핑백 확인');
+    expect(shoppingBagButtons, findsNWidgets(2));
+    final Finder kimCard = find.ancestor(
+      of: find.text('김세계'),
+      matching: find.byType(Container),
+    );
+    await tester.tap(
+      find.descendant(of: kimCard.first, matching: find.text('쇼핑백 확인')),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.textContaining('김세계 님의 쇼핑백'), findsOneWidget);
-      expect(find.textContaining('이수현 님의 쇼핑백'), findsNothing);
-    },
-  );
+    expect(find.textContaining('김세계 님의 쇼핑백'), findsOneWidget);
+    expect(find.textContaining('이수현 님의 쇼핑백'), findsNothing);
+  });
 }

@@ -18,32 +18,33 @@ void main() {
 
     await tester.pumpWidget(SegueApp(repository: MockSegueRepository()));
     Navigator.of(
-      tester.element(find.text('LXXVI')),
+      tester.element(
+        find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+      ),
     ).pushNamed(AppRoutes.customerLookup);
     await tester.pumpAndSettle();
   }
 
-  testWidgets(
-    '회원번호만 입력하고 전화번호를 비운 채 조회하면 명확한 검증 에러가 뜨고 조회를 시도하지 않는다',
-    (WidgetTester tester) async {
-      await reachCustomerLookupScreen(tester);
+  testWidgets('회원번호만 입력하고 전화번호를 비운 채 조회하면 명확한 검증 에러가 뜨고 조회를 시도하지 않는다', (
+    WidgetTester tester,
+  ) async {
+    await reachCustomerLookupScreen(tester);
 
-      final Finder fields = find.byType(TextFormField);
-      expect(fields, findsNWidgets(2));
-      // Column order: 회원번호 (index 0), 전화번호 (index 1).
-      await tester.enterText(fields.at(0), '12345');
-      await tester.pump();
+    final Finder fields = find.byType(TextFormField);
+    expect(fields, findsNWidgets(2));
+    // Column order: 회원번호 (index 0), 전화번호 (index 1).
+    await tester.enterText(fields.at(0), '12345');
+    await tester.pump();
 
-      await tester.tap(find.text('고객 조회'));
-      await tester.pump();
+    await tester.tap(find.text('고객 조회'));
+    await tester.pump();
 
-      expect(find.text('휴대전화 번호를 입력해 주세요.'), findsOneWidget);
-      // Never reached a lookup result/error state — the request was never
-      // sent because the form failed to validate.
-      expect(find.text('조회 결과가 없습니다'), findsNothing);
-      expect(find.text('고객 정보를 조회하고 있습니다'), findsNothing);
-    },
-  );
+    expect(find.text('휴대전화 번호를 입력해 주세요.'), findsOneWidget);
+    // Never reached a lookup result/error state — the request was never
+    // sent because the form failed to validate.
+    expect(find.text('조회 결과가 없습니다'), findsNothing);
+    expect(find.text('고객 정보를 조회하고 있습니다'), findsNothing);
+  });
 
   testWidgets('전화번호를 올바르게 입력하면 회원번호 입력 여부와 무관하게 조회된다', (
     WidgetTester tester,

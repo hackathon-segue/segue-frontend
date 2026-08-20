@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -9,6 +10,7 @@ import '../repositories/repositories.dart';
 import '../utils/app_config.dart';
 import '../utils/app_design_tokens.dart';
 import '../utils/execution_status_display.dart';
+import '../utils/product_option_display.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/mobile_product_visual.dart';
 import '../widgets/mobile_screen_scaffold.dart';
@@ -22,6 +24,7 @@ enum _MobileScreen {
   profileEdit,
   passwordEdit,
   menu,
+  segueIntro,
   products,
   detail,
   cartAdded,
@@ -32,10 +35,19 @@ enum _MobileScreen {
 }
 
 abstract final class _McmImageAssets {
+  static const String startLxxviLogo = 'assets/icons/start_mcm_lxxvi_logo.png';
+  static const String startProfileIcon = 'assets/icons/start_profile_icon.png';
+  static const String menuMcmLogo = 'assets/icons/menu_mcm_logo.png';
+  static const String menuFooterShoppingBagIcon =
+      'assets/icons/menu_footer_shopping_bag_icon.png';
   static const String startHero = 'assets/images/mcm/start_hero.png';
   static const String menuNewCollection =
       'assets/images/mcm/menu_new_collection.png';
   static const String menuBestSeller = 'assets/images/mcm/menu_best_seller.png';
+  static const String menuOuterCollection =
+      'assets/images/mcm/menu_outer_collection.png';
+  static const String menuOuterCollab =
+      'assets/images/mcm/menu_outer_collab.png';
   static const String menuPina = 'assets/images/mcm/menu_pina.png';
   static const String menuArenEastWest =
       'assets/images/mcm/menu_aren_east_west.png';
@@ -48,11 +60,23 @@ abstract final class _McmImageAssets {
       'assets/images/mcm/category_backpack.png';
   static const String categoryTopHandle =
       'assets/images/mcm/category_top_handle.png';
+  static const String segueIntroStoreHero =
+      'assets/images/mcm/segue_intro_store_hero.png';
+  static const String segueIntroAdvisor =
+      'assets/images/mcm/segue_intro_advisor.png';
+  static const String segueIntroLastIntentCard =
+      'assets/images/mcm/segue_intro_last_intent_card.png';
+  static const String segueIntroCompletion =
+      'assets/images/mcm/segue_intro_completion.png';
   static const String wordmarkBlack =
       'assets/images/mcm/mcm_wordmark_black.png';
 
   static String categoryHeroFor(String? category) {
     return switch (category ?? '가방') {
+      _ProductCategory.newProducts => categoryTote,
+      _ProductCategory.womenNewProducts => categoryTote,
+      _ProductCategory.menNewProducts => categoryShoulder,
+      _ProductCategory.autumnWinter2026 => menuNewCollection,
       '토트백 & 쇼퍼백' => categoryTote,
       '숄더백 & 크로스백' => categoryShoulder,
       '백팩' => categoryBackpack,
@@ -61,6 +85,31 @@ abstract final class _McmImageAssets {
     };
   }
 }
+
+abstract final class _ProductCategory {
+  static const String newProducts = '신상품';
+  static const String womenNewProducts = '여성 신상품';
+  static const String menNewProducts = '남성 신상품';
+  static const String autumnWinter2026 = 'Autumn Winter 2026';
+}
+
+bool _isNewProductCategory(String? category) {
+  return category == _ProductCategory.newProducts ||
+      category == _ProductCategory.womenNewProducts ||
+      category == _ProductCategory.menNewProducts ||
+      category == _ProductCategory.autumnWinter2026;
+}
+
+bool _isNewProductSubcategory(String category) {
+  return category == _ProductCategory.womenNewProducts ||
+      category == _ProductCategory.menNewProducts ||
+      category == _ProductCategory.autumnWinter2026;
+}
+
+typedef _CustomerLoginCallback = Future<void> Function({
+  required String email,
+  required String password,
+});
 
 class CustomerMobileEntryScreen extends StatefulWidget {
   const CustomerMobileEntryScreen({super.key});
@@ -72,6 +121,8 @@ class CustomerMobileEntryScreen extends StatefulWidget {
 
 class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   _MobileScreen _screen = _MobileScreen.start;
+  _MobileScreen _menuReturnScreen = _MobileScreen.start;
+  _MobileScreen _accountReturnScreen = _MobileScreen.start;
   MobileProduct _selectedProduct = MobileProductCatalog.products[2];
   final List<MobileProduct> _mobileProducts = List<MobileProduct>.of(
     AppConfig.useMockData ? MobileProductCatalog.products : <MobileProduct>[],
@@ -91,9 +142,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   String? _productsError;
   String? _cartError;
   bool _isLoggedIn = false;
-  final String _accountName = '아무개';
-  final String _accountEmail = '1234@1234.com';
-  final String _accountPhone = '010-1234-1234';
+  int _customerId = AppConfig.defaultCustomerId;
+  String _accountName = '아무개';
+  String _accountEmail = '1234@1234.com';
+  String _accountPhone = '010-1234-1234';
   final List<ConsultationResult> _consultationResults = <ConsultationResult>[];
   ConsultationResult? _selectedConsultationResult;
   bool _isLoadingResults = false;
@@ -123,7 +175,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       ),
       _MobileScreen.login => _LoginScreen(
         onClose: _openStart,
-        onLogin: _completeLogin,
+        onLogin: _loginCustomer,
         onSignup: _openSignup,
       ),
       _MobileScreen.signup => _SignupScreen(
@@ -136,7 +188,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         name: _accountName,
         email: _accountEmail,
         phone: _accountPhone,
-        onClose: _openMenu,
+        onClose: _closeAccount,
         onOpenLogin: _openLogin,
         onEditProfile: _openProfileEdit,
         onOpenCart: _openCart,
@@ -164,13 +216,21 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _MobileScreen.menu => _MenuScreen(
         isLoggedIn: _isLoggedIn,
         expandedSection: _expandedMenuSection,
-        onClose: _openStart,
+        onClose: _closeMenu,
         onToggleSection: _toggleMenuSection,
+        onOpenSegueIntro: _openSegueIntro,
         onOpenProducts: _openProductCategory,
         onOpenAllProducts: _openAllProducts,
         onOpenLogin: _openLogin,
         onOpenAccount: _openAccount,
         onOpenCart: _openCart,
+        onOpenResults: () {
+          _openResults();
+        },
+      ),
+      _MobileScreen.segueIntro => _SegueIntroScreen(
+        onOpenMenu: _openMenu,
+        onOpenAccount: _openAccount,
         onOpenResults: () {
           _openResults();
         },
@@ -200,7 +260,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
           color: _selectedColor,
           size: _selectedSize,
         ),
-        onBack: _returnToProducts,
+        onBack: _openMenu,
         onColorSelected: (String color) {
           setState(() {
             final MobileSkuOption? firstOption = _selectedProduct
@@ -221,21 +281,25 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         cartSaveError: _cartSaveError,
         onOpenAccount: _openAccount,
       ),
-      _MobileScreen.cartAdded => _CartAddedScreen(
-        cartItem: _lastSavedCartItem,
-        cartItems: _cartItems,
-        onBack: _openDetailFromCartAdded,
-        onOpenCart: _openCart,
-        onContinueShopping: _returnToProducts,
-        onOpenAccount: _openAccount,
+      _MobileScreen.cartAdded => _CartAddedSlideIn(
+        child: _CartAddedScreen(
+          cartItem: _lastSavedCartItem,
+          cartItems: _cartItems,
+          onBack: _openDetailFromCartAdded,
+          onOpenCart: _openCart,
+          onContinueShopping: _returnToProducts,
+          onOpenAccount: _openAccount,
+        ),
       ),
       _MobileScreen.cart => _CartListScreen(
         cartItems: _cartItems,
         isLoading: _isLoadingCart,
         errorMessage: _cartError,
+        isLoggedIn: _isLoggedIn,
         onRetry: () => _loadCartItems(force: true),
         onBackToProducts: _returnToProducts,
         onOpenAccount: _openAccount,
+        onOpenLogin: _openLogin,
       ),
       _MobileScreen.results => _ConsultationResultsScreen(
         results: _consultationResults,
@@ -265,6 +329,14 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     ) {
       return _matchesProductCategory(product, category);
     }).toList();
+    if (products.isEmpty && _isNewProductSubcategory(category)) {
+      products.addAll(
+        _mobileProducts.where(
+          (MobileProduct product) =>
+              _matchesProductCategory(product, _ProductCategory.newProducts),
+        ),
+      );
+    }
     products.sort((MobileProduct a, MobileProduct b) {
       final bool aIsNewSeason = a.season.contains('2026');
       final bool bIsNewSeason = b.season.contains('2026');
@@ -277,15 +349,20 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   bool _matchesProductCategory(MobileProduct product, String category) {
-    final bool hasNewCollectionMetadata =
-        product.season.contains('2026') ||
-        product.collection.contains('신') ||
-        product.category.contains('신상품');
-    final bool lacksNewCollectionMetadata =
-        product.season.trim().isEmpty && product.collection.trim().isEmpty;
+    final bool hasNewCollectionMetadata = _isNewProduct(product);
+    final bool lacksNewCollectionMetadata = _lacksNewProductMetadata(product);
 
     return switch (category) {
-      '신상품' =>
+      _ProductCategory.newProducts =>
+        hasNewCollectionMetadata ||
+            (lacksNewCollectionMetadata && product.category != '지갑'),
+      _ProductCategory.womenNewProducts =>
+        (hasNewCollectionMetadata && _looksLikeWomenNewProduct(product)) ||
+            (lacksNewCollectionMetadata && product.category != '지갑'),
+      _ProductCategory.menNewProducts =>
+        (hasNewCollectionMetadata && _looksLikeMenNewProduct(product)) ||
+            (lacksNewCollectionMetadata && product.category != '지갑'),
+      _ProductCategory.autumnWinter2026 =>
         hasNewCollectionMetadata ||
             (lacksNewCollectionMetadata && product.category != '지갑'),
       '가방' => product.category != '지갑',
@@ -304,15 +381,65 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     };
   }
 
+  bool _isNewProduct(MobileProduct product) {
+    return product.season.contains('2026') ||
+        product.collection.contains('신') ||
+        product.category.contains('신상품');
+  }
+
+  bool _lacksNewProductMetadata(MobileProduct product) {
+    return product.season.trim().isEmpty && product.collection.trim().isEmpty;
+  }
+
+  bool _looksLikeWomenNewProduct(MobileProduct product) {
+    final String name = product.name.toLowerCase();
+    return product.id.isEven ||
+        name.contains('liz') ||
+        name.contains('diamond') ||
+        name.contains('mode') ||
+        name.contains('stark') ||
+        name.contains('쇼퍼') ||
+        name.contains('숄더') ||
+        name.contains('토트') ||
+        name.contains('드로우스트링') ||
+        name.contains('크로스');
+  }
+
+  bool _looksLikeMenNewProduct(MobileProduct product) {
+    final String name = product.name.toLowerCase();
+    return product.id.isOdd ||
+        name.contains('aren') ||
+        name.contains('ottomar') ||
+        name.contains('fursten') ||
+        name.contains('tracy') ||
+        name.contains('백팩') ||
+        name.contains('벨트') ||
+        name.contains('위켄더') ||
+        name.contains('호보');
+  }
+
+  bool _isAccountFlowScreen(_MobileScreen screen) {
+    return screen == _MobileScreen.account ||
+        screen == _MobileScreen.profileEdit ||
+        screen == _MobileScreen.passwordEdit;
+  }
+
   void _openStart() {
     setState(() => _screen = _MobileScreen.start);
   }
 
   void _openMenu() {
     setState(() {
-      _expandedMenuSection ??= '가방';
+      if (_screen != _MobileScreen.menu) {
+        _menuReturnScreen = _screen;
+      }
+      _expandedMenuSection = null;
       _screen = _MobileScreen.menu;
     });
+  }
+
+  void _closeMenu() {
+    setState(() => _screen = _menuReturnScreen);
   }
 
   void _openLogin() {
@@ -324,7 +451,18 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   void _openAccount() {
-    setState(() => _screen = _MobileScreen.account);
+    setState(() {
+      if (!_isAccountFlowScreen(_screen)) {
+        _accountReturnScreen = _screen == _MobileScreen.menu
+            ? _menuReturnScreen
+            : _screen;
+      }
+      _screen = _MobileScreen.account;
+    });
+  }
+
+  void _closeAccount() {
+    setState(() => _screen = _accountReturnScreen);
   }
 
   void _openProfileEdit() {
@@ -342,9 +480,41 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     });
   }
 
+  Future<void> _loginCustomer({
+    required String email,
+    required String password,
+  }) async {
+    final Customer customer = await RepositoryScope.of(
+      context,
+    ).loginCustomer(email: email, password: password);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isLoggedIn = true;
+      _customerId = customer.id == 0 ? AppConfig.defaultCustomerId : customer.id;
+      _accountName = customer.name.trim().isEmpty
+          ? _accountName
+          : customer.name;
+      _accountEmail = customer.email.trim().isEmpty
+          ? email.trim()
+          : customer.email;
+      _accountPhone = customer.phoneNumber.trim().isEmpty
+          ? _accountPhone
+          : customer.phoneNumber;
+      _cartItems.clear();
+      _consultationResults.clear();
+      _selectedConsultationResult = null;
+      _cartError = null;
+      _resultsError = null;
+      _screen = _MobileScreen.start;
+    });
+  }
+
   void _completeLogin() {
     setState(() {
       _isLoggedIn = true;
+      _customerId = AppConfig.defaultCustomerId;
       _screen = _MobileScreen.start;
     });
   }
@@ -353,6 +523,10 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     setState(() {
       _expandedMenuSection = _expandedMenuSection == section ? null : section;
     });
+  }
+
+  void _openSegueIntro() {
+    setState(() => _screen = _MobileScreen.segueIntro);
   }
 
   void _openAllProducts() {
@@ -387,7 +561,12 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
   void _openCart() {
     if (!_isLoggedIn) {
-      _showLoginRequiredDialog();
+      setState(() {
+        _cartItems.clear();
+        _cartError = null;
+        _isLoadingCart = false;
+        _screen = _MobileScreen.cart;
+      });
       return;
     }
 
@@ -533,7 +712,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     try {
       final List<ConsultationResult> results = await RepositoryScope.of(
         context,
-      ).fetchConsultationResults(AppConfig.defaultCustomerId);
+      ).fetchConsultationResults(_customerId);
       results.sort(
         (ConsultationResult a, ConsultationResult b) =>
             b.consultedAt.compareTo(a.consultedAt),
@@ -574,7 +753,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
 
     try {
       final List<CartItem> items = await RepositoryScope.of(context).fetchCart(
-        customerId: AppConfig.defaultCustomerId,
+        customerId: _customerId,
         storeId: AppConfig.defaultStoreId,
       );
       items.sort((CartItem a, CartItem b) => b.savedAt.compareTo(a.savedAt));
@@ -602,6 +781,11 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   Future<void> _saveSelectedCartItem() async {
+    if (!_isLoggedIn) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
     final MobileSkuOption? selectedSku = _selectedProduct.skuFor(
       color: _selectedColor,
       size: _selectedSize,
@@ -618,7 +802,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     try {
       final CartItem cartItem = await RepositoryScope.of(context).saveCartItem(
         CartSaveRequest(
-          customerId: AppConfig.defaultCustomerId,
+          customerId: _customerId,
           productId: _selectedProduct.id,
           color: selectedSku.color,
           size: selectedSku.size,
@@ -665,49 +849,25 @@ class _StartScreen extends StatelessWidget {
         children: <Widget>[
           const _CampaignBackdrop(),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  Positioned(
-                    top: 28,
-                    left: -10,
-                    right: -10,
-                    child: Row(
-                      children: <Widget>[
-                        IconButton(
-                          tooltip: '메뉴 열기',
-                          onPressed: onOpenMenu,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 48,
-                            height: 48,
-                          ),
-                          icon: const _StartMenuIcon(),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          tooltip: '내 계정',
-                          onPressed: onOpenResults,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 48,
-                            height: 48,
-                          ),
-                          icon: const _StartProfileIcon(),
-                        ),
-                      ],
-                    ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: _StartTransparentTopBar(
+                    onOpenMenu: onOpenMenu,
+                    onOpenAccount: onOpenResults,
                   ),
-                  const Positioned(
-                    top: 104,
-                    left: 0,
-                    right: 0,
-                    child: _StartScreenLogo(),
-                  ),
-                ],
-              ),
+                ),
+                const Positioned(
+                  top: 115,
+                  left: 0,
+                  right: 0,
+                  child: Center(child: _StartScreenLogo()),
+                ),
+              ],
             ),
           ),
         ],
@@ -716,7 +876,55 @@ class _StartScreen extends StatelessWidget {
   }
 }
 
-class _LoginScreen extends StatelessWidget {
+class _StartTransparentTopBar extends StatelessWidget {
+  const _StartTransparentTopBar({
+    required this.onOpenMenu,
+    required this.onOpenAccount,
+  });
+
+  final VoidCallback onOpenMenu;
+  final VoidCallback onOpenAccount;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 66,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              tooltip: '메뉴 열기',
+              onPressed: onOpenMenu,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(
+                width: 58.56,
+                height: 48,
+              ),
+              icon: const _StartMenuIcon(),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              tooltip: '내 계정',
+              onPressed: onOpenAccount,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(
+                width: 58.56,
+                height: 48,
+              ),
+              icon: const _StartProfileIcon(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginScreen extends StatefulWidget {
   const _LoginScreen({
     required this.onClose,
     required this.onLogin,
@@ -724,83 +932,150 @@ class _LoginScreen extends StatelessWidget {
   });
 
   final VoidCallback onClose;
-  final VoidCallback onLogin;
+  final _CustomerLoginCallback onLogin;
   final VoidCallback onSignup;
+
+  @override
+  State<_LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<_LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLoginPressed() async {
+    if (_isSubmitting) {
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.onLogin(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showLoginMismatchDialog();
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  void _showLoginMismatchDialog() {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black,
+      builder: (BuildContext context) {
+        return const _LoginMismatchDialog();
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return _McmPhoneShell(
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              SizedBox(
-                height: 78,
-                child: Stack(
-                  alignment: Alignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _McmTopBar(
+              onLeadingPressed: widget.onClose,
+              leadingIcon: Icons.close,
+              leadingIconWidget: const _MenuCloseIcon(),
+              leadingTooltip: '로그인 닫기',
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(33, 20, 33, 50),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        tooltip: '로그인 닫기',
-                        onPressed: onClose,
-                        icon: const Icon(Icons.close, size: 28),
+                    const Text(
+                      '로그인',
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 13.74,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w700,
+                        height: 0.99925,
+                        letterSpacing: 0,
                       ),
                     ),
-                    Semantics(
-                      label: 'MCM',
-                      image: true,
-                      child: Image.asset(
-                        _McmImageAssets.wordmarkBlack,
-                        width: 76,
-                        height: 22,
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.medium,
+                    const SizedBox(height: 8),
+                    const Text(
+                      '회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.',
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 11.908,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w400,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '*표시가 있는 모든 입력 항목은 필수입니다.',
+                      style: TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 10.076,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                    _LoginInputField(
+                      controller: _emailController,
+                      hintText: '이메일 주소*',
+                      compactMcmStyle: true,
+                    ),
+                    const SizedBox(height: 28),
+                    _LoginInputField(
+                      controller: _passwordController,
+                      hintText: '비밀번호*',
+                      trailingText: '표시',
+                      obscureText: true,
+                      compactMcmStyle: true,
+                    ),
+                    const Spacer(),
+                    _LoginPrimaryButton(
+                      label: _isSubmitting ? '로그인 중' : '로그인',
+                      onPressed: _handleLoginPressed,
+                    ),
+                    const SizedBox(height: 18),
+                    Center(
+                      child: InkWell(
+                        onTap: widget.onSignup,
+                        child: const _LoginSignupLink('계정이 없으신가요? 회원가입하기'),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 34),
-              const Text(
-                '로그인',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.',
-                style: TextStyle(fontSize: 9.5, height: 1.35),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '*표시가 있는 모든 입력 항목은 필수입니다.',
-                style: TextStyle(
-                  color: Color(0xFF747474),
-                  fontSize: 9,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 48),
-              const _LoginInputField(hintText: '이메일 주소*'),
-              const SizedBox(height: 28),
-              const _LoginInputField(
-                hintText: '비밀번호*',
-                trailingText: '표시',
-                obscureText: true,
-              ),
-              const Spacer(),
-              _McmPrimaryButton(label: '로그인', onPressed: onLogin),
-              const SizedBox(height: 18),
-              Center(
-                child: InkWell(
-                  onTap: onSignup,
-                  child: const _McmUnderlinedText('계정이 없으신가요? 회원가입하기'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -819,76 +1094,109 @@ class _LoginRequiredDialog extends StatelessWidget {
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 22),
-          child: ConstrainedBox(
+          child: SizedBox(
             key: const ValueKey<String>('login-required-dialog-panel'),
-            constraints: const BoxConstraints(
-              maxWidth: AppSizes.mobileContentMaxWidth - 44,
-            ),
-            child: Material(
-              color: Colors.white,
-              shape: const RoundedRectangleBorder(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(26, 20, 26, 34),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            width: 302,
+            height: 138,
+            child: MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.noScaling),
+              child: Material(
+                color: Colors.white,
+                shape: const RoundedRectangleBorder(),
+                child: Stack(
                   children: <Widget>[
-                    Align(
-                      alignment: Alignment.centerRight,
+                    Positioned(
+                      top: -1.27,
+                      right: -4.08,
                       child: IconButton(
                         tooltip: '팝업 닫기',
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close, size: 30),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 44,
+                          height: 44,
+                        ),
+                        icon: const _LoginRequiredCloseIcon(),
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      '해당 기능은 로그인 이후에 가능합니다.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        height: 1.28,
-                        letterSpacing: 0,
+                    const Positioned(
+                      top: 50,
+                      left: 0,
+                      right: 0,
+                      child: Text(
+                        '해당 기능은 로그인 이후에 가능합니다.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF000000),
+                          fontFamily: 'Pretendard',
+                          fontSize: 14,
+                          fontStyle: FontStyle.normal,
+                          fontWeight: FontWeight.w500,
+                          height: 0.99925,
+                          letterSpacing: 0,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 38),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: SizedBox(
-                            height: 64,
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 19,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          SizedBox(
+                            width: 90,
+                            height: 32,
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.black,
                                 side: const BorderSide(
                                   color: Colors.black,
-                                  width: 2,
+                                  width: 1,
                                 ),
+                                minimumSize: Size.zero,
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 shape: const RoundedRectangleBorder(),
                                 textStyle: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF000000),
+                                  fontFamily: 'Pretendard',
+                                  fontSize: 13,
+                                  fontStyle: FontStyle.normal,
+                                  fontWeight: FontWeight.w500,
+                                  height: 0.99925,
                                   letterSpacing: 0,
                                 ),
                               ),
                               onPressed: onSignup,
-                              child: const Text('회원가입!'),
+                              child: const Text('회원가입'),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: SizedBox(
-                            height: 64,
+                          const SizedBox(width: 14),
+                          SizedBox(
+                            width: 90,
+                            height: 32,
                             child: FilledButton(
                               style: FilledButton.styleFrom(
                                 backgroundColor: Colors.black,
                                 foregroundColor: Colors.white,
+                                side: const BorderSide(
+                                  color: Colors.black,
+                                  width: 1,
+                                ),
+                                minimumSize: Size.zero,
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 shape: const RoundedRectangleBorder(),
                                 textStyle: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFFFFFFF),
+                                  fontFamily: 'Pretendard',
+                                  fontSize: 13,
+                                  fontStyle: FontStyle.normal,
+                                  fontWeight: FontWeight.w500,
+                                  height: 0.99925,
                                   letterSpacing: 0,
                                 ),
                               ),
@@ -896,8 +1204,8 @@ class _LoginRequiredDialog extends StatelessWidget {
                               child: const Text('로그인'),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -907,6 +1215,51 @@ class _LoginRequiredDialog extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _LoginRequiredCloseIcon extends StatelessWidget {
+  const _LoginRequiredCloseIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 10.25,
+      height: 9.462,
+      child: CustomPaint(painter: _LoginRequiredCloseIconPainter()),
+    );
+  }
+}
+
+class _LoginRequiredCloseIconPainter extends CustomPainter {
+  const _LoginRequiredCloseIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.butt;
+
+    canvas
+      ..save()
+      ..scale(size.width / 11, size.height / 11)
+      ..drawLine(
+        const Offset(0.802547, 0.530217),
+        const Offset(10.2641, 9.99175),
+        paint,
+      )
+      ..drawLine(
+        const Offset(10.5222, 1.06055),
+        const Offset(1.06055, 10.5222),
+        paint,
+      )
+      ..restore();
+  }
+
+  @override
+  bool shouldRepaint(_LoginRequiredCloseIconPainter oldDelegate) {
+    return false;
   }
 }
 
@@ -939,37 +1292,71 @@ class _AccountScreen extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: <Widget>[
-            _McmTopBar(onLeadingPressed: onClose, leadingIcon: Icons.close),
+            _McmTopBar(
+              onLeadingPressed: onClose,
+              leadingIcon: Icons.close,
+              leadingIconWidget: const _MenuCloseIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
                 children: <Widget>[
                   const Text(
                     '내 계정',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                    style: TextStyle(
+                      color: Color(0xFF000000),
+                      fontFamily: 'Pretendard',
+                      fontSize: 13.74,
+                      fontStyle: FontStyle.normal,
+                      fontWeight: FontWeight.w700,
+                      height: 0.99925,
+                      letterSpacing: 0,
+                    ),
                   ),
                   if (isLoggedIn) ...<Widget>[
                     const SizedBox(height: 36),
                     const Text(
                       '주문 내역',
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 16.489,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w700,
+                        height: 0.99925,
+                        letterSpacing: 0,
                       ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
                       '이 계정에 대한 주문 기록이 없습니다.',
-                      style: TextStyle(fontSize: 11, height: 1.35),
+                      style: TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 12.824,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 18.321 / 12.824,
+                        letterSpacing: 0,
+                      ),
                     ),
                     const SizedBox(height: 44),
-                    const _McmSectionDivider(),
+                    const Center(child: _AccountSectionDivider()),
                     const SizedBox(height: 30),
                     const Text(
                       '계정 상세정보',
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 16.489,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w700,
+                        height: 0.99925,
+                        letterSpacing: 0,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -981,11 +1368,12 @@ class _AccountScreen extends StatelessWidget {
                     const _AccountInfoBlock(
                       label: '비밀번호',
                       values: <String>['••••••••'],
+                      valueFontWeight: FontWeight.w700,
                     ),
                     const SizedBox(height: 24),
                     _AccountInfoBlock(label: '전화번호', values: <String>[phone]),
                     const SizedBox(height: 18),
-                    _McmOutlinedButton(
+                    _AccountProfileEditButton(
                       label: '프로필 편집',
                       onPressed: onEditProfile,
                     ),
@@ -994,9 +1382,13 @@ class _AccountScreen extends StatelessWidget {
                     const Text(
                       '로그인을 먼저 진행해 주세요.',
                       style: TextStyle(
-                        color: Color(0xFF707070),
-                        fontSize: 11,
-                        height: 1.4,
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 12.824,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 18.321 / 12.824,
+                        letterSpacing: 0,
                       ),
                     ),
                   ],
@@ -1004,23 +1396,23 @@ class _AccountScreen extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
+              padding: const EdgeInsets.fromLTRB(17.4, 0, 16.5, 22),
               child: Column(
                 children: <Widget>[
                   if (!isLoggedIn)
-                    _MenuFooterRow(
-                      label: '로그인',
-                      icon: Icons.person_outline,
-                      onTap: onOpenLogin,
-                    ),
+                    _MenuFooterAccountRow(label: '로그인', onTap: onOpenLogin),
                   _MenuFooterRow(
                     label: '쇼핑백',
                     icon: Icons.shopping_bag_outlined,
+                    textStyle: _MenuFooterRow.compactTextStyle,
+                    trailingIcon: const _MenuFooterShoppingBagIcon(),
                     onTap: onOpenCart,
                   ),
                   _MenuFooterRow(
                     label: 'SEGUE 내역 확인',
                     icon: Icons.receipt_long_outlined,
+                    labelWidget: const _SegueHistoryFooterLabel(),
+                    trailingIcon: const _MenuFooterSegueHistoryIcon(),
                     onTap: onOpenResults,
                   ),
                 ],
@@ -1048,89 +1440,112 @@ class _SignupScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return _McmPhoneShell(
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              SizedBox(
-                height: 78,
-                child: Stack(
-                  alignment: Alignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _McmTopBar(
+              onLeadingPressed: onClose,
+              leadingIcon: Icons.close,
+              leadingIconWidget: const _MenuCloseIcon(),
+              leadingTooltip: '회원가입 닫기',
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(33, 20, 33, 50),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        tooltip: '회원가입 닫기',
-                        onPressed: onClose,
-                        icon: const Icon(Icons.close, size: 28),
+                    const Text(
+                      '회원가입',
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 13.74,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w700,
+                        height: 0.99925,
+                        letterSpacing: 0,
                       ),
                     ),
-                    Semantics(
-                      label: 'MCM',
-                      image: true,
-                      child: Image.asset(
-                        _McmImageAssets.wordmarkBlack,
-                        width: 76,
-                        height: 22,
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.medium,
+                    const SizedBox(height: 8),
+                    const Text(
+                      '회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.',
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 11.908,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w400,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '*표시가 있는 모든 입력 항목은 필수입니다.',
+                      style: TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 10.076,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                    const _LoginInputField(
+                      hintText: '성명*',
+                      compactMcmStyle: true,
+                    ),
+                    const SizedBox(height: 28),
+                    const _LoginInputField(
+                      hintText: '이메일 주소*',
+                      compactMcmStyle: true,
+                    ),
+                    const SizedBox(height: 28),
+                    const _LoginInputField(
+                      hintText: '전화번호*',
+                      compactMcmStyle: true,
+                    ),
+                    const SizedBox(height: 28),
+                    const _LoginInputField(
+                      hintText: '비밀번호*',
+                      trailingText: '표시',
+                      obscureText: true,
+                      compactMcmStyle: true,
+                    ),
+                    const SizedBox(height: 7),
+                    const Text(
+                      '비밀번호는 8자 이상이어야 합니다.',
+                      style: TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 10.076,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const Spacer(),
+                    _LoginPrimaryButton(label: '회원가입', onPressed: onSignup),
+                    const SizedBox(height: 18),
+                    Center(
+                      child: InkWell(
+                        onTap: onLogin,
+                        child: const _LoginSignupLink('이미 계정이 있으신가요? 로그인하기'),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 34),
-              const Text(
-                '회원가입',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '회원으로 가입하시면 빠르고 편리하게 이용하실 수 있습니다.',
-                style: TextStyle(fontSize: 9.5, height: 1.35),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '*표시가 있는 모든 입력 항목은 필수입니다.',
-                style: TextStyle(
-                  color: Color(0xFF747474),
-                  fontSize: 9,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 48),
-              const _LoginInputField(hintText: '성명*'),
-              const SizedBox(height: 28),
-              const _LoginInputField(hintText: '이메일 주소*'),
-              const SizedBox(height: 28),
-              const _LoginInputField(hintText: '전화번호*'),
-              const SizedBox(height: 28),
-              const _LoginInputField(
-                hintText: '비밀번호*',
-                trailingText: '표시',
-                obscureText: true,
-              ),
-              const SizedBox(height: 7),
-              const Text(
-                '비밀번호는 8자 이상이어야 합니다.',
-                style: TextStyle(
-                  color: Color(0xFF747474),
-                  fontSize: 9,
-                  height: 1.35,
-                ),
-              ),
-              const Spacer(),
-              _McmPrimaryButton(label: '회원가입', onPressed: onSignup),
-              const SizedBox(height: 18),
-              Center(
-                child: InkWell(
-                  onTap: onLogin,
-                  child: const _McmUnderlinedText('이미 계정이 있으신가요? 로그인하기'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1160,64 +1575,94 @@ class _ProfileEditScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return _McmPhoneShell(
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _McmTopBar(
-                onLeadingPressed: onBack,
-                leadingIcon: Icons.chevron_left,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                '내 프로필 편집',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '*표시가 있는 모든 입력 항목은 필수입니다.',
-                style: TextStyle(
-                  color: Color(0xFF747474),
-                  fontSize: 10,
-                  height: 1.35,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _McmTopBar(
+              onLeadingPressed: onBack,
+              leadingIcon: Icons.chevron_left,
+              leadingIconWidget: const _McmBackIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(33, 20, 33, 50),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const Text(
+                      '내 프로필 편집',
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 13.74,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w700,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      '*표시가 있는 모든 입력 항목은 필수입니다.',
+                      style: TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 10.076,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    _AccountFormField(label: '성명*', value: name),
+                    const SizedBox(height: 24),
+                    _AccountFormField(label: '이메일 주소*', value: email),
+                    const SizedBox(height: 24),
+                    _AccountFormField(label: '전화번호*', value: phone),
+                    const SizedBox(height: 24),
+                    const _AccountFormField(
+                      label: '비밀번호*',
+                      value: '12345678',
+                      trailingText: '표시',
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: onPasswordChange,
+                      child: const Text(
+                        '비밀번호 변경',
+                        style: TextStyle(
+                          color: Color(0xFF6E707C),
+                          fontFamily: 'Pretendard',
+                          fontSize: 10.076,
+                          fontStyle: FontStyle.normal,
+                          fontWeight: FontWeight.w500,
+                          height: 0.99925,
+                          letterSpacing: 0,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Color(0xFF6E707C),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    _LoginPrimaryButton(label: '회원가입', onPressed: onSave),
+                    const SizedBox(height: 18),
+                    Center(
+                      child: InkWell(
+                        onTap: onLogin,
+                        child: const _LoginSignupLink('이미 계정이 있으신가요? 로그인하기'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 30),
-              _AccountFormField(label: '성명*', value: name),
-              const SizedBox(height: 24),
-              _AccountFormField(label: '이메일 주소*', value: email),
-              const SizedBox(height: 24),
-              _AccountFormField(label: '전화번호*', value: phone),
-              const SizedBox(height: 24),
-              const _AccountFormField(
-                label: '비밀번호*',
-                value: '••••••••',
-                trailingText: '표시',
-              ),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: onPasswordChange,
-                child: const Text(
-                  '비밀번호 편집',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              _McmPrimaryButton(label: '회원가입', onPressed: onSave),
-              const SizedBox(height: 18),
-              Center(
-                child: InkWell(
-                  onTap: onLogin,
-                  child: const _McmUnderlinedText('이미 계정이 있으신가요? 로그인하기'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1245,140 +1690,113 @@ class _PasswordEditScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return _McmPhoneShell(
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 50),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _McmTopBar(
-                onLeadingPressed: onBack,
-                leadingIcon: Icons.chevron_left,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                '내 프로필 편집',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '*표시가 있는 모든 입력 항목은 필수입니다.',
-                style: TextStyle(
-                  color: Color(0xFF747474),
-                  fontSize: 10,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 30),
-              _AccountFormField(label: '성명*', value: name),
-              const SizedBox(height: 24),
-              _AccountFormField(label: '이메일 주소*', value: email),
-              const SizedBox(height: 24),
-              _AccountFormField(label: '전화번호*', value: phone),
-              const SizedBox(height: 24),
-              const _AccountFormField(
-                label: '현재 비밀번호 입력*',
-                value: '••••••••',
-                trailingText: '표시',
-              ),
-              const SizedBox(height: 7),
-              InkWell(
-                onTap: onBack,
-                child: const Text(
-                  '비밀번호 편집',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const _AccountFormField(
-                label: '변경할 비밀번호*',
-                value: '',
-                trailingText: '표시',
-              ),
-              const SizedBox(height: 7),
-              const Text(
-                '비밀번호는 8자 이상이어야 합니다.',
-                style: TextStyle(
-                  color: Color(0xFF747474),
-                  fontSize: 9,
-                  height: 1.35,
-                ),
-              ),
-              const Spacer(),
-              _McmPrimaryButton(label: '회원가입', onPressed: onSave),
-              const SizedBox(height: 18),
-              Center(
-                child: InkWell(
-                  onTap: onLogin,
-                  child: const _McmUnderlinedText('이미 계정이 있으신가요? 로그인하기'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AccountFormField extends StatelessWidget {
-  const _AccountFormField({
-    required this.label,
-    required this.value,
-    this.trailingText,
-  });
-
-  final String label;
-  final String value;
-  final String? trailingText;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.black)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            _McmTopBar(
+              onLeadingPressed: onBack,
+              leadingIcon: Icons.chevron_left,
+              leadingIconWidget: const _McmBackIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+            ),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Color(0xFF747474),
-                      fontSize: 10,
-                      height: 1.35,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(33, 20, 33, 50),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const Text(
+                      '내 프로필 편집',
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 13.74,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w700,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
                     ),
-                  ),
-                  if (value.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 10),
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                    const Text(
+                      '*표시가 있는 모든 입력 항목은 필수입니다.',
+                      style: TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 10.076,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    _AccountFormField(label: '성명*', value: name),
+                    const SizedBox(height: 24),
+                    _AccountFormField(label: '이메일 주소*', value: email),
+                    const SizedBox(height: 24),
+                    _AccountFormField(label: '전화번호*', value: phone),
+                    const SizedBox(height: 24),
+                    const _AccountFormField(
+                      label: '현재 비밀번호 입력*',
+                      value: '12345678',
+                      trailingText: '표시',
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 7),
+                    InkWell(
+                      onTap: onBack,
+                      child: const Text(
+                        '비밀번호 변경',
+                        style: TextStyle(
+                          color: Color(0xFF6E707C),
+                          fontFamily: 'Pretendard',
+                          fontSize: 10.076,
+                          fontStyle: FontStyle.normal,
+                          fontWeight: FontWeight.w500,
+                          height: 0.99925,
+                          letterSpacing: 0,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Color(0xFF6E707C),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const _AccountFormField(
+                      label: '변경할 비밀번호*',
+                      value: '',
+                      trailingText: '표시',
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 7),
+                    const Text(
+                      '비밀번호는 8자 이상이어야 합니다.',
+                      style: TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 10.076,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const Spacer(),
+                    _LoginPrimaryButton(label: '회원가입', onPressed: onSave),
+                    const SizedBox(height: 18),
+                    Center(
+                      child: InkWell(
+                        onTap: onLogin,
+                        child: const _LoginSignupLink('이미 계정이 있으신가요? 로그인하기'),
                       ),
                     ),
                   ],
-                ],
-              ),
-            ),
-            if (trailingText != null)
-              Text(
-                trailingText!,
-                style: const TextStyle(
-                  color: Color(0xFF696969),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
+            ),
           ],
         ),
       ),
@@ -1386,11 +1804,134 @@ class _AccountFormField extends StatelessWidget {
   }
 }
 
+class _AccountFormField extends StatefulWidget {
+  const _AccountFormField({
+    required this.label,
+    required this.value,
+    this.trailingText,
+    this.obscureText = false,
+  });
+
+  final String label;
+  final String value;
+  final String? trailingText;
+  final bool obscureText;
+
+  @override
+  State<_AccountFormField> createState() => _AccountFormFieldState();
+}
+
+class _AccountFormFieldState extends State<_AccountFormField> {
+  late bool _obscured = widget.obscureText;
+
+  void _toggleObscured() {
+    if (!widget.obscureText) {
+      return;
+    }
+    setState(() => _obscured = !_obscured);
+  }
+
+  String get _displayValue {
+    if (!widget.obscureText || !_obscured || widget.value.isEmpty) {
+      return widget.value;
+    }
+    return List<String>.filled(widget.value.length, '•').join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 324.275,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Colors.black, width: 0.916),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        widget.label,
+                        style: const TextStyle(
+                          color: Color(0xFF6E707C),
+                          fontFamily: 'Pretendard',
+                          fontSize: 10.076,
+                          fontStyle: FontStyle.normal,
+                          fontWeight: FontWeight.w500,
+                          height: 0.99925,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      if (_displayValue.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 10),
+                        Text(
+                          _displayValue,
+                          style: const TextStyle(
+                            color: Color(0xFF000000),
+                            fontFamily: 'Pretendard',
+                            fontSize: 12.824,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w500,
+                            height: 0.99925,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (widget.trailingText != null)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: widget.obscureText ? _toggleObscured : null,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: Transform.translate(
+                        offset: const Offset(0, -3),
+                        child: Text(
+                          widget.trailingText!,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            color: Color(0xFF6E707C),
+                            fontFamily: 'Pretendard',
+                            fontSize: 9.16,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w500,
+                            height: 0.99925,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF6E707C),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AccountInfoBlock extends StatelessWidget {
-  const _AccountInfoBlock({required this.label, required this.values});
+  const _AccountInfoBlock({
+    required this.label,
+    required this.values,
+    this.valueFontWeight = FontWeight.w500,
+  });
 
   final String label;
   final List<String> values;
+  final FontWeight valueFontWeight;
 
   @override
   Widget build(BuildContext context) {
@@ -1399,71 +1940,276 @@ class _AccountInfoBlock extends StatelessWidget {
       children: <Widget>[
         Text(
           label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+          style: const TextStyle(
+            color: Color(0xFF000000),
+            fontFamily: 'Pretendard',
+            fontSize: 12.824,
+            fontStyle: FontStyle.normal,
+            fontWeight: FontWeight.w700,
+            height: 18.321 / 12.824,
+            letterSpacing: 0,
+          ),
         ),
         const SizedBox(height: 8),
         for (final String value in values)
-          Text(value, style: const TextStyle(fontSize: 11, height: 1.45)),
+          Text(
+            value,
+            style: TextStyle(
+              color: const Color(0xFF6E707C),
+              fontFamily: 'Pretendard',
+              fontSize: 12.824,
+              fontStyle: FontStyle.normal,
+              fontWeight: valueFontWeight,
+              height: 18.321 / 12.824,
+              letterSpacing: 0,
+            ),
+          ),
       ],
     );
   }
 }
 
-class _LoginInputField extends StatelessWidget {
-  const _LoginInputField({
-    required this.hintText,
-    this.trailingText,
-    this.obscureText = false,
-  });
-
-  final String hintText;
-  final String? trailingText;
-  final bool obscureText;
+class _AccountSectionDivider extends StatelessWidget {
+  const _AccountSectionDivider();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 35,
+    return const SizedBox(
+      width: 324.275,
+      height: 0.916,
+      child: ColoredBox(color: Color(0xFFEDEDED)),
+    );
+  }
+}
+
+class _AccountProfileEditButton extends StatelessWidget {
+  const _AccountProfileEditButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 324.275,
+        height: 40.305,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF222222),
+            side: const BorderSide(color: Color(0xFF222222), width: 0.916),
+            minimumSize: Size.zero,
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: const RoundedRectangleBorder(),
+            textStyle: const TextStyle(
+              color: Color(0xFF222222),
+              fontFamily: 'Pretendard',
+              fontSize: 11.908,
+              fontStyle: FontStyle.normal,
+              fontWeight: FontWeight.w600,
+              height: 0.99925,
+              letterSpacing: 0,
+            ),
+          ),
+          onPressed: onPressed,
+          child: Text(label, textAlign: TextAlign.center),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginInputField extends StatefulWidget {
+  const _LoginInputField({
+    required this.hintText,
+    this.controller,
+    this.trailingText,
+    this.obscureText = false,
+    this.compactMcmStyle = false,
+  });
+
+  final String hintText;
+  final TextEditingController? controller;
+  final String? trailingText;
+  final bool obscureText;
+  final bool compactMcmStyle;
+
+  @override
+  State<_LoginInputField> createState() => _LoginInputFieldState();
+}
+
+class _LoginInputFieldState extends State<_LoginInputField> {
+  late bool _obscured = widget.obscureText;
+
+  void _toggleObscured() {
+    if (!widget.obscureText) {
+      return;
+    }
+    setState(() => _obscured = !_obscured);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle floatingLabelStyle = widget.compactMcmStyle
+        ? const TextStyle(
+            color: Color(0xFF6E707C),
+            fontFamily: 'Pretendard',
+            fontSize: 10.076,
+            fontStyle: FontStyle.normal,
+            fontWeight: FontWeight.w500,
+            height: 0.99925,
+            letterSpacing: 0,
+          )
+        : const TextStyle(
+            color: Color(0xFF8A8A8A),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          );
+    final TextStyle inputTextStyle = widget.compactMcmStyle
+        ? const TextStyle(
+            color: Color(0xFF000000),
+            fontFamily: 'Pretendard',
+            fontSize: 12.824,
+            fontStyle: FontStyle.normal,
+            fontWeight: FontWeight.w500,
+            height: 0.99925,
+            letterSpacing: 0,
+          )
+        : const TextStyle(fontSize: 13, height: 1.2);
+    final TextStyle trailingStyle = widget.compactMcmStyle
+        ? const TextStyle(
+            color: Color(0xFF6E707C),
+            fontFamily: 'Pretendard',
+            fontSize: 9.16,
+            fontStyle: FontStyle.normal,
+            fontWeight: FontWeight.w500,
+            height: 0.99925,
+            decoration: TextDecoration.underline,
+            decorationColor: Color(0xFF6E707C),
+          )
+        : const TextStyle(
+            color: Color(0xFF696969),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          );
+    final BorderSide inputBorderSide = BorderSide(
+      color: Colors.black,
+      width: widget.compactMcmStyle ? 0.916 : 1,
+    );
+
+    final Widget field = SizedBox(
+      width: widget.compactMcmStyle ? 324.275 : double.infinity,
+      height: widget.compactMcmStyle ? 45 : 35,
       child: Stack(
         children: <Widget>[
           TextField(
-            obscureText: obscureText,
+            controller: widget.controller,
+            obscureText: _obscured,
             cursorColor: Colors.black,
-            style: const TextStyle(fontSize: 13, height: 1.2),
+            style: inputTextStyle,
             decoration: InputDecoration(
-              hintText: hintText,
-              hintStyle: const TextStyle(
-                color: Color(0xFF8A8A8A),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+              labelText: widget.hintText,
+              labelStyle: floatingLabelStyle,
+              floatingLabelStyle: floatingLabelStyle,
+              floatingLabelBehavior: FloatingLabelBehavior.auto,
               isDense: true,
               contentPadding: EdgeInsets.only(
-                right: trailingText == null ? 0 : 44,
+                right: widget.trailingText == null ? 0 : 44,
                 bottom: 9,
               ),
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.black),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.black, width: 1.2),
-              ),
+              enabledBorder: UnderlineInputBorder(borderSide: inputBorderSide),
+              focusedBorder: UnderlineInputBorder(borderSide: inputBorderSide),
             ),
           ),
-          if (trailingText != null)
+          if (widget.trailingText != null)
             Positioned(
               right: 0,
-              bottom: 10,
-              child: Text(
-                trailingText!,
-                style: const TextStyle(
-                  color: Color(0xFF696969),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              bottom: widget.compactMcmStyle ? 14 : 10,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.obscureText ? _toggleObscured : null,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Text(
+                    widget.trailingText!,
+                    textAlign: TextAlign.right,
+                    style: trailingStyle,
+                  ),
                 ),
               ),
             ),
         ],
+      ),
+    );
+
+    return widget.compactMcmStyle ? Center(child: field) : field;
+  }
+}
+
+class _LoginPrimaryButton extends StatelessWidget {
+  const _LoginPrimaryButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 324.275,
+        height: 40.305,
+        child: Material(
+          color: const Color(0xFF222222),
+          shape: const RoundedRectangleBorder(),
+          child: InkWell(
+            onTap: onPressed,
+            child: Center(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFFFFFFF),
+                  fontFamily: 'Pretendard',
+                  fontSize: 11.908,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w600,
+                  height: 0.99925,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginSignupLink extends StatelessWidget {
+  const _LoginSignupLink(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        color: Color(0xFF000000),
+        fontFamily: 'Pretendard',
+        fontSize: 11.908,
+        fontStyle: FontStyle.normal,
+        fontWeight: FontWeight.w400,
+        height: 0.99925,
+        letterSpacing: 0,
+        decoration: TextDecoration.underline,
+        decorationColor: Color(0xFF000000),
       ),
     );
   }
@@ -1472,71 +2218,26 @@ class _LoginInputField extends StatelessWidget {
 class _StartScreenLogo extends StatelessWidget {
   const _StartScreenLogo();
 
+  static const double _figmaWidth = 252.583;
+  static const double _figmaHeight = 64.467;
+
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double availableWidth = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : 318;
-        final double logoWidth = availableWidth < 318 ? availableWidth : 318;
-
-        return SizedBox(
-          width: availableWidth,
-          height: 86,
-          child: Center(
-            child: SizedBox(
-              width: logoWidth,
-              height: 86,
-              child: Column(
-                children: <Widget>[
-                  SizedBox(
-                    width: logoWidth,
-                    height: 48,
-                    child: const FittedBox(
-                      fit: BoxFit.contain,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: <Widget>[
-                          Text(
-                            'MCM',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontFamily: 'Montserrat',
-                              fontSize: 52,
-                              fontWeight: FontWeight.w900,
-                              height: 0.9,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          _OutlinedText(
-                            'LXXVI',
-                            fontSize: 47,
-                            strokeWidth: 1.25,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Text(
-                    '1976',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Montserrat',
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      height: 0.9,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+    return Semantics(
+      label: 'MCM LXXVI 1976',
+      image: true,
+      child: SizedBox(
+        key: const ValueKey<String>('customer-mobile-start-logo'),
+        width: _figmaWidth,
+        height: _figmaHeight,
+        child: Image.asset(
+          _McmImageAssets.startLxxviLogo,
+          width: _figmaWidth,
+          height: _figmaHeight,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+      ),
     );
   }
 }
@@ -1544,11 +2245,15 @@ class _StartScreenLogo extends StatelessWidget {
 class _StartMenuIcon extends StatelessWidget {
   const _StartMenuIcon();
 
+  static const double width = 20.153;
+  static const double height = 14.656;
+  static const double strokeWidth = 1.83206;
+
   @override
   Widget build(BuildContext context) {
     return const SizedBox(
-      width: 22,
-      height: 16,
+      width: width,
+      height: height,
       child: CustomPaint(painter: _StartMenuIconPainter()),
     );
   }
@@ -1560,21 +2265,20 @@ class _StartMenuIconPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.square;
+      ..color = const Color(0xFFFFFFFF)
+      ..strokeWidth = _StartMenuIcon.strokeWidth
+      ..strokeCap = StrokeCap.butt;
 
-    canvas.drawLine(const Offset(0, 1.1), Offset(size.width, 1.1), paint);
+    final double top = _StartMenuIcon.strokeWidth / 2;
+    final double bottom = size.height - top;
+
+    canvas.drawLine(Offset(0, top), Offset(size.width, top), paint);
     canvas.drawLine(
       Offset(0, size.height / 2),
       Offset(size.width, size.height / 2),
       paint,
     );
-    canvas.drawLine(
-      Offset(0, size.height - 1.1),
-      Offset(size.width, size.height - 1.1),
-      paint,
-    );
+    canvas.drawLine(Offset(0, bottom), Offset(size.width, bottom), paint);
   }
 
   @override
@@ -1586,72 +2290,20 @@ class _StartMenuIconPainter extends CustomPainter {
 class _StartProfileIcon extends StatelessWidget {
   const _StartProfileIcon();
 
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 24,
-      height: 24,
-      child: CustomPaint(painter: _StartProfileIconPainter()),
-    );
-  }
-}
-
-class _StartProfileIconPainter extends CustomPainter {
-  const _StartProfileIconPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint linePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round;
-    final Paint dotPaint = Paint()
-      ..color = const Color(0xFFB7C79B)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(Offset(size.width / 2, 6.7), 5.1, linePaint);
-    canvas.drawCircle(Offset(size.width / 2, 6.7), 3.15, dotPaint);
-    canvas.drawArc(
-      Rect.fromLTWH(2.1, 12.2, size.width - 4.2, 17.5),
-      3.86,
-      1.98,
-      false,
-      linePaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_StartProfileIconPainter oldDelegate) {
-    return false;
-  }
-}
-
-class _OutlinedText extends StatelessWidget {
-  const _OutlinedText(
-    this.text, {
-    required this.fontSize,
-    required this.strokeWidth,
-  });
-
-  final String text;
-  final double fontSize;
-  final double strokeWidth;
+  static const double width = 21.985;
+  static const double height = 22.535;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.w300,
-        fontFamily: 'Montserrat',
-        height: 0.92,
-        letterSpacing: 0,
-        foreground: Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth
-          ..color = Colors.white,
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Image.asset(
+        _McmImageAssets.startProfileIcon,
+        width: width,
+        height: height,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
       ),
     );
   }
@@ -1663,6 +2315,7 @@ class _MenuScreen extends StatelessWidget {
     required this.expandedSection,
     required this.onClose,
     required this.onToggleSection,
+    required this.onOpenSegueIntro,
     required this.onOpenProducts,
     required this.onOpenAllProducts,
     required this.onOpenLogin,
@@ -1675,6 +2328,7 @@ class _MenuScreen extends StatelessWidget {
   final String? expandedSection;
   final VoidCallback onClose;
   final ValueChanged<String> onToggleSection;
+  final VoidCallback onOpenSegueIntro;
   final ValueChanged<String> onOpenProducts;
   final VoidCallback onOpenAllProducts;
   final VoidCallback onOpenLogin;
@@ -1688,10 +2342,18 @@ class _MenuScreen extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: <Widget>[
-            _McmTopBar(onLeadingPressed: onClose, leadingIcon: Icons.close),
+            _McmTopBar(
+              onLeadingPressed: onClose,
+              leadingIcon: Icons.close,
+              leadingIconWidget: const _MenuCloseIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+            ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+                padding: const EdgeInsets.fromLTRB(19.2, 20, 19.2, 20),
                 children: <Widget>[
                   _MenuPrimaryRow(
                     label: '신상품',
@@ -1701,36 +2363,29 @@ class _MenuScreen extends StatelessWidget {
                   if (expandedSection == '신상품') ...<Widget>[
                     _MenuSubItem(
                       label: '여성 신상품',
-                      onTap: () => onOpenProducts('신상품'),
+                      onTap: () =>
+                          onOpenProducts(_ProductCategory.womenNewProducts),
                     ),
                     _MenuSubItem(
                       label: '남성 신상품',
-                      onTap: () => onOpenProducts('신상품'),
+                      onTap: () =>
+                          onOpenProducts(_ProductCategory.menNewProducts),
                     ),
                     _MenuSubItem(
                       label: 'AUTUMN WINTER 2026',
-                      fontFamily: 'Montserrat',
-                      onTap: () => onOpenProducts('신상품'),
+                      onTap: () =>
+                          onOpenProducts(_ProductCategory.autumnWinter2026),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: _EditorialTile(
-                            assetPath: _McmImageAssets.menuNewCollection,
-                            label: '여성 신상품 둘러보기',
-                            onTap: () => onOpenProducts('신상품'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _EditorialTile(
-                            assetPath: _McmImageAssets.menuBestSeller,
-                            label: '남성 신상품 둘러보기',
-                            onTap: () => onOpenProducts('신상품'),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 14),
+                    _EditorialTilePair(
+                      leadingAssetPath: _McmImageAssets.menuNewCollection,
+                      leadingLabel: '여성 신상품 둘러보기',
+                      onLeadingTap: () =>
+                          onOpenProducts(_ProductCategory.womenNewProducts),
+                      trailingAssetPath: _McmImageAssets.menuBestSeller,
+                      trailingLabel: '남성 신상품 둘러보기',
+                      onTrailingTap: () =>
+                          onOpenProducts(_ProductCategory.menNewProducts),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -1742,7 +2397,7 @@ class _MenuScreen extends StatelessWidget {
                   if (expandedSection == '가방') ...<Widget>[
                     _MenuSubItem(
                       label: '신상품',
-                      onTap: () => onOpenProducts('신상품'),
+                      onTap: () => onOpenProducts(_ProductCategory.newProducts),
                     ),
                     _MenuSubItem(label: '모두보기', onTap: onOpenAllProducts),
                     _MenuSubItem(
@@ -1761,63 +2416,363 @@ class _MenuScreen extends StatelessWidget {
                       label: '탑 핸들백',
                       onTap: () => onOpenProducts('탑 핸들백'),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: _EditorialTile(
-                            assetPath: _McmImageAssets.menuPina,
-                            label: 'PINA 둘러보기',
-                            onTap: () => onOpenProducts('숄더백 & 크로스백'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _EditorialTile(
-                            assetPath: _McmImageAssets.menuArenEastWest,
-                            label: 'AREN EAST WEST 둘러보기',
-                            onTap: () => onOpenProducts('탑 핸들백'),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 14),
+                    _EditorialTilePair(
+                      leadingAssetPath: _McmImageAssets.menuPina,
+                      leadingLabel: 'PINA 둘러보기',
+                      onLeadingTap: () => onOpenProducts('숄더백 & 크로스백'),
+                      trailingAssetPath: _McmImageAssets.menuArenEastWest,
+                      trailingLabel: 'AREN EAST WEST 둘러보기',
+                      onTrailingTap: () => onOpenProducts('탑 핸들백'),
                     ),
                     const SizedBox(height: 12),
                   ],
                   _MenuPrimaryRow(
-                    label: 'MCM 소개',
-                    expanded: false,
-                    onTap: () => onToggleSection('MCM 소개'),
-                  ),
-                  _MenuPrimaryRow(
                     label: 'SEGUE 소개',
-                    expanded: false,
+                    expanded: expandedSection == 'SEGUE 소개',
                     onTap: () => onToggleSection('SEGUE 소개'),
                   ),
+                  if (expandedSection == 'SEGUE 소개') ...<Widget>[
+                    _MenuSubItem(
+                      label: 'SEGUE와 함께 이어나가는 여정',
+                      onTap: onOpenSegueIntro,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (expandedSection == null) ...<Widget>[
+                    const SizedBox(height: 34),
+                    _EditorialTilePair(
+                      leadingAssetPath: _McmImageAssets.menuOuterCollection,
+                      leadingLabel: '2026 가을-겨울 컬렉션 둘러보기',
+                      onLeadingTap: () =>
+                          onOpenProducts(_ProductCategory.autumnWinter2026),
+                      trailingAssetPath: _McmImageAssets.menuOuterCollab,
+                      trailingLabel: 'MCM X DJ KHALED X WE THE BEST 둘러보기',
+                      onTrailingTap: () =>
+                          onOpenProducts(_ProductCategory.menNewProducts),
+                    ),
+                  ],
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
+              padding: const EdgeInsets.fromLTRB(17.4, 0, 16.5, 22),
               child: Column(
                 children: <Widget>[
-                  _MenuFooterRow(
+                  _MenuFooterAccountRow(
                     label: isLoggedIn ? '내 계정' : '로그인',
-                    icon: Icons.person_outline,
                     onTap: isLoggedIn ? onOpenAccount : onOpenLogin,
                   ),
                   _MenuFooterRow(
                     label: '쇼핑백',
                     icon: Icons.shopping_bag_outlined,
+                    textStyle: _MenuFooterRow.compactTextStyle,
+                    trailingIcon: const _MenuFooterShoppingBagIcon(),
                     onTap: onOpenCart,
                   ),
                   _MenuFooterRow(
                     label: 'SEGUE 내역 확인',
                     icon: Icons.receipt_long_outlined,
+                    labelWidget: const _SegueHistoryFooterLabel(),
+                    trailingIcon: const _MenuFooterSegueHistoryIcon(),
                     onTap: onOpenResults,
                   ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegueIntroScreen extends StatelessWidget {
+  const _SegueIntroScreen({
+    required this.onOpenMenu,
+    required this.onOpenAccount,
+    required this.onOpenResults,
+  });
+
+  final VoidCallback onOpenMenu;
+  final VoidCallback onOpenAccount;
+  final VoidCallback onOpenResults;
+
+  @override
+  Widget build(BuildContext context) {
+    return _McmPhoneShell(
+      child: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _McmTopBar(
+              onLeadingPressed: onOpenMenu,
+              leadingIconWidget: const _McmTopBarMenuIcon(),
+              onProfilePressed: onOpenAccount,
+              profileIconWidget: const _McmTopBarProfileIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+              edgeIconButtonWidth: 58.56,
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  const SizedBox(height: 28),
+                  const Center(
+                    child: _SegueIntroTitleText(
+                      'SEGUE, 온라인에서 시작된 선택을 매장에서 이어갑니다.',
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const _SegueIntroImage(
+                    assetPath: _McmImageAssets.segueIntroStoreHero,
+                    width: 361.335,
+                    height: 203.359,
+                    alignment: Alignment.center,
+                  ),
+                  const SizedBox(height: 20),
+                  const Center(
+                    child: _SegueIntroParagraphText(
+                      '온라인에서 선택한 제품이 방문한 매장에 없더라도, 고객이 그 제품을 원한 이유까지 사라지는 것은 아닙니다. SEGUE는 고객의 구매 의도를 이해하고, 지금 가능한 가장 적합한 다음 경험으로 연결합니다.',
+                    ),
+                  ),
+                  const SizedBox(height: 58),
+                  const Center(
+                    child: _SegueIntroTitleText(
+                      '단순히 가장 비슷한 제품이 아닌 가장 적합한 다음 경험',
+                    ),
+                  ),
+                  const SizedBox(height: 21),
+                  const Center(
+                    child: _SegueIntroParagraphText(
+                      'SEGUE는 고객의 쇼핑백 내역과 매장 상담을 연결하고, Client Advisor와 함께 고객이 절대 놓치고 싶지 않은 조건을 이해합니다. 고객의 답변을 바탕으로 필수 조건과 구매 상황을 정리한 뒤, 검증된 제품·매장 정보를 비교해 지금 가장 적합한 다음 행동 하나를 제안합니다.',
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  const _SegueIntroImage(
+                    assetPath: _McmImageAssets.segueIntroAdvisor,
+                    width: 362.962,
+                    height: 204.275,
+                  ),
+                  const SizedBox(height: 20),
+                  const Center(
+                    child: _SegueIntroParagraphText(
+                      'SEGUE는 여러 유사 제품을 먼저 보여 주지 않습니다. 고객이 그 제품에서 끝까지 지키고 싶은 조건을 이해하는 것에서 시작합니다.\n\n정확한 제품 확인부터 비교 체험, 오늘 구매 가능한 제품, 추가 상담까지. 상담 결과는 Last Intent Card로 제공되며 고객용 앱에 저장되어, 온라인에서 시작된 선택이 매장과 상담 이후까지 자연스럽게 이어집니다.',
+                      height: 144,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const _SegueIntroImage(
+                    assetPath: _McmImageAssets.segueIntroLastIntentCard,
+                    width: 325.574,
+                    height: 206.107,
+                  ),
+                  const SizedBox(height: 8),
+                  const _SegueIntroCaption('제공되는 Last Intent Card 예시'),
+                  const SizedBox(height: 88),
+                  const Center(
+                    child: _SegueIntroTitleText('선택이 이어질 때, 경험이 완성됩니다.'),
+                  ),
+                  const SizedBox(height: 21),
+                  const Center(
+                    child: _SegueIntroParagraphText(
+                      '온라인의 선택에서 매장의 상담으로,\n그리고 다시 고객의 앱으로.',
+                      height: 42,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const _SegueIntroImage(
+                    assetPath: _McmImageAssets.segueIntroCompletion,
+                    width: 362.875,
+                    height: 204.226,
+                  ),
+                  const SizedBox(height: 84),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(17.4, 0, 16.5, 38),
+                    child: _SegueIntroHistoryLink(onTap: onOpenResults),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegueIntroTitleText extends StatelessWidget {
+  const _SegueIntroTitleText(this.text);
+
+  final String text;
+
+  static const TextStyle _latinStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Montserrat',
+    fontSize: 18.321,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 1.21809,
+    letterSpacing: 0,
+  );
+
+  static const TextStyle _koreanStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 18.321,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 0.99925,
+    letterSpacing: 0,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 43.053),
+      child: SizedBox(
+        width: 321.527,
+        child: _McmMixedFontText(
+          text,
+          koreanStyle: _koreanStyle,
+          latinStyle: _latinStyle,
+        ),
+      ),
+    );
+  }
+}
+
+class _SegueIntroParagraphText extends StatelessWidget {
+  const _SegueIntroParagraphText(this.text, {this.height = 77.863});
+
+  final String text;
+  final double height;
+
+  static const double _lineHeight = 18.321 / 12.824;
+
+  static const TextStyle _latinStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Montserrat',
+    fontSize: 12.824,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w500,
+    height: _lineHeight,
+    letterSpacing: 0,
+  );
+
+  static const TextStyle _koreanStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 12.824,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w400,
+    height: _lineHeight,
+    letterSpacing: 0,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: height),
+      child: SizedBox(
+        width: 321.527,
+        child: _McmMixedFontText(
+          text,
+          koreanStyle: _koreanStyle,
+          latinStyle: _latinStyle,
+        ),
+      ),
+    );
+  }
+}
+
+class _SegueIntroCaption extends StatelessWidget {
+  const _SegueIntroCaption(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 174.962,
+      height: 14.656,
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Color(0xFF6E707C),
+          fontFamily: 'Pretendard',
+          fontSize: 10.076,
+          fontStyle: FontStyle.normal,
+          fontWeight: FontWeight.w400,
+          height: 18.321 / 10.076,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _SegueIntroImage extends StatelessWidget {
+  const _SegueIntroImage({
+    required this.assetPath,
+    required this.width,
+    required this.height,
+    this.alignment = Alignment.center,
+  });
+
+  final String assetPath;
+  final double width;
+  final double height;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : width;
+        final double targetWidth = math.min(width, maxWidth);
+        final double targetHeight = targetWidth * height / width;
+
+        return Center(
+          child: SizedBox(
+            width: targetWidth,
+            height: targetHeight,
+            child: Image.asset(
+              assetPath,
+              fit: BoxFit.cover,
+              alignment: alignment,
+              filterQuality: FilterQuality.medium,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SegueIntroHistoryLink extends StatelessWidget {
+  const _SegueIntroHistoryLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 50,
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Colors.black, width: 1)),
+        ),
+        child: const Row(
+          children: <Widget>[
+            Expanded(child: _SegueHistoryFooterLabel()),
+            _MenuFooterSegueHistoryIcon(),
           ],
         ),
       ),
@@ -1831,6 +2786,8 @@ class _McmPhoneShell extends StatelessWidget {
     this.backgroundColor = Colors.white,
   });
 
+  static const double _mobileTextScale = 1.08;
+
   final Widget child;
   final Color backgroundColor;
 
@@ -1843,7 +2800,15 @@ class _McmPhoneShell extends StatelessWidget {
           constraints: const BoxConstraints(
             maxWidth: AppSizes.mobileContentMaxWidth,
           ),
-          child: ColoredBox(color: backgroundColor, child: child),
+          child: ColoredBox(
+            color: backgroundColor,
+            child: MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(_mobileTextScale)),
+              child: child,
+            ),
+          ),
         ),
       ),
     );
@@ -1854,37 +2819,76 @@ class _McmTopBar extends StatelessWidget {
   const _McmTopBar({
     required this.onLeadingPressed,
     this.leadingIcon = Icons.menu,
+    this.leadingIconWidget,
+    this.leadingTooltip,
     this.onProfilePressed,
+    this.profileIconWidget,
+    this.logoAssetPath = _McmImageAssets.wordmarkBlack,
+    this.logoWidth = 76,
+    this.logoHeight = 22,
+    this.logoFit = BoxFit.contain,
+    this.edgeIconButtonWidth = 48,
+    this.onLogoPressed,
   });
 
   final VoidCallback onLeadingPressed;
   final IconData leadingIcon;
+  final Widget? leadingIconWidget;
+  final String? leadingTooltip;
   final VoidCallback? onProfilePressed;
+  final Widget? profileIconWidget;
+  final String logoAssetPath;
+  final double logoWidth;
+  final double logoHeight;
+  final BoxFit logoFit;
+  final double edgeIconButtonWidth;
+  final VoidCallback? onLogoPressed;
 
   @override
   Widget build(BuildContext context) {
+    final bool isCloseButton = leadingIcon == Icons.close;
+    final VoidCallback? effectiveLogoPressed =
+        onLogoPressed ??
+        context.findAncestorStateOfType<_CustomerMobileEntryScreenState>()
+            ?._openStart;
+    final Widget logo = Image.asset(
+      logoAssetPath,
+      width: logoWidth,
+      height: logoHeight,
+      fit: logoFit,
+      filterQuality: FilterQuality.medium,
+    );
+
     return SizedBox(
-      height: 56,
+      height: 66,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
-              tooltip: leadingIcon == Icons.close ? '메뉴 닫기' : '메뉴 열기',
+              tooltip: leadingTooltip ?? (isCloseButton ? '메뉴 닫기' : '메뉴 열기'),
               onPressed: onLeadingPressed,
-              icon: Icon(leadingIcon, size: 22),
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints.tightFor(
+                width: edgeIconButtonWidth,
+                height: 48,
+              ),
+              icon: leadingIconWidget ?? Icon(leadingIcon, size: 30),
             ),
           ),
           Semantics(
             label: 'MCM',
             image: true,
-            child: Image.asset(
-              _McmImageAssets.wordmarkBlack,
-              width: 69,
-              height: 20,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.medium,
+            button: effectiveLogoPressed != null,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: effectiveLogoPressed,
+              child: SizedBox(
+                width: 96,
+                height: 48,
+                child: Center(child: logo),
+              ),
             ),
           ),
           if (onProfilePressed != null)
@@ -1893,12 +2897,373 @@ class _McmTopBar extends StatelessWidget {
               child: IconButton(
                 tooltip: '내 계정',
                 onPressed: onProfilePressed,
-                icon: const Icon(Icons.person_outline, size: 22),
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints.tightFor(
+                  width: edgeIconButtonWidth,
+                  height: 48,
+                ),
+                icon:
+                    profileIconWidget ??
+                    const Icon(Icons.person_outline, size: 30),
               ),
             ),
         ],
       ),
     );
+  }
+}
+
+class _SegueResultTopBar extends StatelessWidget {
+  const _SegueResultTopBar({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: AppSizes.mobileContentMaxWidth,
+      height: 91.603,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: <Color>[Color(0xFFF6F6F6), Color(0xFFF3F8F0)],
+          ),
+        ),
+        child: Stack(
+          children: <Widget>[
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 66,
+              child: Stack(
+                alignment: Alignment.center,
+                children: <Widget>[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      tooltip: '상담 결과 닫기',
+                      onPressed: onClose,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 58.56,
+                        height: 48,
+                      ),
+                      icon: const _MenuCloseIcon(),
+                    ),
+                  ),
+                  const _SegueResultTopBarTitle(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegueResultTopBarTitle extends StatelessWidget {
+  const _SegueResultTopBarTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text.rich(
+      TextSpan(
+        children: <InlineSpan>[
+          TextSpan(
+            text: 'SEGUE',
+            style: TextStyle(
+              color: Color(0xFF000000),
+              fontFamily: 'Montserrat',
+              fontSize: 13.74,
+              fontStyle: FontStyle.normal,
+              fontWeight: FontWeight.w700,
+              height: 16.737 / 13.74,
+              letterSpacing: 0,
+            ),
+          ),
+          TextSpan(
+            text: ' 결과',
+            style: TextStyle(
+              color: Color(0xFF000000),
+              fontFamily: 'Pretendard',
+              fontSize: 13.74,
+              fontStyle: FontStyle.normal,
+              fontWeight: FontWeight.w700,
+              height: 0.99925,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+}
+
+class _McmTopBarMenuIcon extends StatelessWidget {
+  const _McmTopBarMenuIcon();
+
+  static const double width = 20.153;
+  static const double height = 14.656;
+  static const double strokeWidth = 1.83206;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _McmTopBarMenuIconPainter()),
+    );
+  }
+}
+
+class _McmTopBarMenuIconPainter extends CustomPainter {
+  const _McmTopBarMenuIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = const Color(0xFF000000)
+      ..strokeWidth = _McmTopBarMenuIcon.strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    canvas.drawLine(
+      const Offset(0, _McmTopBarMenuIcon.strokeWidth / 2),
+      Offset(size.width, _McmTopBarMenuIcon.strokeWidth / 2),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height / 2),
+      Offset(size.width, size.height / 2),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height - _McmTopBarMenuIcon.strokeWidth / 2),
+      Offset(size.width, size.height - _McmTopBarMenuIcon.strokeWidth / 2),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_McmTopBarMenuIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _McmTopBarProfileIcon extends StatelessWidget {
+  const _McmTopBarProfileIcon();
+
+  static const double width = 21.985;
+  static const double height = 22.535;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _McmTopBarProfileIconPainter()),
+    );
+  }
+}
+
+class _McmTopBarProfileIconPainter extends CustomPainter {
+  const _McmTopBarProfileIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path outerHead = Path()
+      ..moveTo(10.0152, 0.0407543)
+      ..cubicTo(12.7218, -0.31024, 15.1978, 1.64451, 15.5579, 4.41711)
+      ..cubicTo(15.9181, 7.18971, 14.0273, 9.74038, 11.3249, 10.1275)
+      ..cubicTo(8.5971, 10.5184, 6.08104, 8.55838, 5.71738, 5.75998)
+      ..cubicTo(5.35372, 2.96166, 7.28244, 0.395, 10.0152, 0.0407543)
+      ..close();
+    final Path innerHead = Path()
+      ..moveTo(10.17, 2.22146)
+      ..cubicTo(11.7163, 1.95625, 13.179, 3.02784, 13.4359, 4.61361)
+      ..cubicTo(13.6922, 6.19938, 12.6444, 7.69748, 11.0974, 7.95785)
+      ..cubicTo(9.55313, 8.21767, 8.09584, 7.14662, 7.83957, 5.56423)
+      ..cubicTo(7.58397, 3.98189, 8.62643, 2.48609, 10.17, 2.22146)
+      ..close();
+    final Path body = Path()
+      ..moveTo(10.2775, 10.9455)
+      ..cubicTo(14.1153, 10.5766, 17.9762, 12.7164, 20.0901, 16.0631)
+      ..cubicTo(21.4382, 18.1969, 21.8007, 20.0231, 21.9847, 22.5304)
+      ..lineTo(19.9503, 22.5354)
+      ..cubicTo(19.9664, 18.0098, 16.9534, 14.1286, 12.8142, 13.2281)
+      ..cubicTo(12.4377, 13.1462, 12.0738, 13.0831, 11.6937, 13.0267)
+      ..cubicTo(11.5603, 13.017, 11.4261, 13.0111, 11.2919, 13.0091)
+      ..cubicTo(6.13553, 12.9121, 2.09726, 17.0845, 2.01225, 22.529)
+      ..lineTo(0, 22.534)
+      ..cubicTo(0.351042, 16.2246, 4.191, 11.4546, 10.2775, 10.9455)
+      ..close();
+
+    canvas.save();
+    canvas.scale(size.width / 21.9847, size.height / 22.5354);
+    final Paint blackPaint = Paint()
+      ..color = const Color(0xFF000000)
+      ..style = PaintingStyle.fill;
+    final Paint whitePaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(outerHead, blackPaint);
+    canvas.drawPath(innerHead, whitePaint);
+    canvas.drawPath(body, blackPaint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_McmTopBarProfileIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _LoginMismatchDialog extends StatelessWidget {
+  const _LoginMismatchDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Material(
+          color: Colors.white,
+          shape: const RoundedRectangleBorder(),
+          child: SizedBox(
+            key: const ValueKey<String>('login-mismatch-dialog-panel'),
+            width: 302,
+            height: 84,
+            child: Stack(
+              children: <Widget>[
+                const Positioned.fill(
+                  child: Center(
+                    child: Text(
+                      '이메일 또는 비밀번호가 일치하지 않습니다.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 14,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 1,
+                  right: 1,
+                  child: IconButton(
+                    tooltip: '로그인 오류 닫기',
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 44,
+                      height: 44,
+                    ),
+                    icon: const SizedBox(
+                      width: 10.25,
+                      height: 9.462,
+                      child: _LoginRequiredCloseIcon(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuCloseIcon extends StatelessWidget {
+  const _MenuCloseIcon();
+
+  static const double width = 14.885;
+  static const double height = 13.74;
+  static const double strokeWidth = 1.83206;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _MenuCloseIconPainter()),
+    );
+  }
+}
+
+class _MenuCloseIconPainter extends CustomPainter {
+  const _MenuCloseIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = const Color(0xFF000000)
+      ..strokeWidth = _MenuCloseIcon.strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    canvas.drawLine(Offset.zero, Offset(size.width, size.height), paint);
+    canvas.drawLine(Offset(size.width, 0), Offset(0, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(_MenuCloseIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _McmBackIcon extends StatelessWidget {
+  const _McmBackIcon();
+
+  static const double width = 9.16;
+  static const double height = 15.962;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _McmBackIconPainter()),
+    );
+  }
+}
+
+class _McmBackIconPainter extends CustomPainter {
+  const _McmBackIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path path = Path()
+      ..moveTo(9.16031, 14.6579)
+      ..lineTo(7.79793, 15.9624)
+      ..lineTo(0.377446, 8.85257)
+      ..cubicTo(0.257831, 8.73865, 0.162904, 8.60317, 0.0981264, 8.45395)
+      ..cubicTo(0.033349, 8.30472, 0, 8.14469, 0, 7.98307)
+      ..cubicTo(0, 7.82144, 0.033349, 7.66141, 0.0981263, 7.51219)
+      ..cubicTo(0.162904, 7.36296, 0.257831, 7.22749, 0.377446, 7.11356)
+      ..lineTo(7.79793, 0)
+      ..lineTo(9.15902, 1.30456)
+      ..lineTo(2.19437, 7.98122)
+      ..lineTo(9.16031, 14.6579)
+      ..close();
+
+    canvas
+      ..save()
+      ..scale(size.width / 9.16031, size.height / 15.9624)
+      ..drawPath(path, Paint()..color = const Color(0xFF000000))
+      ..restore();
+  }
+
+  @override
+  bool shouldRepaint(_McmBackIconPainter oldDelegate) {
+    return false;
   }
 }
 
@@ -1924,15 +3289,10 @@ class _CampaignBackdrop extends StatelessWidget {
 }
 
 class _CampaignMiniature extends StatelessWidget {
-  const _CampaignMiniature({
-    required this.assetPath,
-    this.large = false,
-    this.caption,
-  });
+  const _CampaignMiniature({required this.assetPath, this.large = false});
 
   final String assetPath;
   final bool large;
-  final String? caption;
 
   @override
   Widget build(BuildContext context) {
@@ -1966,19 +3326,6 @@ class _CampaignMiniature extends StatelessWidget {
               ),
             ),
           ),
-          if (large && caption != null)
-            Positioned(
-              left: 18,
-              bottom: 14,
-              child: Text(
-                caption!,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -2002,38 +3349,179 @@ class _MenuPrimaryRow extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+        child: SizedBox(
+          height: 13.74,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _MenuPrimaryLabel(label),
                 ),
               ),
-            ),
-            Icon(
-              expanded ? Icons.keyboard_arrow_down : Icons.chevron_right,
-              size: 20,
-            ),
-          ],
+              _MenuArrowIcon(expanded: expanded),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+class _MenuPrimaryLabel extends StatelessWidget {
+  const _MenuPrimaryLabel(this.label);
+
+  static const TextStyle _koreanStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 0.99925,
+  );
+
+  static const TextStyle _segueStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Montserrat',
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 1.21809,
+  );
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    if (label == 'SEGUE 소개') {
+      return const Text.rich(
+        TextSpan(
+          children: <InlineSpan>[
+            TextSpan(text: 'SEGUE', style: _segueStyle),
+            TextSpan(text: ' 소개', style: _koreanStyle),
+          ],
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return Text(
+      label,
+      style: _koreanStyle,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _MenuArrowIcon extends StatelessWidget {
+  const _MenuArrowIcon({this.expanded = false});
+
+  static const double width = 6.412;
+  static const double height = 11.268;
+  static const double hitSize = _MenuCloseIcon.height;
+  static const double strokeWidth = 0.229008;
+
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget icon = Center(
+      child: Transform.rotate(
+        angle: expanded ? math.pi / 2 : 0,
+        child: const SizedBox(
+          width: _MenuArrowIcon.width,
+          height: _MenuArrowIcon.height,
+          child: CustomPaint(painter: _MenuArrowIconPainter()),
+        ),
+      ),
+    );
+
+    return SizedBox(width: hitSize, height: hitSize, child: icon);
+  }
+}
+
+class _MenuArrowIconPainter extends CustomPainter {
+  const _MenuArrowIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path path = Path()
+      ..moveTo(1.20361, 11.668)
+      ..lineTo(0.250488, 10.7471)
+      ..lineTo(0.165527, 10.665)
+      ..lineTo(0.250488, 10.583)
+      ..lineTo(5.04248, 5.95312)
+      ..lineTo(0.249512, 1.32129)
+      ..lineTo(0.164551, 1.23926)
+      ..lineTo(0.249512, 1.15723)
+      ..lineTo(1.20361, 0.236328)
+      ..lineTo(1.28271, 0.15918)
+      ..lineTo(1.36279, 0.236328)
+      ..lineTo(6.55713, 5.25488)
+      ..cubicTo(6.65155, 5.34566, 6.72644, 5.45388, 6.77783, 5.57324)
+      ..cubicTo(6.8293, 5.6928, 6.85596, 5.82143, 6.85596, 5.95117)
+      ..cubicTo(6.85591, 6.08073, 6.8292, 6.20872, 6.77783, 6.32812)
+      ..cubicTo(6.72637, 6.44766, 6.65173, 6.5566, 6.55713, 6.64746)
+      ..lineTo(1.36279, 11.668)
+      ..lineTo(1.28271, 11.7451)
+      ..lineTo(1.20361, 11.668)
+      ..close();
+    final Rect bounds = path.getBounds();
+    final double scaleX = size.width / bounds.width;
+    final double scaleY = size.height / bounds.height;
+    final double averageScale = (scaleX + scaleY) / 2;
+
+    canvas.save();
+    canvas.scale(scaleX, scaleY);
+    canvas.translate(-bounds.left, -bounds.top);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF000000)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF000000)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _MenuArrowIcon.strokeWidth / averageScale,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_MenuArrowIconPainter oldDelegate) {
+    return false;
+  }
+}
+
 class _MenuSubItem extends StatelessWidget {
-  const _MenuSubItem({
-    required this.label,
-    required this.onTap,
-    this.fontFamily,
-  });
+  const _MenuSubItem({required this.label, required this.onTap});
+
+  static const TextStyle _koreanStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 0.99925,
+  );
+
+  static const TextStyle _latinStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Montserrat',
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 1.21809,
+  );
 
   final String label;
   final VoidCallback onTap;
-  final String? fontFamily;
 
   @override
   Widget build(BuildContext context) {
@@ -2041,15 +3529,67 @@ class _MenuSubItem extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 8, 0, 8),
-        child: Text(
+        child: _McmMixedFontText(
           label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            fontFamily: fontFamily,
-          ),
+          koreanStyle: _koreanStyle,
+          latinStyle: _latinStyle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
+    );
+  }
+}
+
+class _EditorialTilePair extends StatelessWidget {
+  const _EditorialTilePair({
+    required this.leadingAssetPath,
+    required this.leadingLabel,
+    required this.onLeadingTap,
+    required this.trailingAssetPath,
+    required this.trailingLabel,
+    required this.onTrailingTap,
+  });
+
+  static const double _targetTileWidth = 159.593;
+  static const double _gap = 2.2;
+
+  final String leadingAssetPath;
+  final String leadingLabel;
+  final VoidCallback onLeadingTap;
+  final String trailingAssetPath;
+  final String trailingLabel;
+  final VoidCallback onTrailingTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double maxPairWidth = constraints.maxWidth - _gap;
+        final double tileWidth = maxPairWidth / 2 >= _targetTileWidth
+            ? _targetTileWidth
+            : maxPairWidth / 2;
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            _EditorialTile(
+              assetPath: leadingAssetPath,
+              label: leadingLabel,
+              onTap: onLeadingTap,
+              width: tileWidth,
+            ),
+            const SizedBox(width: _gap),
+            _EditorialTile(
+              assetPath: trailingAssetPath,
+              label: trailingLabel,
+              onTap: onTrailingTap,
+              width: tileWidth,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -2059,42 +3599,110 @@ class _EditorialTile extends StatelessWidget {
     required this.assetPath,
     required this.label,
     required this.onTap,
+    required this.width,
   });
 
   final String assetPath;
   final String label;
   final VoidCallback onTap;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
+    final double imageHeight = width * 9 / 16;
+
     return InkWell(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          AspectRatio(
-            aspectRatio: 1.65,
-            child: _CampaignMiniature(assetPath: assetPath),
-          ),
-          const SizedBox(height: 6),
-          Row(
+      child: SizedBox(
+        width: width,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            ColoredBox(
+              color: const Color(0xFFD3D3D3),
+              child: SizedBox(
+                width: width,
+                height: imageHeight,
+                child: Image.asset(
+                  assetPath,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+            ),
+            const SizedBox(height: 7),
+            _EditorialTileCaption(label, width: width),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditorialTileCaption extends StatelessWidget {
+  const _EditorialTileCaption(this.label, {required this.width});
+
+  static const double _arrowSlotWidth = 13.74;
+  static const double _gap = 3.4;
+
+  static const TextStyle _arrowStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Inter',
+    fontFamilyFallback: <String>['Montserrat', 'Pretendard'],
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+  );
+
+  static const TextStyle _latinStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Montserrat',
+    fontSize: 10.076,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 1.21809,
+  );
+
+  static const TextStyle _koreanStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 10.076,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 0.99925,
+  );
+
+  final String label;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: ClipRect(
+        child: SizedBox(
+          width: width,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              const Icon(Icons.arrow_forward, size: 12),
-              const SizedBox(width: 4),
+              const SizedBox(
+                width: _arrowSlotWidth,
+                child: Text('→', style: _arrowStyle),
+              ),
+              const SizedBox(width: _gap),
               Expanded(
-                child: Text(
+                child: _McmMixedFontText(
                   label,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  koreanStyle: _koreanStyle,
+                  latinStyle: _latinStyle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2105,11 +3713,26 @@ class _MenuFooterRow extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onTap,
+    this.labelWidget,
+    this.textStyle,
+    this.trailingIcon,
   });
+
+  static const TextStyle compactTextStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 11.908,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w500,
+    height: 0.99925,
+  );
 
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+  final Widget? labelWidget;
+  final TextStyle? textStyle;
+  final Widget? trailingIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -2118,23 +3741,230 @@ class _MenuFooterRow extends StatelessWidget {
       child: Container(
         height: 43,
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFFBEBEBE))),
+          border: Border(
+            bottom: BorderSide(color: Color(0xFF000000), width: 0.916),
+          ),
         ),
         child: Row(
           children: <Widget>[
             Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child:
+                  labelWidget ??
+                  Text(
+                    label,
+                    style:
+                        textStyle ??
+                        const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
             ),
-            Icon(icon, size: 17),
+            trailingIcon ?? Icon(icon, color: Colors.black, size: 18),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MenuFooterAccountRow extends StatelessWidget {
+  const _MenuFooterAccountRow({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _MenuFooterRow(
+      label: label,
+      icon: Icons.person_outline,
+      textStyle: _MenuFooterRow.compactTextStyle,
+      trailingIcon: const _MenuFooterAccountIcon(),
+      onTap: onTap,
+    );
+  }
+}
+
+class _SegueHistoryFooterLabel extends StatelessWidget {
+  const _SegueHistoryFooterLabel();
+
+  static const TextStyle _segueStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Montserrat',
+    fontSize: 11.908,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w500,
+    height: 1.21809,
+  );
+
+  static const TextStyle _koreanStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 11.908,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w500,
+    height: 0.99925,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text.rich(
+      TextSpan(
+        children: <InlineSpan>[
+          TextSpan(text: 'SEGUE', style: _segueStyle),
+          TextSpan(text: ' 내역 확인', style: _koreanStyle),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _MenuFooterAccountIcon extends StatelessWidget {
+  const _MenuFooterAccountIcon();
+
+  static const double width = 12.824;
+  static const double height = 13.145;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _MenuFooterAccountIconPainter()),
+    );
+  }
+}
+
+class _MenuFooterAccountIconPainter extends CustomPainter {
+  const _MenuFooterAccountIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path outerHead = Path()
+      ..moveTo(5.84205, 0.0237734)
+      ..cubicTo(7.42095, -0.180973, 8.86526, 0.959299, 9.07535, 2.57665)
+      ..cubicTo(9.28543, 4.194, 8.18249, 5.68189, 6.60606, 5.90774)
+      ..cubicTo(5.01485, 6.13573, 3.54715, 4.99239, 3.33502, 3.35999)
+      ..cubicTo(3.12288, 1.72764, 4.24797, 0.230417, 5.84205, 0.0237734)
+      ..close();
+    final Path innerHead = Path()
+      ..moveTo(5.93247, 1.29597)
+      ..cubicTo(6.83447, 1.14127, 7.68769, 1.76636, 7.83757, 2.6914)
+      ..cubicTo(7.98706, 3.61643, 7.37583, 4.49032, 6.47343, 4.6422)
+      ..cubicTo(5.5726, 4.79376, 4.72251, 4.16899, 4.57302, 3.24592)
+      ..cubicTo(4.42392, 2.32289, 5.03202, 1.45034, 5.93247, 1.29597)
+      ..close();
+    final Path body = Path()
+      ..moveTo(5.99521, 6.3844)
+      ..cubicTo(8.23392, 6.16919, 10.4861, 7.4174, 11.7192, 9.36965)
+      ..cubicTo(12.5056, 10.6143, 12.7171, 11.6796, 12.8244, 13.1422)
+      ..lineTo(11.6377, 13.1451)
+      ..cubicTo(11.6471, 10.5052, 9.88948, 8.24119, 7.47498, 7.71591)
+      ..cubicTo(7.25533, 7.66816, 7.04305, 7.63131, 6.82135, 7.59842)
+      ..cubicTo(6.74349, 7.59277, 6.66522, 7.58934, 6.58695, 7.58816)
+      ..cubicTo(3.57906, 7.53159, 1.2234, 9.96549, 1.17381, 13.1415)
+      ..lineTo(0, 13.1443)
+      ..cubicTo(0.204774, 9.46385, 2.44475, 6.68139, 5.99521, 6.3844)
+      ..close();
+
+    final Paint blackPaint = Paint()
+      ..color = const Color(0xFF000000)
+      ..style = PaintingStyle.fill;
+    final Paint cutoutPaint = Paint()
+      ..blendMode = BlendMode.clear
+      ..style = PaintingStyle.fill;
+
+    canvas.saveLayer(Offset.zero & size, Paint());
+    canvas.scale(size.width / 12.8244, size.height / 13.1451);
+    canvas.drawPath(outerHead, blackPaint);
+    canvas.drawPath(body, blackPaint);
+    canvas.drawPath(innerHead, cutoutPaint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_MenuFooterAccountIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _MenuFooterSegueHistoryIcon extends StatelessWidget {
+  const _MenuFooterSegueHistoryIcon();
+
+  static const double width = 13.74;
+  static const double height = 13.146;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _MenuFooterSegueHistoryIconPainter()),
+    );
+  }
+}
+
+class _MenuFooterSegueHistoryIconPainter extends CustomPainter {
+  const _MenuFooterSegueHistoryIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path bubble = Path()
+      ..moveTo(2.58527, 9.43782)
+      ..lineTo(12.3664, 9.43782)
+      ..lineTo(12.3664, 1.34826)
+      ..lineTo(1.37405, 1.34826)
+      ..lineTo(1.37405, 10.3715)
+      ..lineTo(2.58527, 9.43782)
+      ..close()
+      ..moveTo(3.06069, 10.7861)
+      ..lineTo(0, 13.1455)
+      ..lineTo(0, 0.67413)
+      ..cubicTo(0, 0.49534, 0.0723825, 0.323872, 0.201224, 0.197448)
+      ..cubicTo(0.330066, 0.0710242, 0.504813, 0, 0.687023, 0)
+      ..lineTo(13.0534, 0)
+      ..cubicTo(13.2356, 0, 13.4104, 0.0710242, 13.5392, 0.197448)
+      ..cubicTo(13.6681, 0.323872, 13.7405, 0.49534, 13.7405, 0.67413)
+      ..lineTo(13.7405, 10.112)
+      ..cubicTo(13.7405, 10.2907, 13.6681, 10.4622, 13.5392, 10.5886)
+      ..cubicTo(13.4104, 10.7151, 13.2356, 10.7861, 13.0534, 10.7861)
+      ..lineTo(3.06069, 10.7861)
+      ..close();
+
+    canvas.save();
+    canvas.scale(size.width / 13.7405, size.height / 13.1455);
+    canvas.drawPath(
+      bubble,
+      Paint()
+        ..color = const Color(0xFF000000)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_MenuFooterSegueHistoryIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _MenuFooterShoppingBagIcon extends StatelessWidget {
+  const _MenuFooterShoppingBagIcon();
+
+  static const double width = 11.908;
+  static const double height = 10.329;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      _McmImageAssets.menuFooterShoppingBagIcon,
+      width: width,
+      height: height,
+      fit: BoxFit.fill,
+      filterQuality: FilterQuality.high,
     );
   }
 }
@@ -2168,14 +3998,21 @@ class _ProductListScreen extends StatelessWidget {
     final String heroAssetPath = _McmImageAssets.categoryHeroFor(
       selectedCategory,
     );
-    const List<String?> categories = <String?>[
-      null,
-      '신상품',
-      '토트백 & 쇼퍼백',
-      '숄더백 & 크로스백',
-      '백팩',
-      '탑 핸들백',
-    ];
+    final List<String?> categories = _isNewProductCategory(selectedCategory)
+        ? const <String?>[
+            _ProductCategory.newProducts,
+            _ProductCategory.womenNewProducts,
+            _ProductCategory.menNewProducts,
+            _ProductCategory.autumnWinter2026,
+          ]
+        : const <String?>[
+            null,
+            _ProductCategory.newProducts,
+            '토트백 & 쇼퍼백',
+            '숄더백 & 크로스백',
+            '백팩',
+            '탑 핸들백',
+          ];
 
     return _McmPhoneShell(
       child: SafeArea(
@@ -2183,7 +4020,14 @@ class _ProductListScreen extends StatelessWidget {
           children: <Widget>[
             _McmTopBar(
               onLeadingPressed: onOpenMenu,
+              leadingIconWidget: const _McmTopBarMenuIcon(),
               onProfilePressed: onOpenResults,
+              profileIconWidget: const _McmTopBarProfileIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+              edgeIconButtonWidth: 58.56,
             ),
             _CategoryTrail(
               key: const ValueKey<String>('mobile-product-category-trail'),
@@ -2218,7 +4062,7 @@ class _ProductListScreen extends StatelessWidget {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         crossAxisCount: 2,
-                        childAspectRatio: 0.68,
+                        childAspectRatio: 0.76,
                         children: <Widget>[
                           for (final MobileProduct product in products)
                             _ProductGridTile(
@@ -2300,7 +4144,7 @@ class _CategoryTrail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 38,
+      height: 42,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 18),
         scrollDirection: Axis.horizontal,
@@ -2309,22 +4153,28 @@ class _CategoryTrail extends StatelessWidget {
           return const Center(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 5),
-              child: Text('>', style: TextStyle(fontSize: 10)),
+              child: Text('>', style: TextStyle(fontSize: 11)),
             ),
           );
         },
         itemBuilder: (BuildContext context, int index) {
           final String? category = categories[index];
           final bool selected = selectedCategory == category;
+          final String label = category ?? '가방';
           return Center(
             child: InkWell(
               onTap: () => onCategorySelected(category),
               child: Text(
-                index == 0 ? '가방' : category!,
+                label,
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                  color: selected ? Colors.black : const Color(0xFF5C5C5C),
+                  color: selected
+                      ? const Color(0xFF000000)
+                      : const Color(0xFF7A7A7A),
+                  fontFamily: 'Pretendard',
+                  fontSize: 12.824,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  height: 0.99925,
                 ),
               ),
             ),
@@ -2350,33 +4200,142 @@ class _ProductCampaignHero extends StatelessWidget {
           label: '$title 상품 목록 캠페인',
           child: AspectRatio(
             aspectRatio: 1.96,
-            child: _CampaignMiniature(
-              assetPath: assetPath,
-              large: true,
-              caption: 'AUTUMN WINTER 2026',
-            ),
+            child: _CampaignMiniature(assetPath: assetPath, large: true),
           ),
         ),
         const Padding(
-          padding: EdgeInsets.fromLTRB(18, 10, 18, 10),
+          padding: EdgeInsets.fromLTRB(18, 11, 18, 11),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               Expanded(
                 child: Text(
-                  '정렬 기준 / 영역',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  '정렬 기준 / 필터',
+                  style: TextStyle(
+                    color: Color(0xFF000000),
+                    fontFamily: 'Pretendard',
+                    fontSize: 10.076,
+                    fontStyle: FontStyle.normal,
+                    fontWeight: FontWeight.w500,
+                    height: 0.99925,
+                  ),
                 ),
               ),
               Text(
-                '기준순',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                '기본순',
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 10.076,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w500,
+                  height: 0.99925,
+                ),
               ),
-              Icon(Icons.keyboard_arrow_down, size: 14),
+              SizedBox(width: 5),
+              _ProductSortArrowIcon(),
             ],
           ),
         ),
       ],
     );
+  }
+}
+
+class _ProductSortArrowIcon extends StatelessWidget {
+  const _ProductSortArrowIcon();
+
+  static const double width = 9;
+  static const double height = 5;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _ProductSortArrowIconPainter()),
+    );
+  }
+}
+
+class _ProductSortArrowIconPainter extends CustomPainter {
+  const _ProductSortArrowIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path path = Path()
+      ..moveTo(8.26446, 0)
+      ..lineTo(9, 0.743627)
+      ..lineTo(4.99129, 4.79398)
+      ..cubicTo(4.92705, 4.85927, 4.85067, 4.91108, 4.76653, 4.94644)
+      ..cubicTo(4.6824, 4.9818, 4.59217, 5, 4.50104, 5)
+      ..cubicTo(4.40991, 5, 4.31968, 4.9818, 4.23555, 4.94644)
+      ..cubicTo(4.15141, 4.91108, 4.07503, 4.85927, 4.01079, 4.79398)
+      ..lineTo(0, 0.743628)
+      ..lineTo(0.735543, 0.000700918)
+      ..lineTo(4.5, 3.80224)
+      ..lineTo(8.26446, 0)
+      ..close();
+
+    canvas.save();
+    canvas.scale(size.width / 9, size.height / 5);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF000000)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ProductSortArrowIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _ConsultationSortArrowIcon extends StatelessWidget {
+  const _ConsultationSortArrowIcon();
+
+  static const double width = 8.244;
+  static const double height = 4.58;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _ConsultationSortArrowIconPainter()),
+    );
+  }
+}
+
+class _ConsultationSortArrowIconPainter extends CustomPainter {
+  const _ConsultationSortArrowIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path path = Path()
+      ..moveTo(0, 0.920914)
+      ..lineTo(0.67378, 0.000568)
+      ..lineTo(4.12214, 3.48289)
+      ..lineTo(7.57049, -0.000074)
+      ..lineTo(8.24427, 0.681111)
+      ..lineTo(4.57217, 4.39136)
+      ..cubicTo(4.51333, 4.45116, 4.44336, 4.49863, 4.36629, 4.53102)
+      ..cubicTo(4.28922, 4.5634, 4.20657, 4.58008, 4.12309, 4.58008)
+      ..cubicTo(4.03961, 4.58008, 3.95696, 4.5634, 3.87989, 4.53102)
+      ..cubicTo(3.80282, 4.49863, 3.73285, 4.45116, 3.67401, 4.39136)
+      ..lineTo(0, 0.681111)
+      ..close();
+
+    canvas.drawPath(path, Paint()..color = const Color(0xFF3D3D3D));
+  }
+
+  @override
+  bool shouldRepaint(_ConsultationSortArrowIconPainter oldDelegate) {
+    return false;
   }
 }
 
@@ -2397,6 +4356,14 @@ class _ProductGridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MobileSkuOption? representativeOption = product.firstAvailableOption;
+    final Color? representativeColor = representativeOption == null
+        ? null
+        : _productTileSwatchColor(
+            representativeOption.color,
+            representativeOption.swatchValue,
+          );
+
     return DecoratedBox(
       decoration: const BoxDecoration(
         border: Border(
@@ -2407,79 +4374,283 @@ class _ProductGridTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          padding: const EdgeInsets.fromLTRB(8, 9.16, 8, 7),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      product.collection,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFF8A8A8A),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const Icon(Icons.shopping_bag_outlined, size: 14),
-                ],
-              ),
-              const SizedBox(height: 8),
               AspectRatio(
                 aspectRatio: 1.08,
-                child: MobileProductVisual(
-                  product: product,
-                  compact: true,
-                  imageFit: BoxFit.cover,
-                  showFrame: false,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: <Widget>[
+                    MobileProductVisual(
+                      product: product,
+                      compact: true,
+                      imageFit: BoxFit.cover,
+                      showFrame: false,
+                    ),
+                    Positioned(
+                      left: 5,
+                      top: 5,
+                      right: 27,
+                      child: Text(
+                        product.collection,
+                        style: const TextStyle(
+                          color: Color(0xFF6E707C),
+                          fontFamily: 'Pretendard',
+                          fontSize: 8.244,
+                          fontStyle: FontStyle.normal,
+                          fontWeight: FontWeight.w400,
+                          height: 0.99925,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Positioned(
+                      top: 4,
+                      right: 4,
+                      child: _ProductTileBagIcon(),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 product.name,
                 style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 10.076,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w500,
+                  height: 0.99925,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 8),
               Text(
                 _formatWon(product.price),
                 style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 10.076,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w500,
+                  height: 0.99925,
                 ),
               ),
-              const SizedBox(height: 7),
-              Row(
-                children: <Widget>[
-                  for (final String color in product.colors.take(
-                    3,
-                  )) ...<Widget>[
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(right: 5),
-                      decoration: BoxDecoration(
-                        color: Color(product.optionForColor(color).swatchValue),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFBDBDBD)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+              const SizedBox(height: 5.5),
+              if (representativeColor != null)
+                _ProductTileColorChip(color: representativeColor),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+Color _productTileSwatchColor(String colorName, int fallbackValue) {
+  final String normalized = colorName.trim().toLowerCase().replaceAll(' ', '');
+  return Color(switch (normalized) {
+    'black' || '블랙' => 0xFF111111,
+    'navy' || '네이비' => 0xFF1E3A5F,
+    'beige' || '베이지' => 0xFFE8D9C5,
+    'orange' || '오렌지' => 0xFFE85F35,
+    'khaki' || '카키' || 'green' || '그린' => 0xFF66735F,
+    'cognac' ||
+    '꼬냑' ||
+    '코냑' ||
+    'camel' ||
+    '카멜' ||
+    'brown' ||
+    '브라운' => 0xFFB87945,
+    'darkbrown' || '다크브라운' => 0xFF5B3A24,
+    'pink' || '핑크' => 0xFFE9B5C4,
+    'white' || '화이트' => 0xFFF7F7F7,
+    'gray' || 'grey' || '그레이' => 0xFF9CA3AF,
+    _ => fallbackValue,
+  });
+}
+
+class _ProductTileBagIcon extends StatelessWidget {
+  const _ProductTileBagIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 13.74,
+      height: 11.908,
+      child: CustomPaint(painter: _ProductTileBagIconPainter()),
+    );
+  }
+}
+
+class _ProductTileColorChip extends StatelessWidget {
+  const _ProductTileColorChip({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          border: Border.all(color: const Color(0xFFFFFFFF), width: 0.916),
+        ),
+        child: const SizedBox(width: 7.305, height: 7.305),
+      ),
+    );
+  }
+}
+
+class _ProductTileBagIconPainter extends CustomPainter {
+  const _ProductTileBagIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas
+      ..save()
+      ..scale(size.width / 15, size.height / 13);
+
+    final Paint outerPaint = Paint()
+      ..color = const Color(0xFF222222)
+      ..style = PaintingStyle.fill;
+    final Paint outerStrokePaint = Paint()
+      ..color = const Color(0xFF222222)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.732824;
+    final Path outerPath = Path()
+      ..moveTo(1.41231, 0.380152)
+      ..cubicTo(1.63066, 0.354279, 1.95824, 0.372271, 2.18792, 0.372664)
+      ..lineTo(3.49526, 0.373741)
+      ..lineTo(7.66965, 0.373629)
+      ..lineTo(11.3093, 0.372973)
+      ..lineTo(12.4752, 0.372277)
+      ..cubicTo(13.0837, 0.372159, 14.0268, 0.29728, 14.081, 1.16105)
+      ..cubicTo(14.1214, 1.80183, 14.1025, 2.45732, 14.1025, 3.10058)
+      ..lineTo(14.1028, 6.52897)
+      ..lineTo(14.1028, 9.68027)
+      ..cubicTo(14.1029, 10.261, 14.1196, 10.8503, 14.0838, 11.4293)
+      ..cubicTo(14.0444, 12.0688, 13.6657, 12.2281, 13.1081, 12.2661)
+      ..cubicTo(12.1893, 12.2767, 11.2544, 12.2686, 10.3344, 12.2685)
+      ..lineTo(5.24118, 12.2683)
+      ..lineTo(2.55686, 12.2683)
+      ..cubicTo(2.11647, 12.2684, 1.66092, 12.2866, 1.22331, 12.2607)
+      ..cubicTo(0.686788, 12.229, 0.401358, 11.8567, 0.381813, 11.3404)
+      ..cubicTo(0.35826, 10.7181, 0.369089, 10.1027, 0.369058, 9.48299)
+      ..lineTo(0.368654, 5.97196)
+      ..lineTo(0.368421, 2.8966)
+      ..cubicTo(0.368405, 2.38479, 0.359425, 1.84559, 0.37998, 1.33486)
+      ..cubicTo(0.389131, 1.10731, 0.461902, 0.847223, 0.614141, 0.675504)
+      ..cubicTo(0.853615, 0.405388, 1.08698, 0.403232, 1.41231, 0.380152)
+      ..close();
+    canvas
+      ..drawPath(outerPath, outerPaint)
+      ..drawPath(outerPath, outerStrokePaint);
+
+    final Paint fillPaint = Paint()
+      ..color = const Color(0xFFF7F7F7)
+      ..style = PaintingStyle.fill;
+    final Path fillPath = Path()
+      ..moveTo(1.44688, 1.29194)
+      ..cubicTo(2.29871, 1.27609, 3.18405, 1.2875, 4.03816, 1.28758)
+      ..lineTo(8.65339, 1.28723)
+      ..lineTo(11.5326, 1.28716)
+      ..cubicTo(12.0335, 1.28718, 12.687, 1.26933, 13.1751, 1.30141)
+      ..cubicTo(13.2077, 2.99962, 13.1797, 4.79112, 13.1795, 6.49571)
+      ..lineTo(13.1788, 9.67149)
+      ..cubicTo(13.1787, 9.85281, 13.1975, 11.2948, 13.1551, 11.3481)
+      ..lineTo(13.093, 11.3517)
+      ..lineTo(6.11048, 11.3525)
+      ..cubicTo(4.51144, 11.3525, 2.88206, 11.3686, 1.28508, 11.3482)
+      ..lineTo(1.28304, 3.67425)
+      ..lineTo(1.28338, 1.99027)
+      ..cubicTo(1.28351, 1.89179, 1.27733, 1.39025, 1.29547, 1.32088)
+      ..cubicTo(1.34179, 1.28539, 1.37891, 1.29564, 1.44688, 1.29194)
+      ..close();
+    canvas.drawPath(fillPath, fillPaint);
+
+    final Path handlePath = Path()
+      ..moveTo(4.03661, 2.19824)
+      ..lineTo(5.31639, 2.20236)
+      ..cubicTo(5.31041, 3.07813, 5.20311, 4.24394, 5.85174, 4.86526)
+      ..cubicTo(6.23009, 5.22767, 6.6533, 5.46138, 7.18157, 5.46334)
+      ..cubicTo(7.76858, 5.46552, 8.21457, 5.285, 8.63396, 4.86785)
+      ..cubicTo(9.15472, 4.34985, 9.17242, 3.73452, 9.1731, 3.04264)
+      ..lineTo(9.17615, 2.19927)
+      ..lineTo(10.4365, 2.20073)
+      ..cubicTo(10.4384, 2.60374, 10.4529, 3.13303, 10.4297, 3.5268)
+      ..cubicTo(10.4198, 3.71011, 10.4075, 4.05015, 10.3694, 4.21901)
+      ..cubicTo(10.2396, 4.7936, 9.96806, 5.34424, 9.55982, 5.7615)
+      ..cubicTo(9.09377, 6.2659, 8.60916, 6.52106, 7.94943, 6.68747)
+      ..cubicTo(6.81513, 6.9736, 5.70606, 6.56555, 4.89365, 5.72834)
+      ..cubicTo(3.92617, 4.73132, 4.03053, 3.48471, 4.03661, 2.19824)
+      ..close();
+    canvas.drawPath(handlePath, outerPaint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ProductTileBagIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _McmMixedFontText extends StatelessWidget {
+  const _McmMixedFontText(
+    this.text, {
+    required this.koreanStyle,
+    required this.latinStyle,
+    this.maxLines,
+    this.overflow,
+  });
+
+  final String text;
+  final TextStyle koreanStyle;
+  final TextStyle latinStyle;
+  final int? maxLines;
+  final TextOverflow? overflow;
+
+  static final RegExp _latinRun = RegExp(r'[A-Za-z0-9][A-Za-z0-9/&+\-. ]*');
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(children: _spans()),
+      maxLines: maxLines,
+      overflow: overflow,
+    );
+  }
+
+  List<InlineSpan> _spans() {
+    final List<InlineSpan> spans = <InlineSpan>[];
+    int cursor = 0;
+    for (final RegExpMatch match in _latinRun.allMatches(text)) {
+      if (match.start > cursor) {
+        spans.add(
+          TextSpan(
+            text: text.substring(cursor, match.start),
+            style: koreanStyle,
+          ),
+        );
+      }
+      spans.add(
+        TextSpan(
+          text: text.substring(match.start, match.end),
+          style: latinStyle,
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor), style: koreanStyle));
+    }
+    return spans;
   }
 }
 
@@ -2544,39 +4715,58 @@ class _ProductDetailScreen extends StatelessWidget {
           children: <Widget>[
             _McmTopBar(
               onLeadingPressed: onBack,
+              leadingIconWidget: const _McmTopBarMenuIcon(),
               onProfilePressed: onOpenAccount,
+              profileIconWidget: const _McmTopBarProfileIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+              edgeIconButtonWidth: 58.56,
             ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: <Widget>[
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    child: Row(
+                  ColoredBox(
+                    color: const Color(0xFFF7F7F7),
+                    child: Column(
                       children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '신규 컬렉션',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: Color(0xFF6D6D6D),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16.5, 12, 16.5, 0),
+                          child: Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  '신규 컬렉션',
+                                  style: TextStyle(
+                                    color: Color(0xFF6E707C),
+                                    fontFamily: 'Pretendard',
+                                    fontSize: 8.244,
+                                    fontStyle: FontStyle.normal,
+                                    fontWeight: FontWeight.w400,
+                                    height: 0.99925,
+                                  ),
+                                ),
+                              ),
+                              _ProductDetailBagIcon(),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(40, 34, 40, 24),
+                          child: AspectRatio(
+                            aspectRatio: 1.12,
+                            child: MobileProductVisual(
+                              product: product,
+                              colorOverride: selectedVisualColor,
+                              imageFit: BoxFit.cover,
+                              showFrame: false,
+                              backgroundColor: const Color(0xFFF7F7F7),
                             ),
                           ),
                         ),
-                        Icon(Icons.shopping_bag_outlined, size: 14),
                       ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(40, 34, 40, 24),
-                    child: AspectRatio(
-                      aspectRatio: 1.12,
-                      child: MobileProductVisual(
-                        product: product,
-                        colorOverride: selectedVisualColor,
-                        imageFit: BoxFit.cover,
-                        showFrame: false,
-                      ),
                     ),
                   ),
                   const Divider(height: 1, color: Color(0xFFE5E5E5)),
@@ -2588,32 +4778,53 @@ class _ProductDetailScreen extends StatelessWidget {
                         Text(
                           product.name,
                           style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
+                            color: Color(0xFF000000),
+                            fontFamily: 'Pretendard',
+                            fontSize: 13.74,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w500,
+                            height: 0.99925,
                           ),
                         ),
                         const SizedBox(height: 14),
                         Text(
                           _formatWon(product.price),
                           style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF000000),
+                            fontFamily: 'Pretendard',
+                            fontSize: 13.74,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w500,
+                            height: 0.99925,
                           ),
                         ),
                         const SizedBox(height: 28),
                         Text(
                           '색상: $colorLabel',
-                          style: const TextStyle(fontSize: 12, height: 1.3),
+                          style: const TextStyle(
+                            color: Color(0xFF000000),
+                            fontFamily: 'Pretendard',
+                            fontSize: 12.824,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w400,
+                            height: 0.99925,
+                          ),
                         ),
                         const SizedBox(height: 7),
                         Text(
                           '사이즈: $sizeLabel',
-                          style: const TextStyle(fontSize: 12, height: 1.3),
+                          style: const TextStyle(
+                            color: Color(0xFF000000),
+                            fontFamily: 'Pretendard',
+                            fontSize: 12.824,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w400,
+                            height: 0.99925,
+                          ),
                         ),
                         if (skuDetailRows.isNotEmpty) ...<Widget>[
                           const SizedBox(height: 18),
-                          _McmSkuDetailPanel(rows: skuDetailRows),
+                          _McmSkuDetailSection(rows: skuDetailRows),
                         ],
                         const SizedBox(height: 22),
                         if (availableColors.length > 1)
@@ -2655,18 +4866,42 @@ class _ProductDetailScreen extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: 18),
-                        _McmPrimaryButton(
-                          label: isSavingCart ? '저장 중' : '쇼핑백에 추가',
-                          onPressed: selectedSku == null || isSavingCart
-                              ? null
-                              : onAddToCart,
+                        Center(
+                          child: _ProductDetailAddToCartButton(
+                            label: isSavingCart ? '저장 중' : '쇼핑백에 추가',
+                            onPressed: selectedSku == null || isSavingCart
+                                ? null
+                                : onAddToCart,
+                          ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 8),
+                        const Center(child: _ProductDetailAddToCartDivider()),
+                        const SizedBox(height: 12),
                         const _McmFinePrint(
                           '이 제품으로 SEGUE 상담을 받고 싶으신가요? 쇼핑백에 추가해 보세요.',
+                          style: TextStyle(
+                            color: Color(0xFF555555),
+                            fontFamily: 'Pretendard',
+                            fontSize: 10.992,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w400,
+                            height: 20.153 / 10.992,
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        const _McmUnderlinedText('SEGUE 상담이 무엇인가요?'),
+                        const _McmUnderlinedText(
+                          'SEGUE 상담이 무엇인가요?',
+                          style: TextStyle(
+                            color: Color(0xFF555555),
+                            fontFamily: 'Pretendard',
+                            fontSize: 10.992,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w400,
+                            height: 20.153 / 10.992,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF555555),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -2680,61 +4915,323 @@ class _ProductDetailScreen extends StatelessWidget {
   }
 }
 
+class _ProductDetailBagIcon extends StatelessWidget {
+  const _ProductDetailBagIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 13.74,
+      height: 12.207,
+      child: CustomPaint(painter: _ProductDetailBagIconPainter()),
+    );
+  }
+}
+
+class _ProductDetailBagIconPainter extends CustomPainter {
+  const _ProductDetailBagIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas
+      ..save()
+      ..scale(size.width / 15, size.height / 13);
+
+    final Paint outerPaint = Paint()
+      ..color = const Color(0xFF222222)
+      ..style = PaintingStyle.fill;
+    final Paint outerStrokePaint = Paint()
+      ..color = const Color(0xFF222222)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.732824;
+    final Path outerPath = Path()
+      ..moveTo(1.41207, 0.380501)
+      ..cubicTo(1.63041, 0.35398, 1.95799, 0.372423, 2.18768, 0.372825)
+      ..lineTo(3.49501, 0.373929)
+      ..lineTo(7.66941, 0.373815)
+      ..lineTo(11.309, 0.373143)
+      ..lineTo(12.475, 0.372429)
+      ..cubicTo(13.0835, 0.372308, 14.0266, 0.295554, 14.0808, 1.18095)
+      ..cubicTo(14.1212, 1.83778, 14.1022, 2.50968, 14.1022, 3.16904)
+      ..lineTo(14.1025, 6.68327)
+      ..lineTo(14.1025, 9.91348)
+      ..cubicTo(14.1027, 10.5087, 14.1193, 11.1129, 14.0836, 11.7063)
+      ..cubicTo(14.0441, 12.3618, 13.6655, 12.5251, 13.1079, 12.564)
+      ..cubicTo(12.1891, 12.5749, 11.2542, 12.5666, 10.3342, 12.5666)
+      ..lineTo(5.24093, 12.5663)
+      ..lineTo(2.55661, 12.5663)
+      ..cubicTo(2.11623, 12.5664, 1.66068, 12.5851, 1.22307, 12.5585)
+      ..cubicTo(0.686544, 12.526, 0.401113, 12.1444, 0.381569, 11.6152)
+      ..cubicTo(0.358016, 10.9773, 0.368845, 10.3465, 0.368814, 9.71126)
+      ..lineTo(0.36841, 6.11232)
+      ..lineTo(0.368177, 2.95996)
+      ..cubicTo(0.368161, 2.43533, 0.359181, 1.88264, 0.379736, 1.35911)
+      ..cubicTo(0.388886, 1.12587, 0.461658, 0.859268, 0.613897, 0.683249)
+      ..cubicTo(0.853371, 0.406369, 1.08674, 0.404159, 1.41207, 0.380501)
+      ..close();
+    canvas
+      ..drawPath(outerPath, outerPaint)
+      ..drawPath(outerPath, outerStrokePaint);
+
+    final Paint fillPaint = Paint()
+      ..color = const Color(0xFFF7F7F7)
+      ..style = PaintingStyle.fill;
+    final Path fillPath = Path()
+      ..moveTo(1.44664, 1.31514)
+      ..cubicTo(2.29847, 1.29889, 3.18381, 1.31058, 4.03791, 1.31066)
+      ..lineTo(8.65315, 1.3103)
+      ..lineTo(11.5324, 1.31023)
+      ..cubicTo(12.0333, 1.31025, 12.6868, 1.29196, 13.1749, 1.32484)
+      ..cubicTo(13.2074, 3.06557, 13.1795, 4.90193, 13.1793, 6.6492)
+      ..lineTo(13.1785, 9.9045)
+      ..cubicTo(13.1785, 10.0904, 13.1972, 11.5685, 13.1549, 11.6231)
+      ..lineTo(13.0928, 11.6268)
+      ..lineTo(6.11024, 11.6276)
+      ..cubicTo(4.5112, 11.6276, 2.88182, 11.6441, 1.28484, 11.6232)
+      ..lineTo(1.28279, 3.7571)
+      ..lineTo(1.28314, 2.03095)
+      ..cubicTo(1.28327, 1.93, 1.27709, 1.4159, 1.29522, 1.34479)
+      ..cubicTo(1.34154, 1.30842, 1.37867, 1.31893, 1.44664, 1.31514)
+      ..close();
+    canvas.drawPath(fillPath, fillPaint);
+
+    final Path handlePath = Path()
+      ..moveTo(4.03637, 2.24414)
+      ..lineTo(5.31615, 2.24837)
+      ..cubicTo(5.31016, 3.14606, 5.20286, 4.34106, 5.85149, 4.97794)
+      ..cubicTo(6.22984, 5.34942, 6.65306, 5.58899, 7.18132, 5.59099)
+      ..cubicTo(7.76833, 5.59323, 8.21433, 5.40818, 8.63371, 4.98059)
+      ..cubicTo(9.15447, 4.44963, 9.17218, 3.81889, 9.17285, 3.10968)
+      ..lineTo(9.17591, 2.24519)
+      ..lineTo(10.4363, 2.2467)
+      ..cubicTo(10.4382, 2.65979, 10.4527, 3.20233, 10.4294, 3.60596)
+      ..cubicTo(10.4195, 3.79386, 10.4072, 4.14242, 10.3691, 4.31551)
+      ..cubicTo(10.2393, 4.90448, 9.96782, 5.46891, 9.55957, 5.89662)
+      ..cubicTo(9.09352, 6.41365, 8.60891, 6.6752, 7.94918, 6.84578)
+      ..cubicTo(6.81489, 7.13907, 5.70582, 6.7208, 4.8934, 5.86263)
+      ..cubicTo(3.92593, 4.84065, 4.03028, 3.56282, 4.03637, 2.24414)
+      ..close();
+    canvas.drawPath(handlePath, outerPaint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ProductDetailBagIconPainter oldDelegate) {
+    return false;
+  }
+}
+
+class _McmSkuDetailSection extends StatefulWidget {
+  const _McmSkuDetailSection({required this.rows});
+
+  final List<(String, String)> rows;
+
+  @override
+  State<_McmSkuDetailSection> createState() => _McmSkuDetailSectionState();
+}
+
+class _McmSkuDetailSectionState extends State<_McmSkuDetailSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: _McmSkuDetailHeader(expanded: _expanded),
+        ),
+        if (_expanded) ...<Widget>[
+          const SizedBox(height: 12),
+          _McmSkuDetailPanel(rows: widget.rows),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProductDetailAddToCartButton extends StatelessWidget {
+  const _ProductDetailAddToCartButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 320.611,
+      height: 44,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.transparent,
+          disabledForegroundColor: Colors.white,
+          elevation: 0,
+          minimumSize: Size.zero,
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: const RoundedRectangleBorder(),
+        ),
+        onPressed: onPressed,
+        child: Center(
+          child: Container(
+            width: 320.611,
+            height: 36.641,
+            alignment: Alignment.center,
+            color: onPressed == null ? const Color(0xFF8A8A8A) : Colors.black,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'Pretendard',
+                fontSize: 11.908,
+                fontStyle: FontStyle.normal,
+                fontWeight: FontWeight.w600,
+                height: 0.99925,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductDetailAddToCartDivider extends StatelessWidget {
+  const _ProductDetailAddToCartDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 320.611,
+      height: 0.916,
+      child: ColoredBox(color: Colors.black),
+    );
+  }
+}
+
 class _McmSkuDetailPanel extends StatelessWidget {
   const _McmSkuDetailPanel({required this.rows});
 
   final List<(String, String)> rows;
 
+  static const double _detailLineHeight = 18.321 / 11.908;
+
+  static const TextStyle _labelStyle = TextStyle(
+    color: Color(0xFF515151),
+    fontFamily: 'Pretendard',
+    fontSize: 11.908,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: _detailLineHeight,
+  );
+
+  static const TextStyle _valueStyle = TextStyle(
+    color: Color(0xFF515151),
+    fontFamily: 'Pretendard',
+    fontSize: 11.908,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w400,
+    height: _detailLineHeight,
+  );
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        border: Border.all(color: const Color(0xFFE5E5E5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text(
-            '소재 및 상세 정보',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (final (String label, String value) in rows)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SizedBox(width: 54, child: Text(label, style: _labelStyle)),
+              Expanded(child: Text(value, style: _valueStyle)),
+            ],
           ),
-          const SizedBox(height: 10),
-          for (final (String label, String value) in rows)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  SizedBox(
-                    width: 54,
-                    child: Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFF666666),
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                ],
+      ],
+    );
+  }
+}
+
+class _McmSkuDetailHeader extends StatelessWidget {
+  const _McmSkuDetailHeader({required this.expanded});
+
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget arrow = const SizedBox(
+      width: 6.412,
+      height: 11.268,
+      child: CustomPaint(painter: _McmSkuDetailArrowPainter()),
+    );
+
+    return SizedBox(
+      height: 14,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          const Expanded(
+            child: Text(
+              '소재 및 상세 정보',
+              style: TextStyle(
+                color: Color(0xFF000000),
+                fontFamily: 'Pretendard',
+                fontSize: 12.824,
+                fontStyle: FontStyle.normal,
+                fontWeight: FontWeight.w500,
+                height: 0.99925,
               ),
             ),
+          ),
+          expanded ? RotatedBox(quarterTurns: 1, child: arrow) : arrow,
         ],
       ),
     );
+  }
+}
+
+class _McmSkuDetailArrowPainter extends CustomPainter {
+  const _McmSkuDetailArrowPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Path path = Path()
+      ..moveTo(-0.000105499, 0.92084)
+      ..lineTo(0.953554, -0.0000283537)
+      ..lineTo(6.1479, 5.0187)
+      ..cubicTo(6.23163, 5.09912, 6.29808, 5.19475, 6.34342, 5.30008)
+      ..cubicTo(6.38877, 5.40542, 6.41211, 5.51838, 6.41211, 5.63247)
+      ..cubicTo(6.41211, 5.74656, 6.38877, 5.85952, 6.34342, 5.96486)
+      ..cubicTo(6.29808, 6.07019, 6.23163, 6.16582, 6.1479, 6.24624)
+      ..lineTo(0.953555, 11.2676)
+      ..lineTo(0.00079407, 10.3467)
+      ..lineTo(4.87605, 5.63377)
+      ..lineTo(-0.000105499, 0.92084)
+      ..close();
+
+    canvas
+      ..save()
+      ..scale(size.width / 6.41211, size.height / 11.2676)
+      ..drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFF000000)
+          ..style = PaintingStyle.fill,
+      )
+      ..restore();
+  }
+
+  @override
+  bool shouldRepaint(_McmSkuDetailArrowPainter oldDelegate) {
+    return false;
   }
 }
 
@@ -2775,97 +5272,40 @@ class _McmOptionChip extends StatelessWidget {
   }
 }
 
-class _McmPrimaryButton extends StatelessWidget {
-  const _McmPrimaryButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 44,
-      child: FilledButton(
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFF8A8A8A),
-          shape: const RoundedRectangleBorder(),
-          textStyle: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-        onPressed: onPressed,
-        child: Text(label),
-      ),
-    );
-  }
-}
-
-class _McmOutlinedButton extends StatelessWidget {
-  const _McmOutlinedButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 44,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.black,
-          side: const BorderSide(color: Colors.black),
-          shape: const RoundedRectangleBorder(),
-          textStyle: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-        onPressed: onPressed,
-        child: Text(label),
-      ),
-    );
-  }
-}
-
 class _McmFinePrint extends StatelessWidget {
-  const _McmFinePrint(this.text);
+  const _McmFinePrint(this.text, {this.style});
 
   final String text;
+  final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: Color(0xFF777777),
-        fontSize: 9,
-        height: 1.45,
-      ),
+      style:
+          style ??
+          const TextStyle(color: Color(0xFF777777), fontSize: 9, height: 1.45),
     );
   }
 }
 
 class _McmUnderlinedText extends StatelessWidget {
-  const _McmUnderlinedText(this.text);
+  const _McmUnderlinedText(this.text, {this.style});
 
   final String text;
+  final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: Color(0xFF4A4A4A),
-        fontSize: 9,
-        decoration: TextDecoration.underline,
-      ),
+      style:
+          style ??
+          const TextStyle(
+            color: Color(0xFF4A4A4A),
+            fontSize: 9,
+            decoration: TextDecoration.underline,
+          ),
     );
   }
 }
@@ -2894,80 +5334,224 @@ class _McmEmptyState extends StatelessWidget {
   }
 }
 
-class _ShoppingBagLineItem extends StatelessWidget {
-  const _ShoppingBagLineItem({required this.item});
+class _CartListLineItem extends StatelessWidget {
+  const _CartListLineItem({required this.item});
 
   final CartItem item;
+
+  static const TextStyle _itemTextStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 12.824,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w400,
+    height: 0.99925,
+  );
 
   @override
   Widget build(BuildContext context) {
     final MobileProduct product = MobileProductCatalog.productById(
       item.productId,
     ).copyWith(imageUrl: item.imageUrl);
+    final String colorLabel = _formatResultProductColor(item.color);
+    final String sizeLabel = displayProductSize(item.size);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 108,
-            height: 108,
-            child: MobileProductVisual(
-              product: product,
-              compact: true,
-              imageFit: BoxFit.cover,
-              showFrame: false,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: 155,
+      child: ColoredBox(
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(19.2, 11.9, 16, 15.6),
+          child: SizedBox(
+            height: 127.328,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text(
-                  item.productName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _formatWon(product.price),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(item.color, style: const TextStyle(fontSize: 10)),
-                const SizedBox(height: 5),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        item.size,
-                        style: const TextStyle(fontSize: 10),
-                      ),
+                SizedBox(
+                  width: 116.336,
+                  height: 127.328,
+                  child: ColoredBox(
+                    color: const Color(0xFFD9D9D9),
+                    child: MobileProductVisual(
+                      product: product,
+                      compact: true,
+                      imageFit: BoxFit.contain,
+                      showFrame: false,
+                      backgroundColor: const Color(0xFFD9D9D9),
                     ),
-                    const Text('수량 1', style: TextStyle(fontSize: 10)),
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        item.productName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: _itemTextStyle,
+                      ),
+                      const SizedBox(height: 18),
+                      Text(_formatWon(product.price), style: _itemTextStyle),
+                      const SizedBox(height: 34),
+                      Text(colorLabel, style: _itemTextStyle),
+                      const SizedBox(height: 7),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(sizeLabel, style: _itemTextStyle),
+                          ),
+                          const Text(
+                            '수량 1',
+                            textAlign: TextAlign.right,
+                            style: _itemTextStyle,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _ShoppingBagSummary extends StatelessWidget {
-  const _ShoppingBagSummary({
+class _CartEmptyScreen extends StatelessWidget {
+  const _CartEmptyScreen({required this.isLoggedIn, required this.onLogin});
+
+  final bool isLoggedIn;
+  final VoidCallback onLogin;
+
+  static const TextStyle _emptyTextStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 12.824,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w400,
+    height: 0.99925,
+  );
+
+  static const TextStyle _loginTextStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 12.824,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w400,
+    height: 0.99925,
+    decoration: TextDecoration.underline,
+    decorationColor: Color(0xFF000000),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        const SizedBox(
+          height: 44,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                '나의 쇼핑백(0개 품목)',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 13.74,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w700,
+                  height: 0.99925,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Align(
+            alignment: const Alignment(0, -0.18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Text(
+                  '쇼핑백이 비어 있습니다.',
+                  textAlign: TextAlign.center,
+                  style: _emptyTextStyle,
+                ),
+                const SizedBox(height: 4),
+                if (isLoggedIn)
+                  const Text(
+                    '마음에 드는 상품을 쇼핑백에 담아보세요.',
+                    textAlign: TextAlign.center,
+                    style: _emptyTextStyle,
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onLogin,
+                        child: const Text('로그인', style: _loginTextStyle),
+                      ),
+                      const Text(' 후 쇼핑백 확인하러 가기', style: _emptyTextStyle),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CartCheckoutPanel extends StatelessWidget {
+  const _CartCheckoutPanel({
+    required this.itemCount,
+    required this.totalPrice,
+    required this.onCheckout,
+  });
+
+  final int itemCount;
+  final int totalPrice;
+  final VoidCallback onCheckout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 360,
+        height: 175.878,
+        child: ColoredBox(
+          color: const Color(0xFFF6F6F6),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                _CartCheckoutSummary(
+                  itemCount: itemCount,
+                  totalPrice: totalPrice,
+                ),
+                _CartCheckoutButton(label: '결제하기', onPressed: onCheckout),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CartCheckoutSummary extends StatelessWidget {
+  const _CartCheckoutSummary({
     required this.itemCount,
     required this.totalPrice,
   });
@@ -2979,17 +5563,119 @@ class _ShoppingBagSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
-        _McmAmountRow(
+        _CartCheckoutAmountRow(
           label: '소계 ($itemCount개 품목)',
           value: _formatWon(totalPrice),
         ),
-        const _McmAmountRow(label: '배송비', value: '무료'),
-        _McmAmountRow(
+        const SizedBox(height: 13),
+        const _CartCheckoutAmountRow(label: '배송비', value: '무료'),
+        const SizedBox(height: 13),
+        _CartCheckoutAmountRow(
           label: '예상 합계',
           value: _formatWon(totalPrice),
-          bold: true,
+          total: true,
         ),
       ],
+    );
+  }
+}
+
+class _CartCheckoutAmountRow extends StatelessWidget {
+  const _CartCheckoutAmountRow({
+    required this.label,
+    required this.value,
+    this.total = false,
+  });
+
+  final String label;
+  final String value;
+  final bool total;
+
+  static const TextStyle _labelStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w400,
+    height: 0.99925,
+  );
+
+  static const TextStyle _valueStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w500,
+    height: 0.99925,
+  );
+
+  static const TextStyle _totalValueStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 13.74,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 0.99925,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Expanded(child: Text(label, style: _labelStyle)),
+        Text(
+          value,
+          textAlign: TextAlign.right,
+          style: total ? _totalValueStyle : _valueStyle,
+        ),
+      ],
+    );
+  }
+}
+
+class _CartCheckoutButton extends StatelessWidget {
+  const _CartCheckoutButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 320.611,
+      height: 36.641,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF222222),
+          foregroundColor: const Color(0xFFFFFFFF),
+          padding: EdgeInsets.zero,
+          shape: const RoundedRectangleBorder(),
+          textStyle: const TextStyle(
+            color: Color(0xFFFFFFFF),
+            fontFamily: 'Pretendard',
+            fontSize: 11.908,
+            fontStyle: FontStyle.normal,
+            fontWeight: FontWeight.w600,
+            height: 0.99925,
+            letterSpacing: 0,
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFFFFFFFF),
+            fontFamily: 'Pretendard',
+            fontSize: 11.908,
+            fontStyle: FontStyle.normal,
+            fontWeight: FontWeight.w600,
+            height: 0.99925,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -3013,77 +5699,194 @@ class _ShoppingBagActionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE5E5E5))),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            _McmAmountRow(label: totalLabel, value: _formatWon(totalPrice)),
-            const SizedBox(height: 12),
-            _McmPrimaryButton(label: primaryLabel, onPressed: onPrimary),
-            if (secondaryLabel != null && onSecondary != null) ...<Widget>[
-              const SizedBox(height: 7),
-              _McmOutlinedButton(
-                label: secondaryLabel!,
-                onPressed: onSecondary!,
-              ),
-            ],
-            const SizedBox(height: 16),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: _McmFinePrint('쇼핑백에 상품을 추가하면 SEGUE 상담을 손쉽게 받을 수 있어요.'),
+    return Center(
+      child: SizedBox(
+        width: 360,
+        height: 226.26,
+        child: ColoredBox(
+          color: const Color(0xFFF6F6F6),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20.2, 20, 19.2, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                _ShoppingBagActionTotalRow(
+                  label: totalLabel,
+                  value: _formatWon(totalPrice),
+                ),
+                const SizedBox(height: 22),
+                _ShoppingBagActionButton(
+                  label: primaryLabel,
+                  onPressed: onPrimary,
+                  primary: true,
+                ),
+                if (secondaryLabel != null && onSecondary != null) ...<Widget>[
+                  const SizedBox(height: 4.6),
+                  _ShoppingBagActionButton(
+                    label: secondaryLabel!,
+                    onPressed: onSecondary!,
+                    primary: false,
+                  ),
+                ],
+                const SizedBox(height: 14),
+                const Text(
+                  '쇼핑백에 상품을 추가하면 SEGUE 상담을 손쉽게 받을 수 있어요.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Color(0xFF555555),
+                    fontFamily: 'Pretendard',
+                    fontSize: 10.992,
+                    fontStyle: FontStyle.normal,
+                    fontWeight: FontWeight.w400,
+                    height: 20.153 / 10.992,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'SEGUE 상담이 무엇인가요?',
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: Color(0xFF555555),
+                    fontFamily: 'Pretendard',
+                    fontSize: 10.992,
+                    fontStyle: FontStyle.normal,
+                    fontWeight: FontWeight.w500,
+                    height: 20.153 / 10.992,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Color(0xFF555555),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: _McmUnderlinedText('SEGUE 상담이 무엇인가요?'),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _McmAmountRow extends StatelessWidget {
-  const _McmAmountRow({
-    required this.label,
-    required this.value,
-    this.bold = false,
-  });
+class _ShoppingBagActionTotalRow extends StatelessWidget {
+  const _ShoppingBagActionTotalRow({required this.label, required this.value});
 
   final String label;
   final String value;
-  final bool bold;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF000000),
+              fontFamily: 'Pretendard',
+              fontSize: 14.656,
+              fontStyle: FontStyle.normal,
+              fontWeight: FontWeight.w500,
+              height: 0.99925,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          textAlign: TextAlign.right,
+          style: const TextStyle(
+            color: Color(0xFF000000),
+            fontFamily: 'Pretendard',
+            fontSize: 14.656,
+            fontStyle: FontStyle.normal,
+            fontWeight: FontWeight.w500,
+            height: 0.99925,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShoppingBagActionButton extends StatelessWidget {
+  const _ShoppingBagActionButton({
+    required this.label,
+    required this.onPressed,
+    required this.primary,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color backgroundColor = primary
+        ? const Color(0xFF222222)
+        : const Color(0xFFFFFFFF);
+    final Color textColor = primary
+        ? const Color(0xFFFFFFFF)
+        : const Color(0xFF222222);
+
+    return SizedBox(
+      width: 320.611,
+      height: 36.641,
+      child: OverflowBox(
+        minHeight: 44,
+        maxHeight: 44,
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: 320.611,
+          height: 44,
+          child: TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: textColor,
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: const RoundedRectangleBorder(),
+              textStyle: const TextStyle(
+                fontFamily: 'Pretendard',
+                fontSize: 11.908,
+                fontStyle: FontStyle.normal,
+                fontWeight: FontWeight.w600,
+                height: 0.99925,
+                letterSpacing: 0,
+              ),
+            ),
+            onPressed: onPressed,
+            child: SizedBox(
+              width: 320.611,
+              height: 36.641,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  border: primary
+                      ? null
+                      : Border.all(
+                          color: const Color(0xFF222222),
+                          width: 0.916,
+                        ),
+                ),
+                child: Center(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: textColor,
+                      fontFamily: 'Pretendard',
+                      fontSize: 11.908,
+                      fontStyle: FontStyle.normal,
+                      fontWeight: FontWeight.w600,
+                      height: 0.99925,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -3101,86 +5904,149 @@ class _SegueHistoryRow extends StatelessWidget {
       result.skuId,
     ).copyWith(imageUrl: result.imageUrl);
     final MobileSkuOption? sku = MobileProductCatalog.skuById(result.skuId);
+    final String colorLabel = _formatResultProductColor(sku?.color ?? 'Black');
+    final String sizeLabel = displayProductSize(sku?.size ?? 'M');
+    final String priceLabel = _formatWon(product.price).replaceFirst('₩ ', '₩');
 
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Row(
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Color(0xFFE7E7E7), width: 0.641),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(19.2, 10.1, 19.2, 10.1),
+          child: SizedBox(
+            height: 127.328,
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 SizedBox(
-                  width: 92,
-                  height: 76,
+                  width: 116.336,
+                  height: 127.328,
                   child: MobileProductVisual(
                     product: product,
                     colorOverride: sku == null ? null : Color(sku.swatchValue),
                     compact: true,
                     imageFit: BoxFit.cover,
                     showFrame: false,
+                    backgroundColor: const Color(0xFFD9D9D9),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 12.824),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Stack(
                     children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        color: const Color(0xFF2D2D2D),
-                        child: const Text(
-                          '상담 제품',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Container(
+                            width: 40.305,
+                            height: 14.656,
+                            color: const Color(0xFF7A7A7A),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              '상담 제품',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFFFFFFF),
+                                fontFamily: 'Pretendard',
+                                fontSize: 8.244,
+                                fontStyle: FontStyle.normal,
+                                fontWeight: FontWeight.w600,
+                                height: 1,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            result.productName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF000000),
+                              fontFamily: 'Pretendard',
+                              fontSize: 12.824,
+                              fontStyle: FontStyle.normal,
+                              fontWeight: FontWeight.w600,
+                              height: 0.99925,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            priceLabel,
+                            style: const TextStyle(
+                              color: Color(0xFF000000),
+                              fontFamily: 'Pretendard',
+                              fontSize: 12.824,
+                              fontStyle: FontStyle.normal,
+                              fontWeight: FontWeight.w400,
+                              height: 0.99925,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            colorLabel,
+                            style: const TextStyle(
+                              color: Color(0xFF000000),
+                              fontFamily: 'Pretendard',
+                              fontSize: 12.824,
+                              fontStyle: FontStyle.normal,
+                              fontWeight: FontWeight.w400,
+                              height: 0.99925,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            sizeLabel,
+                            style: const TextStyle(
+                              color: Color(0xFF000000),
+                              fontFamily: 'Pretendard',
+                              fontSize: 12.824,
+                              fontStyle: FontStyle.normal,
+                              fontWeight: FontWeight.w400,
+                              height: 0.99925,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: SizedBox(
+                          width: 80.611,
+                          height: 12.824,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              _formatCompactDateTime(result.consultedAt),
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                color: Color(0xFF3D3D3D),
+                                fontFamily: 'Pretendard',
+                                fontSize: 10.076,
+                                fontStyle: FontStyle.normal,
+                                fontWeight: FontWeight.w400,
+                                height: 1,
+                                letterSpacing: 0,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        result.productName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _formatWon(product.price),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${sku?.color ?? 'Black'}\n${sku?.size ?? 'M'}',
-                        style: const TextStyle(fontSize: 10, height: 1.3),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                _formatKoreanDateTime(result.consultedAt),
-                style: const TextStyle(fontSize: 9, color: Color(0xFF777777)),
-              ),
-            ),
-            const _McmSectionDivider(),
-          ],
+          ),
         ),
       ),
     );
@@ -3202,10 +6068,29 @@ class _McmResultBlock extends StatelessWidget {
         children: <Widget>[
           Text(
             label,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: Color(0xFF000000),
+              fontFamily: 'Pretendard',
+              fontSize: 12.824,
+              fontStyle: FontStyle.normal,
+              fontWeight: FontWeight.w600,
+              height: 0.99925,
+              letterSpacing: 0,
+            ),
           ),
           const SizedBox(height: 7),
-          Text(value, style: const TextStyle(fontSize: 10, height: 1.45)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF222222),
+              fontFamily: 'Pretendard',
+              fontSize: 10.992,
+              fontStyle: FontStyle.normal,
+              fontWeight: FontWeight.w500,
+              height: 10.984 / 10.992,
+              letterSpacing: 0,
+            ),
+          ),
         ],
       ),
     );
@@ -3246,42 +6131,79 @@ class _CartAddedScreen extends StatelessWidget {
             _McmTopBar(
               onLeadingPressed: onBack,
               leadingIcon: Icons.close,
+              leadingIconWidget: const _MenuCloseIcon(),
               onProfilePressed: onOpenAccount,
+              profileIconWidget: const _McmTopBarProfileIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+              edgeIconButtonWidth: 58.56,
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      const Expanded(
-                        child: Text(
-                          '새로운 상품이 쇼핑백에 추가되었습니다!',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
+                  const Expanded(
+                    child: Text(
+                      '새로운 상품이 추가되었습니다!',
+                      style: TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 12.824,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                      ),
+                    ),
+                  ),
+                  Text.rich(
+                    TextSpan(
+                      children: <InlineSpan>[
+                        const TextSpan(text: '('),
+                        TextSpan(
+                          text: '$itemCount',
+                          style: const TextStyle(
+                            color: Color(0xFF000000),
+                            fontFamily: 'Pretendard',
+                            fontSize: 12.824,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w500,
+                            height: 0.99925,
                           ),
                         ),
-                      ),
-                      Text(
-                        '($itemCount개 품목)',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+                        const TextSpan(text: '개 품목)'),
+                      ],
+                    ),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: Color(0xFF000000),
+                      fontFamily: 'Pretendard',
+                      fontSize: 12.824,
+                      fontStyle: FontStyle.normal,
+                      fontWeight: FontWeight.w400,
+                      height: 0.99925,
+                    ),
                   ),
-                  const SizedBox(height: 18),
-                  if (displayItems.isEmpty)
-                    const _McmEmptyState(message: '저장된 항목이 없습니다')
-                  else
-                    for (final CartItem item in displayItems) ...<Widget>[
-                      _ShoppingBagLineItem(item: item),
-                      const _McmSectionDivider(),
-                    ],
                 ],
               ),
+            ),
+            Expanded(
+              child: displayItems.isEmpty
+                  ? const Center(child: _McmEmptyState(message: '저장된 항목이 없습니다'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(0, 18, 0, 14),
+                      itemCount: displayItems.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        return Center(
+                          child: SizedBox(
+                            width: 360,
+                            child: _CartListLineItem(item: displayItems[index]),
+                          ),
+                        );
+                      },
+                    ),
             ),
             _ShoppingBagActionPanel(
               totalLabel: '합계:',
@@ -3298,22 +6220,61 @@ class _CartAddedScreen extends StatelessWidget {
   }
 }
 
+class _CartAddedSlideIn extends StatefulWidget {
+  const _CartAddedSlideIn({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_CartAddedSlideIn> createState() => _CartAddedSlideInState();
+}
+
+class _CartAddedSlideInState extends State<_CartAddedSlideIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  )..forward();
+
+  late final Animation<Offset> _offset = Tween<Offset>(
+    begin: const Offset(1, 0),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: SlideTransition(position: _offset, child: widget.child),
+    );
+  }
+}
+
 class _CartListScreen extends StatelessWidget {
   const _CartListScreen({
     required this.cartItems,
     required this.isLoading,
     required this.errorMessage,
+    required this.isLoggedIn,
     required this.onRetry,
     required this.onBackToProducts,
     required this.onOpenAccount,
+    required this.onOpenLogin,
   });
 
   final List<CartItem> cartItems;
   final bool isLoading;
   final String? errorMessage;
+  final bool isLoggedIn;
   final VoidCallback onRetry;
   final VoidCallback onBackToProducts;
   final VoidCallback onOpenAccount;
+  final VoidCallback onOpenLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -3327,9 +6288,15 @@ class _CartListScreen extends StatelessWidget {
           children: <Widget>[
             _McmTopBar(
               onLeadingPressed: onBackToProducts,
+              leadingIconWidget: const _McmTopBarMenuIcon(),
               onProfilePressed: onOpenAccount,
+              profileIconWidget: const _McmTopBarProfileIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+              edgeIconButtonWidth: 58.56,
             ),
-            const Divider(height: 1, color: Color(0xFFE5E5E5)),
             Expanded(
               child: Builder(
                 builder: (BuildContext context) {
@@ -3353,46 +6320,61 @@ class _CartListScreen extends StatelessWidget {
                   }
 
                   if (cartItems.isEmpty) {
-                    return const Center(
-                      child: _McmEmptyState(
-                        message: '쇼핑백이 비어 있습니다.\n로그인 후 쇼핑백 확인하러 가기',
-                      ),
+                    return _CartEmptyScreen(
+                      isLoggedIn: isLoggedIn,
+                      onLogin: onOpenLogin,
                     );
                   }
 
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                  return Column(
                     children: <Widget>[
-                      Text(
-                        '나의 쇼핑백(${cartItems.length}개 품목)',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
+                      SizedBox(
+                        height: 44,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              '나의 쇼핑백(${cartItems.length}개 품목)',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFF000000),
+                                fontFamily: 'Pretendard',
+                                fontSize: 13.74,
+                                fontStyle: FontStyle.normal,
+                                fontWeight: FontWeight.w700,
+                                height: 0.99925,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 22),
-                      for (final CartItem cartItem in cartItems) ...<Widget>[
-                        _ShoppingBagLineItem(item: cartItem),
-                        const _McmSectionDivider(),
-                      ],
-                      const SizedBox(height: 10),
-                      _ShoppingBagSummary(
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(0, 12, 0, 14),
+                          itemCount: cartItems.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            return Center(
+                              child: SizedBox(
+                                width: 360,
+                                child: _CartListLineItem(
+                                  item: cartItems[index],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      _CartCheckoutPanel(
                         itemCount: cartItems.length,
                         totalPrice: totalPrice,
+                        onCheckout: onBackToProducts,
                       ),
                     ],
                   );
                 },
               ),
             ),
-            if (!isLoading && errorMessage == null && cartItems.isNotEmpty)
-              _ShoppingBagActionPanel(
-                totalLabel: '예상 합계',
-                totalPrice: totalPrice,
-                primaryLabel: '결제하기',
-                onPrimary: onBackToProducts,
-              ),
           ],
         ),
       ),
@@ -3429,13 +6411,44 @@ class _ConsultationResultsScreen extends StatelessWidget {
           children: <Widget>[
             _McmTopBar(
               onLeadingPressed: onBackToHome,
+              leadingIconWidget: const _McmTopBarMenuIcon(),
               onProfilePressed: onOpenAccount,
+              profileIconWidget: const _McmTopBarProfileIcon(),
+              logoAssetPath: _McmImageAssets.menuMcmLogo,
+              logoWidth: 54.046,
+              logoHeight: 17.542,
+              logoFit: BoxFit.fill,
+              edgeIconButtonWidth: 58.56,
             ),
             const SizedBox(height: 12),
-            const Text(
-              'SEGUE 내역',
+            const Text.rich(
+              TextSpan(
+                children: <InlineSpan>[
+                  TextSpan(
+                    text: 'SEGUE',
+                    style: TextStyle(
+                      color: Color(0xFF000000),
+                      fontFamily: 'Montserrat',
+                      fontSize: 13.74,
+                      fontStyle: FontStyle.normal,
+                      fontWeight: FontWeight.w700,
+                      height: 16.737 / 13.74,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' 내역',
+                    style: TextStyle(
+                      color: Color(0xFF000000),
+                      fontFamily: 'Pretendard',
+                      fontSize: 13.74,
+                      fontStyle: FontStyle.normal,
+                      fontWeight: FontWeight.w700,
+                      height: 0.99925,
+                    ),
+                  ),
+                ],
+              ),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
             ),
             Expanded(
               child: Builder(
@@ -3464,35 +6477,57 @@ class _ConsultationResultsScreen extends StatelessWidget {
                     );
                   }
 
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+                  return Column(
                     children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Text(
-                            '총 ${results.length}건의 상담 기록',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFF565656),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              '총 ${results.length}건의 상담 기록',
+                              style: const TextStyle(
+                                color: Color(0xFF3D3D3D),
+                                fontFamily: 'Pretendard',
+                                fontSize: 10.992,
+                                fontStyle: FontStyle.normal,
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: 0,
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          const Text(
-                            '최근 상담순',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFF565656),
+                            const Spacer(),
+                            const Text(
+                              '최근 상담순',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                color: Color(0xFF3D3D3D),
+                                fontFamily: 'Pretendard',
+                                fontSize: 10.076,
+                                fontStyle: FontStyle.normal,
+                                fontWeight: FontWeight.w500,
+                                height: 0.99925,
+                                letterSpacing: 0,
+                              ),
                             ),
-                          ),
-                          const Icon(Icons.keyboard_arrow_down, size: 13),
-                        ],
+                            const SizedBox(width: 4),
+                            const _ConsultationSortArrowIcon(),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
-                      for (final ConsultationResult result in results)
-                        _SegueHistoryRow(
-                          result: result,
-                          onTap: () => onOnlinePurchase(result),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          itemCount: results.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final ConsultationResult result = results[index];
+                            return _SegueHistoryRow(
+                              result: result,
+                              onTap: () => onOnlinePurchase(result),
+                            );
+                          },
                         ),
+                      ),
                     ],
                   );
                 },
@@ -3526,12 +6561,7 @@ class _OnlinePurchaseScreen extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: <Widget>[
-            _McmTopBar(onLeadingPressed: onBack, leadingIcon: Icons.close),
-            const Text(
-              'SEGUE 결과',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
-            ),
+            _SegueResultTopBar(onClose: onBack),
             const SizedBox(height: 14),
             Expanded(
               child: ListView(
@@ -3596,14 +6626,30 @@ class _OnlinePurchaseScreen extends StatelessWidget {
                         const Text(
                           '상담 완료',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF000000),
+                            fontFamily: 'Pretendard',
+                            fontSize: 12.824,
+                            fontStyle: FontStyle.normal,
+                            fontWeight: FontWeight.w700,
+                            height: 0.99925,
+                            letterSpacing: 0,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          '추천 제품은 Client Advisor와 함께 매장에서 확인했습니다. 또한 해당 매장에서 바로 구매가 진행되었습니다.',
-                          style: TextStyle(fontSize: 10, height: 1.45),
+                        const SizedBox(
+                          width: 314.198,
+                          child: Text(
+                            '추천 제품은 Client Advisor와 함께 매장에서 확인했습니다. 또한 해당 매장에서 바로 구매가 진행되었습니다.',
+                            style: TextStyle(
+                              color: Color(0xFF222222),
+                              fontFamily: 'Pretendard',
+                              fontSize: 10.992,
+                              fontStyle: FontStyle.normal,
+                              fontWeight: FontWeight.w500,
+                              height: 14.656 / 10.992,
+                              letterSpacing: 0,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -3757,24 +6803,26 @@ class _ConsultationProductRow extends StatelessWidget {
       result.skuId,
     ).copyWith(imageUrl: result.imageUrl);
     final MobileSkuOption? sku = MobileProductCatalog.skuById(result.skuId);
-    final String color = sku?.color ?? 'Black';
-    final String size = sku?.size ?? 'M';
+    final String color = _formatResultProductColor(sku?.color ?? 'Black');
+    final String size = displayProductSize(sku?.size ?? 'M');
+    final String priceLabel = _formatWon(product.price).replaceFirst('₩ ', '₩');
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         SizedBox(
-          width: recommended ? 102 : 92,
-          height: recommended ? 74 : 86,
+          width: 116.336,
+          height: 127.328,
           child: MobileProductVisual(
             product: product,
             colorOverride: sku == null ? null : Color(sku.swatchValue),
             compact: true,
             imageFit: BoxFit.cover,
             showFrame: false,
+            backgroundColor: const Color(0xFFD9D9D9),
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: 12.824),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3783,46 +6831,91 @@ class _ConsultationProductRow extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
-                    color: const Color(0xFF2D2D2D),
+                    width: 40.305,
+                    height: 14.656,
+                    color: recommended
+                        ? const Color(0xFF222222)
+                        : const Color(0xFF7A7A7A),
+                    alignment: Alignment.center,
                     child: Text(
                       recommended ? '추천 제품' : '상담 제품',
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFFFFFFF),
+                        fontFamily: 'Pretendard',
+                        fontSize: 8.244,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w600,
+                        height: 1,
+                        letterSpacing: 0,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
               ] else
                 const Text(
                   '상담 제품',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF555555)),
+                  style: TextStyle(
+                    color: Color(0xFF000000),
+                    fontFamily: 'Pretendard',
+                    fontSize: 12.824,
+                    fontStyle: FontStyle.normal,
+                    fontWeight: FontWeight.w400,
+                    height: 0.99925,
+                    letterSpacing: 0,
+                  ),
                 ),
               Text(
                 result.productName,
                 style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  height: 1.25,
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 12.824,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w600,
+                  height: 0.99925,
+                  letterSpacing: 0,
                 ),
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 24),
               Text(
-                _formatWon(product.price),
+                priceLabel,
                 style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 12.824,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w400,
+                  height: 0.99925,
+                  letterSpacing: 0,
                 ),
               ),
-              const SizedBox(height: 7),
-              Text(color, style: const TextStyle(fontSize: 10, height: 1.25)),
-              Text(size, style: const TextStyle(fontSize: 10, height: 1.25)),
+              const SizedBox(height: 4),
+              Text(
+                color,
+                style: const TextStyle(
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 12.824,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w400,
+                  height: 0.99925,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                size,
+                style: const TextStyle(
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 12.824,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w400,
+                  height: 0.99925,
+                  letterSpacing: 0,
+                ),
+              ),
             ],
           ),
         ),
@@ -3941,6 +7034,49 @@ String _formatKoreanDateTime(DateTime date) {
   final int displayHour = date.hour % 12 == 0 ? 12 : date.hour % 12;
   final String minute = date.minute.toString().padLeft(2, '0');
   return '${date.year}년 ${date.month}월 ${date.day}일 $meridiem $displayHour:$minute';
+}
+
+String _formatCompactDateTime(DateTime date) {
+  final String month = date.month.toString().padLeft(2, '0');
+  final String day = date.day.toString().padLeft(2, '0');
+  final String hour = date.hour.toString().padLeft(2, '0');
+  final String minute = date.minute.toString().padLeft(2, '0');
+  return '${date.year}.$month.$day $hour:$minute';
+}
+
+String _formatResultProductColor(String color) {
+  final String normalized = color.trim().toLowerCase().replaceAll(' ', '');
+  final String? directColor = switch (normalized) {
+    'black' || '블랙' => 'Black',
+    'beige' || '베이지' => 'Beige',
+    'brown' || '브라운' => 'Brown',
+    'cognac' || '꼬냑' || '코냑' => 'Cognac',
+    'orange' || '오렌지' => 'Orange',
+    'green' || '그린' || 'khaki' || '카키' => 'Green',
+    'navy' || '네이비' => 'Navy',
+    'pink' || '핑크' => 'Pink',
+    'white' || '화이트' => 'White',
+    'gray' || 'grey' || '그레이' => 'Gray',
+    _ => null,
+  };
+  if (directColor != null) {
+    return directColor;
+  }
+
+  final String displayColor = displayProductColor(color);
+  return switch (displayColor.toUpperCase()) {
+    'BLACK' => 'Black',
+    'BEIGE' => 'Beige',
+    'BROWN' => 'Brown',
+    'COGNAC' => 'Cognac',
+    'ORANGE' => 'Orange',
+    'GREEN' => 'Green',
+    'NAVY' => 'Navy',
+    'PINK' => 'Pink',
+    'WHITE' => 'White',
+    'GRAY' || 'GREY' => 'Gray',
+    _ => displayColor,
+  };
 }
 
 String _formatWon(int price) {

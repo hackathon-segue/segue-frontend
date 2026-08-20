@@ -23,7 +23,11 @@ void main() {
     // The mobile customer entry screen no longer has a "직원 웹" button
     // (it's now the real customer-facing app) — reach staff routes via a
     // direct named push instead, same as the app's own wireframe QA does.
-    Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
+    Navigator.of(
+      tester.element(
+        find.byKey(const ValueKey<String>('customer-mobile-start-logo')),
+      ),
+    ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('START SEGUE'));
@@ -31,7 +35,9 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
-    await tester.tap(find.descendant(of: find.byType(Form), matching: find.text('고객 조회')));
+    await tester.tap(
+      find.descendant(of: find.byType(Form), matching: find.text('고객 조회')),
+    );
     await tester.pumpAndSettle();
 
     final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
@@ -81,21 +87,22 @@ void main() {
     expect(find.text('추가 상담 진행'), findsWidgets);
   }
 
-  testWidgets('defaults to the 진행 state (169:3683) with 상담 내용 기록하기 placeholder', (
-    WidgetTester tester,
-  ) async {
-    await reachAdditionalConsultationScreen(tester);
+  testWidgets(
+    'defaults to the 진행 state (169:3683) with 상담 내용 기록하기 placeholder',
+    (WidgetTester tester) async {
+      await reachAdditionalConsultationScreen(tester);
 
-    expect(find.text('추가 상담 미진행'), findsOneWidget);
-    expect(find.text('이전 상담 요약'), findsOneWidget);
-    // Figma-literal CTA display override for the 진행 state (169:3724) —
-    // execute()'s real payload still uses decisionResult.actionType/
-    // actionButtonLabel, this is on-screen text only.
-    expect(find.text('상담 완료'), findsOneWidget);
-    expect(find.text('해당 제품 상담 중단'), findsNothing);
-    expect(find.text('상담 내용 기록하기'), findsOneWidget);
-    expect(find.text('실행 불가 사유 입력하기 (예: 고객 동의 거절, 시간 부족 등)'), findsNothing);
-  });
+      expect(find.text('추가 상담 미진행'), findsOneWidget);
+      expect(find.text('이전 상담 요약'), findsOneWidget);
+      // Figma-literal CTA display override for the 진행 state (169:3724) —
+      // execute()'s real payload still uses decisionResult.actionType/
+      // actionButtonLabel, this is on-screen text only.
+      expect(find.text('상담 완료'), findsOneWidget);
+      expect(find.text('해당 제품 상담 중단'), findsNothing);
+      expect(find.text('상담 내용 기록하기'), findsOneWidget);
+      expect(find.text('실행 불가 사유 입력하기 (예: 고객 동의 거절, 시간 부족 등)'), findsNothing);
+    },
+  );
 
   testWidgets('tapping 추가 상담 미진행 switches to the 169:3821 state instantly', (
     WidgetTester tester,

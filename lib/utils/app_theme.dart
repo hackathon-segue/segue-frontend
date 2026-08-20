@@ -110,9 +110,15 @@ abstract final class SegueTheme {
   }
 
   static TextStyle? _fontStyle(TextStyle? style) {
+    final FontWeight requestedWeight = style?.fontWeight ?? FontWeight.w500;
+    final double visualWeight = ((((requestedWeight.index + 1) * 100) + 120)
+        .clamp(650, 900)
+        .toDouble());
+
     return style?.copyWith(
       fontFamily: englishFontFamily,
       fontFamilyFallback: _fontFamilyFallback,
+      fontVariations: <FontVariation>[FontVariation('wght', visualWeight)],
     );
   }
 
