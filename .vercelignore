@@ -1,0 +1,10 @@
+.bkit/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+android/.gradle/
+build/
+coverage/
+ios/Pods/
+*.iml
