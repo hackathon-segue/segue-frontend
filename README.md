@@ -49,7 +49,7 @@ Runtime configuration is read through Dart compile-time defines.
 | Key | Default | Description |
 | --- | --- | --- |
 | `APP_ENV` | `local` | Current frontend environment name |
-| `API_BASE_URL` | `http://localhost:8080` | Backend API base URL |
+| `API_BASE_URL` | `` (empty) | Backend API base URL. Empty means every request is built as a same-origin relative path (`/api/...`, `/images/...`) — required for the Vercel deploy, whose `vercel.json` rewrites those paths to the real backend. Pass `--dart-define=API_BASE_URL=http://localhost:8080` (or another host) for local runs against a real backend. |
 | `USE_MOCK_DATA` | `false` | `true` switches `RepositoryScope` to `MockSegueRepository` instead of the real `RealSegueRepository` (HTTP calls to `API_BASE_URL`) |
 | `STORE_ID` | `1` | Store id sent with cart/consultation requests |
 
