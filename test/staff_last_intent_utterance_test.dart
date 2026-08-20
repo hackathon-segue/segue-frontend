@@ -7,7 +7,6 @@ import 'package:segue_frontend/providers/providers.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/repositories/segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
-import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// Issue #10: LastIntentUtteranceScreen's input/validation/loading/success
 /// states, reached through the real Issue #7-9 flow with the app's default
@@ -46,7 +45,9 @@ void main() {
     // The mobile customer entry screen no longer has a "직원 웹" button (it's
     // now the real customer-facing app) — reach staff routes via a direct
     // named push instead, same as the app's own wireframe QA does.
-    Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
+    Navigator.of(
+      tester.element(find.text('LXXVI')),
+    ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('START SEGUE'));
@@ -55,22 +56,14 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
-    await tester.tap(find.descendant(of: find.byType(Form), matching: find.text('고객 조회')));
+    await tester.tap(
+      find.descendant(of: find.byType(Form), matching: find.text('고객 조회')),
+    );
     await tester.pumpAndSettle();
 
-    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
-
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < 3; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
-    }
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
+    final Finder cartButton = find.text('쇼핑백 확인');
+    await tester.ensureVisible(cartButton);
+    await tester.tap(cartButton);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Last Intent 시작').first);
@@ -88,7 +81,10 @@ void main() {
   /// rather than a custom widget type.
   InkWell submitInkWell(WidgetTester tester) {
     return tester.widget(
-      find.ancestor(of: find.text('고객 의도 구조화하기'), matching: find.byType(InkWell)),
+      find.ancestor(
+        of: find.text('고객 의도 구조화하기'),
+        matching: find.byType(InkWell),
+      ),
     );
   }
 
@@ -117,8 +113,12 @@ void main() {
       await reachUtteranceScreen(tester);
 
       final BuildContext context = tester.element(find.text('고객 의도 입력'));
-      final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
-      final Customer customer = StaffSessionScope.of(context).state.currentCustomer!;
+      final LastIntentSessionManager manager = LastIntentSessionScope.of(
+        context,
+      );
+      final Customer customer = StaffSessionScope.of(
+        context,
+      ).state.currentCustomer!;
       final CartItem sku1Item = StaffSessionScope.of(
         context,
       ).state.cartState.data!.firstWhere((CartItem i) => i.skuId == 1);
@@ -173,7 +173,10 @@ void main() {
       expect(find.text('고객 의도 분석이 완료되었습니다'), findsNothing);
       final Finder field = find.byType(TextField);
       expect(field, findsOneWidget);
-      expect((tester.widget(field) as TextField).controller!.text, '편한 느낌이면 좋겠어요');
+      expect(
+        (tester.widget(field) as TextField).controller!.text,
+        '편한 느낌이면 좋겠어요',
+      );
 
       // And it's actually editable/re-submittable, not just visually reset.
       await tester.enterText(field, '역시 이 색상이 좋을 것 같아요');
@@ -205,7 +208,10 @@ void main() {
       // reusable [StaffButton], so probe its enabled state via the
       // [InkWell] Flutter itself provides.
       final InkWell disabledInkWell = tester.widget(
-        find.ancestor(of: find.text('답변 제출 후 의도 확인'), matching: find.byType(InkWell)),
+        find.ancestor(
+          of: find.text('답변 제출 후 의도 확인'),
+          matching: find.byType(InkWell),
+        ),
       );
       expect(disabledInkWell.onTap, isNull);
     },
@@ -253,40 +259,40 @@ void main() {
     },
   );
 
-  testWidgets(
-    '구조화 요청이 실패하면 에러 카드가 뜨고, 뒤로가기로 입력창에 남아있는 텍스트를 '
-    '고쳐서 다시 제출할 수 있다',
-    (WidgetTester tester) async {
-      final _ThrowingRepository repository = _ThrowingRepository();
-      await reachUtteranceScreen(tester, repository: repository);
+  testWidgets('구조화 요청이 실패하면 에러 카드가 뜨고, 뒤로가기로 입력창에 남아있는 텍스트를 '
+      '고쳐서 다시 제출할 수 있다', (WidgetTester tester) async {
+    final _ThrowingRepository repository = _ThrowingRepository();
+    await reachUtteranceScreen(tester, repository: repository);
 
-      repository.shouldThrow = true;
-      await tester.enterText(find.byType(TextField), '편한 느낌이면 좋겠어요');
-      await tester.pump();
-      await tester.tap(find.text('고객 의도 구조화하기'));
-      await tester.pumpAndSettle();
+    repository.shouldThrow = true;
+    await tester.enterText(find.byType(TextField), '편한 느낌이면 좋겠어요');
+    await tester.pump();
+    await tester.tap(find.text('고객 의도 구조화하기'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('고객 의도 분석에 실패했습니다. 다시 시도해 주세요.'), findsOneWidget);
-      // The error card replaces the text field entirely — nothing to edit.
-      expect(find.byType(TextField), findsNothing);
+    expect(find.text('고객 의도 분석에 실패했습니다. 다시 시도해 주세요.'), findsOneWidget);
+    // The error card replaces the text field entirely — nothing to edit.
+    expect(find.byType(TextField), findsNothing);
 
-      await tester.tap(find.text('뒤로가기'));
-      await tester.pump();
+    await tester.tap(find.text('뒤로가기'));
+    await tester.pump();
 
-      // Back to the editable input, with the previously typed text intact.
-      expect(find.text('고객 의도 분석에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
-      final Finder field = find.byType(TextField);
-      expect(field, findsOneWidget);
-      expect((tester.widget(field) as TextField).controller!.text, '편한 느낌이면 좋겠어요');
+    // Back to the editable input, with the previously typed text intact.
+    expect(find.text('고객 의도 분석에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+    final Finder field = find.byType(TextField);
+    expect(field, findsOneWidget);
+    expect(
+      (tester.widget(field) as TextField).controller!.text,
+      '편한 느낌이면 좋겠어요',
+    );
 
-      // Revise the text and succeed on the next attempt.
-      repository.shouldThrow = false;
-      await tester.enterText(field, '역시 이 색상이 좋을 것 같아요');
-      await tester.pump();
-      await tester.tap(find.text('고객 의도 구조화하기'));
-      await tester.pumpAndSettle();
+    // Revise the text and succeed on the next attempt.
+    repository.shouldThrow = false;
+    await tester.enterText(field, '역시 이 색상이 좋을 것 같아요');
+    await tester.pump();
+    await tester.tap(find.text('고객 의도 구조화하기'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('고객 의도 요약 확인'), findsOneWidget);
-    },
-  );
+    expect(find.text('고객 의도 요약 확인'), findsOneWidget);
+  });
 }

@@ -134,7 +134,9 @@ class StaffWebSessionController extends ChangeNotifier {
     );
     _persistCurrentCustomer(customer);
     notifyListeners();
-    loadCart();
+    if (customer.hasConsented) {
+      loadCart();
+    }
   }
 
   Future<void> lookupCustomer(String phoneNumber) async {
@@ -207,6 +209,14 @@ class StaffWebSessionController extends ChangeNotifier {
     if (customer == null || _state.cartState.isLoading) {
       return;
     }
+    if (!customer.hasConsented) {
+      _state = _state.copyWith(
+        cartItems: const <CartItem>[],
+        cartState: const AsyncValue<List<CartItem>>.idle(),
+      );
+      notifyListeners();
+      return;
+    }
 
     _state = _state.copyWith(
       cartState: const AsyncValue<List<CartItem>>.loading(),
@@ -263,7 +273,9 @@ class StaffWebSessionController extends ChangeNotifier {
       }
       final Customer restored = Customer.fromJson(asJsonMap(decoded));
       _state = _state.copyWith(currentCustomer: restored);
-      loadCart();
+      if (restored.hasConsented) {
+        loadCart();
+      }
     } catch (_) {
       LocalStorage.removeItem(_currentCustomerStorageKey);
     }
