@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
-import 'package:segue_frontend/widgets/segue_card_shell.dart';
 import 'package:segue_frontend/widgets/segue_product_image.dart';
 
 /// Issue #12: 의도 요약 확인 / 의도 수정 화면 — 표시, 저장, 취소, "맞아요" -> decide()
@@ -38,19 +37,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
-
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < 3; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
-    }
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
+    final Finder cartButton = find.text('쇼핑백 확인');
+    await tester.ensureVisible(cartButton);
+    await tester.tap(cartButton);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Last Intent 시작').first);
@@ -96,19 +85,18 @@ void main() {
     expect(find.text('로고 위치: 정면중앙, 실루엣: 각진'), findsOneWidget);
   });
 
-  testWidgets(
-    '처음으로 돌아가기는 SEGUE 1단계(상담 대상 제품) 화면으로 이동한다 — 모바일 홈도, 직원 홈도 아니다',
-    (WidgetTester tester) async {
-      await reachConfirmScreen(tester);
+  testWidgets('처음으로 돌아가기는 SEGUE 1단계(상담 대상 제품) 화면으로 이동한다 — 모바일 홈도, 직원 홈도 아니다', (
+    WidgetTester tester,
+  ) async {
+    await reachConfirmScreen(tester);
 
-      await tester.tap(find.text('처음으로 돌아가기'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('처음으로 돌아가기'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('상담 대상 제품'), findsOneWidget);
-      expect(find.text('SEGUE HOME'), findsNothing);
-      expect(find.text('고객 모바일'), findsNothing);
-    },
-  );
+    expect(find.text('상담 대상 제품'), findsOneWidget);
+    expect(find.text('SEGUE HOME'), findsNothing);
+    expect(find.text('고객 모바일'), findsNothing);
+  });
 
   testWidgets(
     '수정할게요 -> edit fields -> 다음 단계로 reaches the Last Intent Card with the edit applied',
@@ -192,19 +180,18 @@ void main() {
     expect(find.textContaining('BEST MATCH'), findsNothing);
   });
 
-  testWidgets(
-    'Last Intent Card 화면의 처음으로 돌아가기도 SEGUE 1단계로 이동한다 (Home 아님)',
-    (WidgetTester tester) async {
-      await reachConfirmScreen(tester);
-      await tester.tap(find.text('맞아요, 다음 단계로'));
-      await tester.pumpAndSettle();
-      expect(find.text('SEGUE CARD'), findsOneWidget);
+  testWidgets('Last Intent Card 화면의 처음으로 돌아가기도 SEGUE 1단계로 이동한다 (Home 아님)', (
+    WidgetTester tester,
+  ) async {
+    await reachConfirmScreen(tester);
+    await tester.tap(find.text('맞아요, 다음 단계로'));
+    await tester.pumpAndSettle();
+    expect(find.text('SEGUE CARD'), findsOneWidget);
 
-      await tester.tap(find.text('처음으로 돌아가기'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('처음으로 돌아가기'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('상담 대상 제품'), findsOneWidget);
-      expect(find.text('SEGUE HOME'), findsNothing);
-    },
-  );
+    expect(find.text('상담 대상 제품'), findsOneWidget);
+    expect(find.text('SEGUE HOME'), findsNothing);
+  });
 }

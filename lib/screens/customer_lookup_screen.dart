@@ -132,8 +132,11 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
                 onSubmit: () => _submit(controller),
               );
               final Widget result = _ResultPanel(
+                controller: controller,
                 state: state,
-                onRetryLookup: _phoneController.text.trim().isEmpty ? null : () => _submit(controller),
+                onRetryLookup: _phoneController.text.trim().isEmpty
+                    ? null
+                    : () => _submit(controller),
               );
 
               // Figma: search column (335) → result card left 725, content
@@ -141,7 +144,11 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
               if (constraints.maxWidth < 700) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[search, const SizedBox(height: 24), result],
+                  children: <Widget>[
+                    search,
+                    const SizedBox(height: 24),
+                    result,
+                  ],
                 );
               }
               return Row(
@@ -230,7 +237,9 @@ class _SearchPanel extends StatelessWidget {
             label: '고객 조회',
             backgroundColor: SegueCardColors.ctaBg,
             height: 32,
-            textStyle: SegueCardText.compactButtonLabel15.copyWith(fontSize: 14),
+            textStyle: SegueCardText.compactButtonLabel15.copyWith(
+              fontSize: 14,
+            ),
             onPressed: onSubmit,
           ),
         ],
@@ -240,8 +249,13 @@ class _SearchPanel extends StatelessWidget {
 }
 
 class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({required this.state, required this.onRetryLookup});
+  const _ResultPanel({
+    required this.controller,
+    required this.state,
+    required this.onRetryLookup,
+  });
 
+  final StaffWebSessionController controller;
   final StaffWebSessionState state;
 
   /// Null when the phone field is empty (nothing to retry with yet), same
@@ -257,7 +271,9 @@ class _ResultPanel extends StatelessWidget {
     }
     if (state.lookupState.hasError) {
       final Object? error = state.lookupState.error;
-      final String message = error is AppException ? error.message : '회원 정보를 다시 확인해 주세요.';
+      final String message = error is AppException
+          ? error.message
+          : '회원 정보를 다시 확인해 주세요.';
       final bool notFound =
           (error is ApiException && error.statusCode == 404) ||
           (error is AppException && error.code == 'CUSTOMER_NOT_FOUND');
@@ -297,11 +313,20 @@ class _ResultPanel extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               );
               final Widget cta = SegueCompactButton(
-                label: '상담 데이터 이용 동의 확인',
+                label: customer.hasConsented ? '쇼핑백 확인' : '상담 데이터 이용 동의 확인',
                 backgroundColor: SegueCardColors.ctaBg,
                 showArrow: true,
                 textStyle: SegueCardText.compactButtonLabel16,
-                onPressed: () => Navigator.of(context).pushNamed(AppRoutes.customerConsent),
+                onPressed: () {
+                  if (!customer.hasConsented) {
+                    Navigator.of(context).pushNamed(AppRoutes.customerConsent);
+                    return;
+                  }
+                  if (state.cartState.isIdle) {
+                    controller.loadCart();
+                  }
+                  Navigator.of(context).pushNamed(AppRoutes.cartInventory);
+                },
               );
               // The button's auto-width label has no narrower Figma
               // variant, so this app's own responsive fallback drops it
@@ -309,7 +334,11 @@ class _ResultPanel extends StatelessWidget {
               if (constraints.maxWidth >= 500) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[Expanded(child: name), const SizedBox(width: 12), cta],
+                  children: <Widget>[
+                    Expanded(child: name),
+                    const SizedBox(width: 12),
+                    cta,
+                  ],
                 );
               }
               return Column(
@@ -323,18 +352,30 @@ class _ResultPanel extends StatelessWidget {
           Text.rich(
             TextSpan(
               children: <InlineSpan>[
-                const TextSpan(text: '회원번호', style: SegueCardText.detailLabel16),
+                const TextSpan(
+                  text: '회원번호',
+                  style: SegueCardText.detailLabel16,
+                ),
                 const TextSpan(text: '   ', style: SegueCardText.detailLabel16),
-                TextSpan(text: '${customer.id}', style: SegueCardText.detailValue16),
+                TextSpan(
+                  text: '${customer.id}',
+                  style: SegueCardText.detailValue16,
+                ),
               ],
             ),
           ),
           Text.rich(
             TextSpan(
               children: <InlineSpan>[
-                const TextSpan(text: '전화번호', style: SegueCardText.detailLabel16),
+                const TextSpan(
+                  text: '전화번호',
+                  style: SegueCardText.detailLabel16,
+                ),
                 const TextSpan(text: '   ', style: SegueCardText.detailLabel16),
-                TextSpan(text: customer.phoneNumber, style: SegueCardText.detailValue16),
+                TextSpan(
+                  text: customer.phoneNumber,
+                  style: SegueCardText.detailValue16,
+                ),
               ],
             ),
           ),

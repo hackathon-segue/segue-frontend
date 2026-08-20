@@ -83,13 +83,17 @@ void main() {
 
     await _lookupPhone(tester, '010-1234-5678');
 
-    // The customer lookup screen no longer previews cart state at all (per
-    // 89:928/89:1001 — that UI now only exists on CartInventoryScreen), so
-    // the 403 from the background loadCart() prefetch doesn't surface here.
-    // The screen always shows the consent CTA once a customer is found.
-    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
+    // Lookup says the customer has already consented, so the CTA opens the
+    // cart directly. The backend can still reject the cart with 403 if that
+    // consent is stale/revoked server-side.
+    final Finder cartButton = find.text('쇼핑백 확인');
+    await tester.ensureVisible(cartButton);
+    await tester.tap(cartButton);
+    await tester.pumpAndSettle();
+
+    final Finder consentRedirectButton = find.text('동의 화면으로 이동');
+    await tester.ensureVisible(consentRedirectButton);
+    await tester.tap(consentRedirectButton);
     await tester.pumpAndSettle();
 
     for (int i = 0; i < 3; i++) {

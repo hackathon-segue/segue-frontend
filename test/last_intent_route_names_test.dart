@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:segue_frontend/main.dart';
 import 'package:segue_frontend/repositories/mock_segue_repository.dart';
 import 'package:segue_frontend/utils/app_config.dart';
-import 'package:segue_frontend/widgets/segue_card_shell.dart';
 
 /// "브라우저 뒤로가기가 가끔 앱 홈으로 튐" 버그 — this app has no
 /// usePathUrlStrategy()/Router2 setup, so on Flutter Web an UNNAMED pushed
@@ -44,18 +43,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < tester.widgetList(checkRows).length; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
-    }
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
+    final Finder cartButton = find.text('쇼핑백 확인');
+    await tester.ensureVisible(cartButton);
+    await tester.tap(cartButton);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Last Intent 시작').first);
@@ -67,48 +57,47 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets(
-    '발화 -> 보충질문 -> 의도확인 -> Last Intent Card 화면까지, 화면마다 서로 다른 '
-    'RouteSettings.name이 붙는다 (브라우저 히스토리 항목이 화면 수만큼 생기게)',
-    (WidgetTester tester) async {
-      await reachUtteranceScreen(tester);
-      expect(currentRouteName(tester), AppRoutes.lastIntentUtterance);
+  testWidgets('발화 -> 보충질문 -> 의도확인 -> Last Intent Card 화면까지, 화면마다 서로 다른 '
+      'RouteSettings.name이 붙는다 (브라우저 히스토리 항목이 화면 수만큼 생기게)', (
+    WidgetTester tester,
+  ) async {
+    await reachUtteranceScreen(tester);
+    expect(currentRouteName(tester), AppRoutes.lastIntentUtterance);
 
-      // mock_segue_repository.dart: "비슷" triggers needsFollowUp.
-      await tester.enterText(find.byType(TextField), '비슷한 제품이어도 괜찮아요');
-      await tester.pump();
-      await tester.tap(find.text('고객 의도 구조화하기'));
-      await tester.pumpAndSettle();
-      expect(find.text('고객 의도 입력 - 보충 질문'), findsOneWidget);
-      expect(currentRouteName(tester), AppRoutes.lastIntentFollowUp);
+    // mock_segue_repository.dart: "비슷" triggers needsFollowUp.
+    await tester.enterText(find.byType(TextField), '비슷한 제품이어도 괜찮아요');
+    await tester.pump();
+    await tester.tap(find.text('고객 의도 구조화하기'));
+    await tester.pumpAndSettle();
+    expect(find.text('고객 의도 입력 - 보충 질문'), findsOneWidget);
+    expect(currentRouteName(tester), AppRoutes.lastIntentFollowUp);
 
-      await tester.enterText(find.byType(TextField).last, '오늘 바로 사고 싶어요');
-      await tester.pump();
-      await tester.tap(find.text('답변 제출 후 의도 확인'));
-      await tester.pumpAndSettle();
-      expect(find.text('고객 의도 요약 확인'), findsOneWidget);
-      expect(currentRouteName(tester), AppRoutes.lastIntentConfirm);
+    await tester.enterText(find.byType(TextField).last, '오늘 바로 사고 싶어요');
+    await tester.pump();
+    await tester.tap(find.text('답변 제출 후 의도 확인'));
+    await tester.pumpAndSettle();
+    expect(find.text('고객 의도 요약 확인'), findsOneWidget);
+    expect(currentRouteName(tester), AppRoutes.lastIntentConfirm);
 
-      final Finder editButton = find.text('수정할게요');
-      await tester.ensureVisible(editButton);
-      await tester.tap(editButton);
-      await tester.pumpAndSettle();
-      expect(currentRouteName(tester), AppRoutes.lastIntentEdit);
-      // Back to confirm — a plain pop, unaffected by naming.
-      final Finder cancelButton = find.text('이전으로 돌아가기');
-      await tester.ensureVisible(cancelButton);
-      await tester.tap(cancelButton);
-      await tester.pumpAndSettle();
-      expect(currentRouteName(tester), AppRoutes.lastIntentConfirm);
+    final Finder editButton = find.text('수정할게요');
+    await tester.ensureVisible(editButton);
+    await tester.tap(editButton);
+    await tester.pumpAndSettle();
+    expect(currentRouteName(tester), AppRoutes.lastIntentEdit);
+    // Back to confirm — a plain pop, unaffected by naming.
+    final Finder cancelButton = find.text('이전으로 돌아가기');
+    await tester.ensureVisible(cancelButton);
+    await tester.tap(cancelButton);
+    await tester.pumpAndSettle();
+    expect(currentRouteName(tester), AppRoutes.lastIntentConfirm);
 
-      final Finder confirmButton = find.text('맞아요, 다음 단계로');
-      await tester.ensureVisible(confirmButton);
-      await tester.tap(confirmButton);
-      await tester.pumpAndSettle();
-      expect(find.text('SEGUE CARD'), findsOneWidget);
-      expect(currentRouteName(tester), AppRoutes.lastIntentCard);
-    },
-  );
+    final Finder confirmButton = find.text('맞아요, 다음 단계로');
+    await tester.ensureVisible(confirmButton);
+    await tester.tap(confirmButton);
+    await tester.pumpAndSettle();
+    expect(find.text('SEGUE CARD'), findsOneWidget);
+    expect(currentRouteName(tester), AppRoutes.lastIntentCard);
+  });
 
   testWidgets(
     'utterance -> confirm 직행(보충 질문 없이)도 lastIntentConfirm으로 이름이 붙는다',

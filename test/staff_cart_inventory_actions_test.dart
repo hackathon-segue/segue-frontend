@@ -22,7 +22,9 @@ void main() {
     // The mobile customer entry screen no longer has a "직원 웹" button (it's
     // now the real customer-facing app) — reach staff routes via a direct
     // named push instead, same as the app's own wireframe QA does.
-    Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
+    Navigator.of(
+      tester.element(find.text('LXXVI')),
+    ).pushNamed(AppRoutes.staffHome);
     await tester.pumpAndSettle();
 
     tester.view.physicalSize = const Size(1440, 900);
@@ -40,19 +42,25 @@ void main() {
     await tester.pumpAndSettle();
 
     final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-    await tester.ensureVisible(consentButton);
-    await tester.tap(consentButton);
-    await tester.pumpAndSettle();
+    if (consentButton.evaluate().isNotEmpty) {
+      await tester.ensureVisible(consentButton);
+      await tester.tap(consentButton);
+      await tester.pumpAndSettle();
 
-    final Finder checkRows = find.byType(SegueCheckboxRow);
-    for (int i = 0; i < 3; i++) {
-      await tester.tap(checkRows.at(i));
-      await tester.pump();
+      final Finder checkRows = find.byType(SegueCheckboxRow);
+      for (int i = 0; i < 3; i++) {
+        await tester.tap(checkRows.at(i));
+        await tester.pump();
+      }
+
+      final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
+      await tester.ensureVisible(agreeButton);
+      await tester.tap(agreeButton);
+    } else {
+      final Finder cartButton = find.text('쇼핑백 확인');
+      await tester.ensureVisible(cartButton);
+      await tester.tap(cartButton);
     }
-
-    final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-    await tester.ensureVisible(agreeButton);
-    await tester.tap(agreeButton);
     await tester.pumpAndSettle();
     expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
 
@@ -179,7 +187,9 @@ void main() {
       final LastIntentSessionManager manager = LastIntentSessionScope.of(
         context,
       );
-      final Customer customer = StaffSessionScope.of(context).state.currentCustomer!;
+      final Customer customer = StaffSessionScope.of(
+        context,
+      ).state.currentCustomer!;
       final List<CartItem> items = StaffSessionScope.of(
         context,
       ).state.cartState.data!;

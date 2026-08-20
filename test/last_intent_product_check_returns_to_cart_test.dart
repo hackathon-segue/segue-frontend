@@ -23,7 +23,9 @@ void main() {
       // The mobile customer entry screen no longer has a "직원 웹" button
       // (it's now the real customer-facing app) — reach staff routes via a
       // direct named push instead, same as the app's own wireframe QA does.
-      Navigator.of(tester.element(find.text('LXXVI'))).pushNamed(AppRoutes.staffHome);
+      Navigator.of(
+        tester.element(find.text('LXXVI')),
+      ).pushNamed(AppRoutes.staffHome);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('START SEGUE'));
@@ -31,21 +33,29 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(1), '010-1234-5678');
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pump();
-      await tester.tap(find.descendant(of: find.byType(Form), matching: find.text('고객 조회')));
+      await tester.tap(
+        find.descendant(of: find.byType(Form), matching: find.text('고객 조회')),
+      );
       await tester.pumpAndSettle();
 
       final Finder consentButton = find.text('상담 데이터 이용 동의 확인');
-      await tester.ensureVisible(consentButton);
-      await tester.tap(consentButton);
-      await tester.pumpAndSettle();
-      final Finder checkRows = find.byType(SegueCheckboxRow);
-      for (int i = 0; i < tester.widgetList(checkRows).length; i++) {
-        await tester.tap(checkRows.at(i));
-        await tester.pump();
+      if (consentButton.evaluate().isNotEmpty) {
+        await tester.ensureVisible(consentButton);
+        await tester.tap(consentButton);
+        await tester.pumpAndSettle();
+        final Finder checkRows = find.byType(SegueCheckboxRow);
+        for (int i = 0; i < tester.widgetList(checkRows).length; i++) {
+          await tester.tap(checkRows.at(i));
+          await tester.pump();
+        }
+        final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
+        await tester.ensureVisible(agreeButton);
+        await tester.tap(agreeButton);
+      } else {
+        final Finder cartButton = find.text('쇼핑백 확인');
+        await tester.ensureVisible(cartButton);
+        await tester.tap(cartButton);
       }
-      final Finder agreeButton = find.text('동의하고 쇼핑백 확인');
-      await tester.ensureVisible(agreeButton);
-      await tester.tap(agreeButton);
       await tester.pumpAndSettle();
       expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
       expect(find.text('상담 완료'), findsNothing);
