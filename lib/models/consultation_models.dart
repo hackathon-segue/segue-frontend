@@ -451,9 +451,14 @@ class ConsultationResult {
     required this.executionStatus,
     required this.executionNote,
     required this.executionUpdatedAt,
+    this.recommendedProduct,
   });
 
   factory ConsultationResult.fromJson(JsonMap json) {
+    final JsonMap recommendedProductJson = asJsonMap(
+      json['recommendedProduct'],
+    );
+
     return ConsultationResult(
       id: intValue(json, 'id'),
       skuId: intValue(json, 'skuId'),
@@ -469,6 +474,9 @@ class ConsultationResult {
       executionNote: json['executionNote']?.toString(),
       executionUpdatedAt:
           dateTimeValue(json, 'executionUpdatedAt') ?? DateTime(1970),
+      recommendedProduct: recommendedProductJson.isEmpty
+          ? null
+          : ProductSkuSummary.fromJson(recommendedProductJson),
     );
   }
 
@@ -483,6 +491,7 @@ class ConsultationResult {
   final ExecutionStatus executionStatus;
   final String? executionNote;
   final DateTime executionUpdatedAt;
+  final ProductSkuSummary? recommendedProduct;
 
   ConsultationResult copyWith({
     int? id,
@@ -497,6 +506,8 @@ class ConsultationResult {
     String? executionNote,
     bool clearExecutionNote = false,
     DateTime? executionUpdatedAt,
+    ProductSkuSummary? recommendedProduct,
+    bool clearRecommendedProduct = false,
   }) {
     return ConsultationResult(
       id: id ?? this.id,
@@ -512,6 +523,9 @@ class ConsultationResult {
           ? null
           : executionNote ?? this.executionNote,
       executionUpdatedAt: executionUpdatedAt ?? this.executionUpdatedAt,
+      recommendedProduct: clearRecommendedProduct
+          ? null
+          : recommendedProduct ?? this.recommendedProduct,
     );
   }
 
@@ -528,6 +542,7 @@ class ConsultationResult {
       'executionStatus': executionStatus.wireName,
       'executionNote': executionNote,
       'executionUpdatedAt': executionUpdatedAt.toIso8601String(),
+      'recommendedProduct': recommendedProduct?.toJson(),
     };
   }
 }

@@ -40,6 +40,16 @@ abstract final class _McmImageAssets {
   static const String menuMcmLogo = 'assets/icons/menu_mcm_logo.png';
   static const String menuFooterShoppingBagIcon =
       'assets/icons/menu_footer_shopping_bag_icon.png';
+  static const String menuFooterSegueHistoryIcon =
+      'assets/icons/menu_footer_segue_history_icon.png';
+  static const String menuTileArrowIcon =
+      'assets/icons/menu_tile_arrow_icon.png';
+  static const String productCategorySelectedArrowIcon =
+      'assets/icons/product_category_selected_arrow_icon.png';
+  static const String productTileBagIcon =
+      'assets/icons/product_tile_bag_icon.png';
+  static const String productTileBagAddedIcon =
+      'assets/icons/product_tile_bag_added_icon.png';
   static const String startHero = 'assets/images/mcm/start_hero.png';
   static const String menuNewCollection =
       'assets/images/mcm/menu_new_collection.png';
@@ -53,6 +63,14 @@ abstract final class _McmImageAssets {
       'assets/images/mcm/menu_aren_east_west.png';
   static const String categoryNewBags =
       'assets/images/mcm/category_new_bags.png';
+  static const String categoryNewProducts =
+      'assets/images/mcm/category_new_products.png';
+  static const String categoryWomenNewProducts =
+      'assets/images/mcm/category_women_new_products.png';
+  static const String categoryMenNewProducts =
+      'assets/images/mcm/category_men_new_products.png';
+  static const String categoryAutumnWinter2026 =
+      'assets/images/mcm/category_autumn_winter_2026.png';
   static const String categoryTote = 'assets/images/mcm/category_tote.png';
   static const String categoryShoulder =
       'assets/images/mcm/category_shoulder.png';
@@ -73,10 +91,10 @@ abstract final class _McmImageAssets {
 
   static String categoryHeroFor(String? category) {
     return switch (category ?? '가방') {
-      _ProductCategory.newProducts => categoryTote,
-      _ProductCategory.womenNewProducts => categoryTote,
-      _ProductCategory.menNewProducts => categoryShoulder,
-      _ProductCategory.autumnWinter2026 => menuNewCollection,
+      _ProductCategory.newProducts => categoryNewProducts,
+      _ProductCategory.womenNewProducts => categoryWomenNewProducts,
+      _ProductCategory.menNewProducts => categoryMenNewProducts,
+      _ProductCategory.autumnWinter2026 => categoryAutumnWinter2026,
       '토트백 & 쇼퍼백' => categoryTote,
       '숄더백 & 크로스백' => categoryShoulder,
       '백팩' => categoryBackpack,
@@ -87,7 +105,7 @@ abstract final class _McmImageAssets {
 }
 
 abstract final class _ProductCategory {
-  static const String newProducts = '신상품';
+  static const String newProducts = '신상품 제품';
   static const String womenNewProducts = '여성 신상품';
   static const String menNewProducts = '남성 신상품';
   static const String autumnWinter2026 = 'Autumn Winter 2026';
@@ -106,10 +124,8 @@ bool _isNewProductSubcategory(String category) {
       category == _ProductCategory.autumnWinter2026;
 }
 
-typedef _CustomerLoginCallback = Future<void> Function({
-  required String email,
-  required String password,
-});
+typedef _CustomerLoginCallback =
+    Future<void> Function({required String email, required String password});
 
 class CustomerMobileEntryScreen extends StatefulWidget {
   const CustomerMobileEntryScreen({super.key});
@@ -238,6 +254,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       _MobileScreen.products => _ProductListScreen(
         products: _filteredProducts,
         selectedCategory: _selectedCategory,
+        cartItems: _cartItems,
+        cartSkuIds: _cartItems.map((CartItem item) => item.skuId).toSet(),
+        isSavingCart: _isSavingCart,
         isLoading: _isLoadingProducts,
         errorMessage: _productsError,
         onRetry: () => _loadMobileProducts(force: true),
@@ -249,6 +268,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
           _openProductCategory(category);
         },
         onProductSelected: _openDetail,
+        onQuickAddToCart: _saveProductCartItem,
         onOpenMenu: _openMenu,
         onOpenResults: _openAccount,
       ),
@@ -280,6 +300,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         isSavingCart: _isSavingCart,
         cartSaveError: _cartSaveError,
         onOpenAccount: _openAccount,
+        onOpenSegueIntro: _openSegueIntro,
       ),
       _MobileScreen.cartAdded => _CartAddedSlideIn(
         child: _CartAddedScreen(
@@ -289,6 +310,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
           onOpenCart: _openCart,
           onContinueShopping: _returnToProducts,
           onOpenAccount: _openAccount,
+          onOpenSegueIntro: _openSegueIntro,
         ),
       ),
       _MobileScreen.cart => _CartListScreen(
@@ -492,7 +514,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     }
     setState(() {
       _isLoggedIn = true;
-      _customerId = customer.id == 0 ? AppConfig.defaultCustomerId : customer.id;
+      _customerId = customer.id == 0
+          ? AppConfig.defaultCustomerId
+          : customer.id;
       _accountName = customer.name.trim().isEmpty
           ? _accountName
           : customer.name;
@@ -752,10 +776,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     });
 
     try {
-      final List<CartItem> items = await RepositoryScope.of(context).fetchCart(
-        customerId: _customerId,
-        storeId: AppConfig.defaultStoreId,
-      );
+      final List<CartItem> items = await RepositoryScope.of(
+        context,
+      ).fetchCart(customerId: _customerId, storeId: AppConfig.defaultStoreId);
       items.sort((CartItem a, CartItem b) => b.savedAt.compareTo(a.savedAt));
       if (!mounted) {
         return;
@@ -781,20 +804,34 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   Future<void> _saveSelectedCartItem() async {
+    final MobileSkuOption? selectedSku = _selectedProduct.skuFor(
+      color: _selectedColor,
+      size: _selectedSize,
+    );
+    if (selectedSku == null) {
+      return;
+    }
+    await _saveProductCartItem(_selectedProduct, option: selectedSku);
+  }
+
+  Future<void> _saveProductCartItem(
+    MobileProduct product, {
+    MobileSkuOption? option,
+  }) async {
     if (!_isLoggedIn) {
       _showLoginRequiredDialog();
       return;
     }
 
-    final MobileSkuOption? selectedSku = _selectedProduct.skuFor(
-      color: _selectedColor,
-      size: _selectedSize,
-    );
+    final MobileSkuOption? selectedSku = option ?? product.firstAvailableOption;
     if (selectedSku == null || _isSavingCart) {
       return;
     }
 
     setState(() {
+      _selectedProduct = product;
+      _selectedColor = selectedSku.color;
+      _selectedSize = selectedSku.size;
       _isSavingCart = true;
       _cartSaveError = null;
     });
@@ -803,7 +840,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       final CartItem cartItem = await RepositoryScope.of(context).saveCartItem(
         CartSaveRequest(
           customerId: _customerId,
-          productId: _selectedProduct.id,
+          productId: product.id,
           color: selectedSku.color,
           size: selectedSku.size,
         ),
@@ -1396,7 +1433,7 @@ class _AccountScreen extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(17.4, 0, 16.5, 22),
+              padding: const EdgeInsets.fromLTRB(19.2, 0, 19.2, 22),
               child: Column(
                 children: <Widget>[
                   if (!isLoggedIn)
@@ -1632,25 +1669,9 @@ class _ProfileEditScreen extends StatelessWidget {
                       obscureText: true,
                     ),
                     const SizedBox(height: 8),
-                    InkWell(
-                      onTap: onPasswordChange,
-                      child: const Text(
-                        '비밀번호 변경',
-                        style: TextStyle(
-                          color: Color(0xFF6E707C),
-                          fontFamily: 'Pretendard',
-                          fontSize: 10.076,
-                          fontStyle: FontStyle.normal,
-                          fontWeight: FontWeight.w500,
-                          height: 0.99925,
-                          letterSpacing: 0,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Color(0xFF6E707C),
-                        ),
-                      ),
-                    ),
+                    _AccountPasswordChangeLink(onTap: onPasswordChange),
                     const Spacer(),
-                    _LoginPrimaryButton(label: '회원가입', onPressed: onSave),
+                    _LoginPrimaryButton(label: '저장', onPressed: onSave),
                     const SizedBox(height: 18),
                     Center(
                       child: InkWell(
@@ -1746,24 +1767,8 @@ class _PasswordEditScreen extends StatelessWidget {
                       trailingText: '표시',
                       obscureText: true,
                     ),
-                    const SizedBox(height: 7),
-                    InkWell(
-                      onTap: onBack,
-                      child: const Text(
-                        '비밀번호 변경',
-                        style: TextStyle(
-                          color: Color(0xFF6E707C),
-                          fontFamily: 'Pretendard',
-                          fontSize: 10.076,
-                          fontStyle: FontStyle.normal,
-                          fontWeight: FontWeight.w500,
-                          height: 0.99925,
-                          letterSpacing: 0,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Color(0xFF6E707C),
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 8),
+                    _AccountPasswordChangeLink(onTap: onBack),
                     const SizedBox(height: 24),
                     const _AccountFormField(
                       label: '변경할 비밀번호*',
@@ -1902,7 +1907,7 @@ class _AccountFormFieldState extends State<_AccountFormField> {
                           style: const TextStyle(
                             color: Color(0xFF6E707C),
                             fontFamily: 'Pretendard',
-                            fontSize: 9.16,
+                            fontSize: 10.076,
                             fontStyle: FontStyle.normal,
                             fontWeight: FontWeight.w500,
                             height: 0.99925,
@@ -1914,6 +1919,38 @@ class _AccountFormFieldState extends State<_AccountFormField> {
                     ),
                   ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountPasswordChangeLink extends StatelessWidget {
+  const _AccountPasswordChangeLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 324.275,
+        child: InkWell(
+          onTap: onTap,
+          child: const Text(
+            '비밀번호 변경',
+            style: TextStyle(
+              color: Color(0xFF6E707C),
+              fontFamily: 'Pretendard',
+              fontSize: 10.076,
+              fontStyle: FontStyle.normal,
+              fontWeight: FontWeight.w500,
+              height: 0.99925,
+              letterSpacing: 0,
+              decoration: TextDecoration.underline,
+              decorationColor: Color(0xFF6E707C),
             ),
           ),
         ),
@@ -2218,8 +2255,8 @@ class _LoginSignupLink extends StatelessWidget {
 class _StartScreenLogo extends StatelessWidget {
   const _StartScreenLogo();
 
-  static const double _figmaWidth = 252.583;
-  static const double _figmaHeight = 64.467;
+  static const double _figmaWidth = 272.79;
+  static const double _figmaHeight = 69.62;
 
   @override
   Widget build(BuildContext context) {
@@ -2230,12 +2267,15 @@ class _StartScreenLogo extends StatelessWidget {
         key: const ValueKey<String>('customer-mobile-start-logo'),
         width: _figmaWidth,
         height: _figmaHeight,
-        child: Image.asset(
-          _McmImageAssets.startLxxviLogo,
-          width: _figmaWidth,
-          height: _figmaHeight,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
+        child: Opacity(
+          opacity: 0.82,
+          child: Image.asset(
+            _McmImageAssets.startLxxviLogo,
+            width: _figmaWidth,
+            height: _figmaHeight,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
         ),
       ),
     );
@@ -2456,7 +2496,7 @@ class _MenuScreen extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(17.4, 0, 16.5, 22),
+              padding: const EdgeInsets.fromLTRB(19.2, 0, 19.2, 22),
               child: Column(
                 children: <Widget>[
                   _MenuFooterAccountRow(
@@ -2575,11 +2615,11 @@ class _SegueIntroScreen extends StatelessWidget {
                   const Center(
                     child: _SegueIntroTitleText('선택이 이어질 때, 경험이 완성됩니다.'),
                   ),
-                  const SizedBox(height: 21),
+                  const SizedBox(height: 4),
                   const Center(
                     child: _SegueIntroParagraphText(
                       '온라인의 선택에서 매장의 상담으로,\n그리고 다시 고객의 앱으로.',
-                      height: 42,
+                      height: 30,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -2613,7 +2653,7 @@ class _SegueIntroTitleText extends StatelessWidget {
     fontFamily: 'Montserrat',
     fontSize: 18.321,
     fontStyle: FontStyle.normal,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w300,
     height: 1.21809,
     letterSpacing: 0,
   );
@@ -2657,7 +2697,7 @@ class _SegueIntroParagraphText extends StatelessWidget {
     fontFamily: 'Montserrat',
     fontSize: 12.824,
     fontStyle: FontStyle.normal,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w200,
     height: _lineHeight,
     letterSpacing: 0,
   );
@@ -2730,27 +2770,29 @@ class _SegueIntroImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double maxWidth = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : width;
-        final double targetWidth = math.min(width, maxWidth);
-        final double targetHeight = targetWidth * height / width;
-
-        return Center(
-          child: SizedBox(
-            width: targetWidth,
-            height: targetHeight,
-            child: Image.asset(
-              assetPath,
-              fit: BoxFit.cover,
-              alignment: alignment,
-              filterQuality: FilterQuality.medium,
+    return SizedBox(
+      height: height,
+      child: Center(
+        child: OverflowBox(
+          minWidth: width,
+          maxWidth: width,
+          minHeight: height,
+          maxHeight: height,
+          child: ColoredBox(
+            color: const Color(0xFFD3D3D3),
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Image.asset(
+                assetPath,
+                fit: BoxFit.cover,
+                alignment: alignment,
+                filterQuality: FilterQuality.medium,
+              ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -2828,7 +2870,6 @@ class _McmTopBar extends StatelessWidget {
     this.logoHeight = 22,
     this.logoFit = BoxFit.contain,
     this.edgeIconButtonWidth = 48,
-    this.onLogoPressed,
   });
 
   final VoidCallback onLeadingPressed;
@@ -2842,15 +2883,13 @@ class _McmTopBar extends StatelessWidget {
   final double logoHeight;
   final BoxFit logoFit;
   final double edgeIconButtonWidth;
-  final VoidCallback? onLogoPressed;
 
   @override
   Widget build(BuildContext context) {
     final bool isCloseButton = leadingIcon == Icons.close;
-    final VoidCallback? effectiveLogoPressed =
-        onLogoPressed ??
-        context.findAncestorStateOfType<_CustomerMobileEntryScreenState>()
-            ?._openStart;
+    final VoidCallback? effectiveLogoPressed = context
+        .findAncestorStateOfType<_CustomerMobileEntryScreenState>()
+        ?._openStart;
     final Widget logo = Image.asset(
       logoAssetPath,
       width: logoWidth,
@@ -3428,7 +3467,8 @@ class _MenuArrowIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget icon = Center(
+    final Widget icon = Align(
+      alignment: Alignment.centerRight,
       child: Transform.rotate(
         angle: expanded ? math.pi / 2 : 0,
         child: const SizedBox(
@@ -3551,8 +3591,7 @@ class _EditorialTilePair extends StatelessWidget {
     required this.onTrailingTap,
   });
 
-  static const double _targetTileWidth = 159.593;
-  static const double _gap = 2.2;
+  static const double gap = 2.207;
 
   final String leadingAssetPath;
   final String leadingLabel;
@@ -3565,13 +3604,10 @@ class _EditorialTilePair extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double maxPairWidth = constraints.maxWidth - _gap;
-        final double tileWidth = maxPairWidth / 2 >= _targetTileWidth
-            ? _targetTileWidth
-            : maxPairWidth / 2;
+        final double tileWidth = math.max(0, (constraints.maxWidth - gap) / 2);
 
         return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             _EditorialTile(
@@ -3580,7 +3616,7 @@ class _EditorialTilePair extends StatelessWidget {
               onTap: onLeadingTap,
               width: tileWidth,
             ),
-            const SizedBox(width: _gap),
+            const SizedBox(width: gap),
             _EditorialTile(
               assetPath: trailingAssetPath,
               label: trailingLabel,
@@ -3643,22 +3679,13 @@ class _EditorialTile extends StatelessWidget {
 class _EditorialTileCaption extends StatelessWidget {
   const _EditorialTileCaption(this.label, {required this.width});
 
-  static const double _arrowSlotWidth = 13.74;
-  static const double _gap = 3.4;
-
-  static const TextStyle _arrowStyle = TextStyle(
-    color: Color(0xFF000000),
-    fontFamily: 'Inter',
-    fontFamilyFallback: <String>['Montserrat', 'Pretendard'],
-    fontSize: 13.74,
-    fontStyle: FontStyle.normal,
-    fontWeight: FontWeight.w600,
-  );
+  static const double _arrowSize = 16;
+  static const double _gap = 5;
 
   static const TextStyle _latinStyle = TextStyle(
     color: Color(0xFF000000),
     fontFamily: 'Montserrat',
-    fontSize: 10.076,
+    fontSize: 10.992,
     fontStyle: FontStyle.normal,
     fontWeight: FontWeight.w600,
     height: 1.21809,
@@ -3667,7 +3694,7 @@ class _EditorialTileCaption extends StatelessWidget {
   static const TextStyle _koreanStyle = TextStyle(
     color: Color(0xFF000000),
     fontFamily: 'Pretendard',
-    fontSize: 10.076,
+    fontSize: 10.992,
     fontStyle: FontStyle.normal,
     fontWeight: FontWeight.w600,
     height: 0.99925,
@@ -3686,9 +3713,12 @@ class _EditorialTileCaption extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              const SizedBox(
-                width: _arrowSlotWidth,
-                child: Text('→', style: _arrowStyle),
+              Image.asset(
+                _McmImageAssets.menuTileArrowIcon,
+                width: _arrowSize,
+                height: _arrowSize,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
               ),
               const SizedBox(width: _gap),
               Expanded(
@@ -3726,6 +3756,7 @@ class _MenuFooterRow extends StatelessWidget {
     fontWeight: FontWeight.w500,
     height: 0.99925,
   );
+  static const double _trailingSlotWidth = 22;
 
   final String label;
   final IconData icon;
@@ -3760,7 +3791,14 @@ class _MenuFooterRow extends StatelessWidget {
                         ),
                   ),
             ),
-            trailingIcon ?? Icon(icon, color: Colors.black, size: 18),
+            SizedBox(
+              width: _trailingSlotWidth,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child:
+                    trailingIcon ?? Icon(icon, color: Colors.black, size: 18),
+              ),
+            ),
           ],
         ),
       ),
@@ -3825,8 +3863,8 @@ class _SegueHistoryFooterLabel extends StatelessWidget {
 class _MenuFooterAccountIcon extends StatelessWidget {
   const _MenuFooterAccountIcon();
 
-  static const double width = 12.824;
-  static const double height = 13.145;
+  static const double width = 14.75;
+  static const double height = 15.12;
 
   @override
   Widget build(BuildContext context) {
@@ -3894,68 +3932,26 @@ class _MenuFooterAccountIconPainter extends CustomPainter {
 class _MenuFooterSegueHistoryIcon extends StatelessWidget {
   const _MenuFooterSegueHistoryIcon();
 
-  static const double width = 13.74;
-  static const double height = 13.146;
+  static const double width = 15.8;
+  static const double height = 15.12;
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return Image.asset(
+      _McmImageAssets.menuFooterSegueHistoryIcon,
       width: width,
       height: height,
-      child: CustomPaint(painter: _MenuFooterSegueHistoryIconPainter()),
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
     );
-  }
-}
-
-class _MenuFooterSegueHistoryIconPainter extends CustomPainter {
-  const _MenuFooterSegueHistoryIconPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Path bubble = Path()
-      ..moveTo(2.58527, 9.43782)
-      ..lineTo(12.3664, 9.43782)
-      ..lineTo(12.3664, 1.34826)
-      ..lineTo(1.37405, 1.34826)
-      ..lineTo(1.37405, 10.3715)
-      ..lineTo(2.58527, 9.43782)
-      ..close()
-      ..moveTo(3.06069, 10.7861)
-      ..lineTo(0, 13.1455)
-      ..lineTo(0, 0.67413)
-      ..cubicTo(0, 0.49534, 0.0723825, 0.323872, 0.201224, 0.197448)
-      ..cubicTo(0.330066, 0.0710242, 0.504813, 0, 0.687023, 0)
-      ..lineTo(13.0534, 0)
-      ..cubicTo(13.2356, 0, 13.4104, 0.0710242, 13.5392, 0.197448)
-      ..cubicTo(13.6681, 0.323872, 13.7405, 0.49534, 13.7405, 0.67413)
-      ..lineTo(13.7405, 10.112)
-      ..cubicTo(13.7405, 10.2907, 13.6681, 10.4622, 13.5392, 10.5886)
-      ..cubicTo(13.4104, 10.7151, 13.2356, 10.7861, 13.0534, 10.7861)
-      ..lineTo(3.06069, 10.7861)
-      ..close();
-
-    canvas.save();
-    canvas.scale(size.width / 13.7405, size.height / 13.1455);
-    canvas.drawPath(
-      bubble,
-      Paint()
-        ..color = const Color(0xFF000000)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_MenuFooterSegueHistoryIconPainter oldDelegate) {
-    return false;
   }
 }
 
 class _MenuFooterShoppingBagIcon extends StatelessWidget {
   const _MenuFooterShoppingBagIcon();
 
-  static const double width = 11.908;
-  static const double height = 10.329;
+  static const double width = 13.7;
+  static const double height = 11.88;
 
   @override
   Widget build(BuildContext context) {
@@ -3969,36 +3965,95 @@ class _MenuFooterShoppingBagIcon extends StatelessWidget {
   }
 }
 
-class _ProductListScreen extends StatelessWidget {
+class _ProductListScreen extends StatefulWidget {
   const _ProductListScreen({
     required this.products,
     required this.selectedCategory,
+    required this.cartItems,
+    required this.cartSkuIds,
+    required this.isSavingCart,
     required this.isLoading,
     required this.errorMessage,
     required this.onRetry,
     required this.onCategorySelected,
     required this.onProductSelected,
+    required this.onQuickAddToCart,
     required this.onOpenMenu,
     required this.onOpenResults,
   });
 
   final List<MobileProduct> products;
   final String? selectedCategory;
+  final List<CartItem> cartItems;
+  final Set<int> cartSkuIds;
+  final bool isSavingCart;
   final bool isLoading;
   final String? errorMessage;
   final VoidCallback onRetry;
   final ValueChanged<String?> onCategorySelected;
   final ValueChanged<MobileProduct> onProductSelected;
+  final ValueChanged<MobileProduct> onQuickAddToCart;
   final VoidCallback onOpenMenu;
   final VoidCallback onOpenResults;
 
   @override
-  Widget build(BuildContext context) {
-    final String title = selectedCategory ?? '가방';
-    final String heroAssetPath = _McmImageAssets.categoryHeroFor(
-      selectedCategory,
+  State<_ProductListScreen> createState() => _ProductListScreenState();
+}
+
+class _ProductListScreenState extends State<_ProductListScreen> {
+  bool _cartOrderFirst = false;
+
+  void _toggleSortOrder() {
+    setState(() => _cartOrderFirst = !_cartOrderFirst);
+  }
+
+  List<MobileProduct> _sortedProducts() {
+    final List<MobileProduct> sortedProducts = List<MobileProduct>.of(
+      widget.products,
     );
-    final List<String?> categories = _isNewProductCategory(selectedCategory)
+    if (!_cartOrderFirst) {
+      return sortedProducts;
+    }
+
+    final Map<int, int> cartOrderByProductId = <int, int>{};
+    for (int index = 0; index < widget.cartItems.length; index += 1) {
+      cartOrderByProductId.putIfAbsent(
+        widget.cartItems[index].productId,
+        () => index,
+      );
+    }
+    final Map<int, int> originalOrderByProductId = <int, int>{
+      for (int index = 0; index < widget.products.length; index += 1)
+        widget.products[index].id: index,
+    };
+
+    sortedProducts.sort((MobileProduct a, MobileProduct b) {
+      final int? aCartOrder = cartOrderByProductId[a.id];
+      final int? bCartOrder = cartOrderByProductId[b.id];
+      if (aCartOrder != null && bCartOrder != null) {
+        return aCartOrder.compareTo(bCartOrder);
+      }
+      if (aCartOrder != null) {
+        return -1;
+      }
+      if (bCartOrder != null) {
+        return 1;
+      }
+      return (originalOrderByProductId[a.id] ?? 0).compareTo(
+        originalOrderByProductId[b.id] ?? 0,
+      );
+    });
+    return sortedProducts;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String title = widget.selectedCategory ?? '가방';
+    final String heroAssetPath = _McmImageAssets.categoryHeroFor(
+      widget.selectedCategory,
+    );
+    final List<String?> categories =
+        _isNewProductCategory(widget.selectedCategory)
         ? const <String?>[
             _ProductCategory.newProducts,
             _ProductCategory.womenNewProducts,
@@ -4013,15 +4068,16 @@ class _ProductListScreen extends StatelessWidget {
             '백팩',
             '탑 핸들백',
           ];
+    final List<MobileProduct> sortedProducts = _sortedProducts();
 
     return _McmPhoneShell(
       child: SafeArea(
         child: Column(
           children: <Widget>[
             _McmTopBar(
-              onLeadingPressed: onOpenMenu,
+              onLeadingPressed: widget.onOpenMenu,
               leadingIconWidget: const _McmTopBarMenuIcon(),
-              onProfilePressed: onOpenResults,
+              onProfilePressed: widget.onOpenResults,
               profileIconWidget: const _McmTopBarProfileIcon(),
               logoAssetPath: _McmImageAssets.menuMcmLogo,
               logoWidth: 54.046,
@@ -4031,26 +4087,34 @@ class _ProductListScreen extends StatelessWidget {
             ),
             _CategoryTrail(
               key: const ValueKey<String>('mobile-product-category-trail'),
-              selectedCategory: selectedCategory,
+              selectedCategory: widget.selectedCategory,
               categories: categories,
-              onCategorySelected: onCategorySelected,
+              onCategorySelected: widget.onCategorySelected,
             ),
-            if (isLoading)
+            if (widget.isLoading)
               const LinearProgressIndicator(
                 minHeight: 2,
                 color: Colors.black,
                 backgroundColor: Color(0xFFEDEDED),
               ),
-            if (errorMessage != null)
-              _ProductLoadErrorBanner(message: errorMessage!, onRetry: onRetry),
+            if (widget.errorMessage != null)
+              _ProductLoadErrorBanner(
+                message: widget.errorMessage!,
+                onRetry: widget.onRetry,
+              ),
             Expanded(
               child: ListView(
                 key: const ValueKey<String>('mobile-product-scroll-body'),
                 padding: EdgeInsets.zero,
                 children: <Widget>[
-                  _ProductCampaignHero(assetPath: heroAssetPath, title: title),
+                  _ProductCampaignHero(
+                    assetPath: heroAssetPath,
+                    title: title,
+                    sortLabel: _cartOrderFirst ? '장바구니 담은 순' : '기본순',
+                    onSortPressed: _toggleSortOrder,
+                  ),
                   const _ProductSortRow(),
-                  if (products.isEmpty)
+                  if (sortedProducts.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(AppSpacing.xl),
                       child: AppStateView.empty(title: '검색 결과가 없습니다'),
@@ -4064,10 +4128,18 @@ class _ProductListScreen extends StatelessWidget {
                         crossAxisCount: 2,
                         childAspectRatio: 0.76,
                         children: <Widget>[
-                          for (final MobileProduct product in products)
+                          for (final MobileProduct product in sortedProducts)
                             _ProductGridTile(
                               product: product,
-                              onTap: () => onProductSelected(product),
+                              inCart:
+                                  product.firstAvailableOption != null &&
+                                  widget.cartSkuIds.contains(
+                                    product.firstAvailableOption!.skuId,
+                                  ),
+                              isSavingCart: widget.isSavingCart,
+                              onTap: () => widget.onProductSelected(product),
+                              onBagPressed: () =>
+                                  widget.onQuickAddToCart(product),
                             ),
                         ],
                       ),
@@ -4141,22 +4213,32 @@ class _CategoryTrail extends StatelessWidget {
   final List<String?> categories;
   final ValueChanged<String?> onCategorySelected;
 
+  static const TextStyle _selectedStyle = TextStyle(
+    color: Color(0xFF000000),
+    fontFamily: 'Pretendard',
+    fontSize: 12.824,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w600,
+    height: 0.99925,
+  );
+
+  static const TextStyle _unselectedStyle = TextStyle(
+    color: Color(0xFF7A7A7A),
+    fontFamily: 'Pretendard',
+    fontSize: 12.824,
+    fontStyle: FontStyle.normal,
+    fontWeight: FontWeight.w500,
+    height: 0.99925,
+  );
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 42,
-      child: ListView.separated(
+      child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 18),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (BuildContext context, int index) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 5),
-              child: Text('>', style: TextStyle(fontSize: 11)),
-            ),
-          );
-        },
         itemBuilder: (BuildContext context, int index) {
           final String? category = categories[index];
           final bool selected = selectedCategory == category;
@@ -4164,17 +4246,29 @@ class _CategoryTrail extends StatelessWidget {
           return Center(
             child: InkWell(
               onTap: () => onCategorySelected(category),
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: selected
-                      ? const Color(0xFF000000)
-                      : const Color(0xFF7A7A7A),
-                  fontFamily: 'Pretendard',
-                  fontSize: 12.824,
-                  fontStyle: FontStyle.normal,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  height: 0.99925,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: index == categories.length - 1 ? 0 : 10,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    if (selected) ...<Widget>[
+                      Image.asset(
+                        _McmImageAssets.productCategorySelectedArrowIcon,
+                        width: 14,
+                        height: 14,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
+                      const SizedBox(width: 5),
+                    ],
+                    Text(
+                      label,
+                      style: selected ? _selectedStyle : _unselectedStyle,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -4186,10 +4280,17 @@ class _CategoryTrail extends StatelessWidget {
 }
 
 class _ProductCampaignHero extends StatelessWidget {
-  const _ProductCampaignHero({required this.assetPath, required this.title});
+  const _ProductCampaignHero({
+    required this.assetPath,
+    required this.title,
+    required this.sortLabel,
+    required this.onSortPressed,
+  });
 
   final String assetPath;
   final String title;
+  final String sortLabel;
+  final VoidCallback onSortPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -4198,17 +4299,27 @@ class _ProductCampaignHero extends StatelessWidget {
       children: <Widget>[
         Semantics(
           label: '$title 상품 목록 캠페인',
-          child: AspectRatio(
-            aspectRatio: 1.96,
-            child: _CampaignMiniature(assetPath: assetPath, large: true),
+          child: SizedBox(
+            height: 228,
+            child: OverflowBox(
+              minWidth: 396,
+              maxWidth: 396,
+              minHeight: 228,
+              maxHeight: 228,
+              child: SizedBox(
+                width: 396,
+                height: 228,
+                child: _CampaignMiniature(assetPath: assetPath, large: true),
+              ),
+            ),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(18, 11, 18, 11),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 11, 18, 11),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Expanded(
+              const Expanded(
                 child: Text(
                   '정렬 기준 / 필터',
                   style: TextStyle(
@@ -4221,20 +4332,29 @@ class _ProductCampaignHero extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                '기본순',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: Color(0xFF000000),
-                  fontFamily: 'Pretendard',
-                  fontSize: 10.076,
-                  fontStyle: FontStyle.normal,
-                  fontWeight: FontWeight.w500,
-                  height: 0.99925,
+              InkWell(
+                onTap: onSortPressed,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      sortLabel,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: Color(0xFF000000),
+                        fontFamily: 'Pretendard',
+                        fontSize: 10.076,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w500,
+                        height: 0.99925,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    const _ProductSortArrowIcon(),
+                  ],
                 ),
               ),
-              SizedBox(width: 5),
-              _ProductSortArrowIcon(),
             ],
           ),
         ),
@@ -4296,17 +4416,22 @@ class _ProductSortArrowIconPainter extends CustomPainter {
 }
 
 class _ConsultationSortArrowIcon extends StatelessWidget {
-  const _ConsultationSortArrowIcon();
+  const _ConsultationSortArrowIcon({this.inverted = false});
+
+  final bool inverted;
 
   static const double width = 8.244;
   static const double height = 4.58;
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      width: width,
-      height: height,
-      child: CustomPaint(painter: _ConsultationSortArrowIconPainter()),
+    return Transform.rotate(
+      angle: inverted ? math.pi : 0,
+      child: const SizedBox(
+        width: width,
+        height: height,
+        child: CustomPaint(painter: _ConsultationSortArrowIconPainter()),
+      ),
     );
   }
 }
@@ -4349,10 +4474,19 @@ class _ProductSortRow extends StatelessWidget {
 }
 
 class _ProductGridTile extends StatelessWidget {
-  const _ProductGridTile({required this.product, required this.onTap});
+  const _ProductGridTile({
+    required this.product,
+    required this.inCart,
+    required this.isSavingCart,
+    required this.onTap,
+    required this.onBagPressed,
+  });
 
   final MobileProduct product;
+  final bool inCart;
+  final bool isSavingCart;
   final VoidCallback onTap;
+  final VoidCallback onBagPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -4364,88 +4498,84 @@ class _ProductGridTile extends StatelessWidget {
             representativeOption.swatchValue,
           );
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(
-          right: BorderSide(color: Color(0xFFE4E4E4)),
-          bottom: BorderSide(color: Color(0xFFE4E4E4)),
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 9.16, 8, 7),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              AspectRatio(
-                aspectRatio: 1.08,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: <Widget>[
-                    MobileProductVisual(
-                      product: product,
-                      compact: true,
-                      imageFit: BoxFit.cover,
-                      showFrame: false,
-                    ),
-                    Positioned(
-                      left: 5,
-                      top: 5,
-                      right: 27,
-                      child: Text(
-                        product.collection,
-                        style: const TextStyle(
-                          color: Color(0xFF6E707C),
-                          fontFamily: 'Pretendard',
-                          fontSize: 8.244,
-                          fontStyle: FontStyle.normal,
-                          fontWeight: FontWeight.w400,
-                          height: 0.99925,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 9.16, 8, 7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            AspectRatio(
+              aspectRatio: 1.08,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  MobileProductVisual(
+                    product: product,
+                    compact: true,
+                    imageFit: BoxFit.cover,
+                    showFrame: false,
+                  ),
+                  Positioned(
+                    left: 5,
+                    top: 5,
+                    right: 27,
+                    child: Text(
+                      product.collection,
+                      style: const TextStyle(
+                        color: Color(0xFF6E707C),
+                        fontFamily: 'Pretendard',
+                        fontSize: 8.244,
+                        fontStyle: FontStyle.normal,
+                        fontWeight: FontWeight.w400,
+                        height: 0.99925,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const Positioned(
-                      top: 4,
-                      right: 4,
-                      child: _ProductTileBagIcon(),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: _ProductTileBagButton(
+                      selected: inCart,
+                      enabled: !isSavingCart,
+                      onPressed: onBagPressed,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                product.name,
-                style: const TextStyle(
-                  color: Color(0xFF000000),
-                  fontFamily: 'Pretendard',
-                  fontSize: 10.076,
-                  fontStyle: FontStyle.normal,
-                  fontWeight: FontWeight.w500,
-                  height: 0.99925,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              product.name,
+              style: const TextStyle(
+                color: Color(0xFF000000),
+                fontFamily: 'Pretendard',
+                fontSize: 10.076,
+                fontStyle: FontStyle.normal,
+                fontWeight: FontWeight.w500,
+                height: 0.99925,
               ),
-              const SizedBox(height: 8),
-              Text(
-                _formatWon(product.price),
-                style: const TextStyle(
-                  color: Color(0xFF000000),
-                  fontFamily: 'Pretendard',
-                  fontSize: 10.076,
-                  fontStyle: FontStyle.normal,
-                  fontWeight: FontWeight.w500,
-                  height: 0.99925,
-                ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _formatWon(product.price),
+              style: const TextStyle(
+                color: Color(0xFF000000),
+                fontFamily: 'Pretendard',
+                fontSize: 10.076,
+                fontStyle: FontStyle.normal,
+                fontWeight: FontWeight.w500,
+                height: 0.99925,
               ),
-              const SizedBox(height: 5.5),
-              if (representativeColor != null)
-                _ProductTileColorChip(color: representativeColor),
-            ],
-          ),
+            ),
+            const SizedBox(height: 5.5),
+            if (representativeColor != null)
+              _ProductTileColorChip(color: representativeColor),
+          ],
         ),
       ),
     );
@@ -4475,15 +4605,34 @@ Color _productTileSwatchColor(String colorName, int fallbackValue) {
   });
 }
 
-class _ProductTileBagIcon extends StatelessWidget {
-  const _ProductTileBagIcon();
+class _ProductTileBagButton extends StatelessWidget {
+  const _ProductTileBagButton({
+    required this.selected,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 13.74,
-      height: 11.908,
-      child: CustomPaint(painter: _ProductTileBagIconPainter()),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onPressed : null,
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Image.asset(
+          selected
+              ? _McmImageAssets.productTileBagAddedIcon
+              : _McmImageAssets.productTileBagIcon,
+          width: 13.74,
+          height: 11.908,
+          fit: BoxFit.fill,
+          filterQuality: FilterQuality.high,
+        ),
+      ),
     );
   }
 }
@@ -4495,109 +4644,31 @@ class _ProductTileColorChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: math.pi / 4,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: color,
-          border: Border.all(color: const Color(0xFFFFFFFF), width: 0.916),
+    return SizedBox(
+      width: 13.5,
+      height: 13.5,
+      child: Center(
+        child: Transform.rotate(
+          angle: math.pi / 4,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(color: Color(0xFF222222)),
+            child: Padding(
+              padding: const EdgeInsets.all(1.1),
+              child: DecoratedBox(
+                decoration: const BoxDecoration(color: Color(0xFFFFFFFF)),
+                child: Padding(
+                  padding: const EdgeInsets.all(1.3),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: color),
+                    child: const SizedBox(width: 7.305, height: 7.305),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
-        child: const SizedBox(width: 7.305, height: 7.305),
       ),
     );
-  }
-}
-
-class _ProductTileBagIconPainter extends CustomPainter {
-  const _ProductTileBagIconPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas
-      ..save()
-      ..scale(size.width / 15, size.height / 13);
-
-    final Paint outerPaint = Paint()
-      ..color = const Color(0xFF222222)
-      ..style = PaintingStyle.fill;
-    final Paint outerStrokePaint = Paint()
-      ..color = const Color(0xFF222222)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.732824;
-    final Path outerPath = Path()
-      ..moveTo(1.41231, 0.380152)
-      ..cubicTo(1.63066, 0.354279, 1.95824, 0.372271, 2.18792, 0.372664)
-      ..lineTo(3.49526, 0.373741)
-      ..lineTo(7.66965, 0.373629)
-      ..lineTo(11.3093, 0.372973)
-      ..lineTo(12.4752, 0.372277)
-      ..cubicTo(13.0837, 0.372159, 14.0268, 0.29728, 14.081, 1.16105)
-      ..cubicTo(14.1214, 1.80183, 14.1025, 2.45732, 14.1025, 3.10058)
-      ..lineTo(14.1028, 6.52897)
-      ..lineTo(14.1028, 9.68027)
-      ..cubicTo(14.1029, 10.261, 14.1196, 10.8503, 14.0838, 11.4293)
-      ..cubicTo(14.0444, 12.0688, 13.6657, 12.2281, 13.1081, 12.2661)
-      ..cubicTo(12.1893, 12.2767, 11.2544, 12.2686, 10.3344, 12.2685)
-      ..lineTo(5.24118, 12.2683)
-      ..lineTo(2.55686, 12.2683)
-      ..cubicTo(2.11647, 12.2684, 1.66092, 12.2866, 1.22331, 12.2607)
-      ..cubicTo(0.686788, 12.229, 0.401358, 11.8567, 0.381813, 11.3404)
-      ..cubicTo(0.35826, 10.7181, 0.369089, 10.1027, 0.369058, 9.48299)
-      ..lineTo(0.368654, 5.97196)
-      ..lineTo(0.368421, 2.8966)
-      ..cubicTo(0.368405, 2.38479, 0.359425, 1.84559, 0.37998, 1.33486)
-      ..cubicTo(0.389131, 1.10731, 0.461902, 0.847223, 0.614141, 0.675504)
-      ..cubicTo(0.853615, 0.405388, 1.08698, 0.403232, 1.41231, 0.380152)
-      ..close();
-    canvas
-      ..drawPath(outerPath, outerPaint)
-      ..drawPath(outerPath, outerStrokePaint);
-
-    final Paint fillPaint = Paint()
-      ..color = const Color(0xFFF7F7F7)
-      ..style = PaintingStyle.fill;
-    final Path fillPath = Path()
-      ..moveTo(1.44688, 1.29194)
-      ..cubicTo(2.29871, 1.27609, 3.18405, 1.2875, 4.03816, 1.28758)
-      ..lineTo(8.65339, 1.28723)
-      ..lineTo(11.5326, 1.28716)
-      ..cubicTo(12.0335, 1.28718, 12.687, 1.26933, 13.1751, 1.30141)
-      ..cubicTo(13.2077, 2.99962, 13.1797, 4.79112, 13.1795, 6.49571)
-      ..lineTo(13.1788, 9.67149)
-      ..cubicTo(13.1787, 9.85281, 13.1975, 11.2948, 13.1551, 11.3481)
-      ..lineTo(13.093, 11.3517)
-      ..lineTo(6.11048, 11.3525)
-      ..cubicTo(4.51144, 11.3525, 2.88206, 11.3686, 1.28508, 11.3482)
-      ..lineTo(1.28304, 3.67425)
-      ..lineTo(1.28338, 1.99027)
-      ..cubicTo(1.28351, 1.89179, 1.27733, 1.39025, 1.29547, 1.32088)
-      ..cubicTo(1.34179, 1.28539, 1.37891, 1.29564, 1.44688, 1.29194)
-      ..close();
-    canvas.drawPath(fillPath, fillPaint);
-
-    final Path handlePath = Path()
-      ..moveTo(4.03661, 2.19824)
-      ..lineTo(5.31639, 2.20236)
-      ..cubicTo(5.31041, 3.07813, 5.20311, 4.24394, 5.85174, 4.86526)
-      ..cubicTo(6.23009, 5.22767, 6.6533, 5.46138, 7.18157, 5.46334)
-      ..cubicTo(7.76858, 5.46552, 8.21457, 5.285, 8.63396, 4.86785)
-      ..cubicTo(9.15472, 4.34985, 9.17242, 3.73452, 9.1731, 3.04264)
-      ..lineTo(9.17615, 2.19927)
-      ..lineTo(10.4365, 2.20073)
-      ..cubicTo(10.4384, 2.60374, 10.4529, 3.13303, 10.4297, 3.5268)
-      ..cubicTo(10.4198, 3.71011, 10.4075, 4.05015, 10.3694, 4.21901)
-      ..cubicTo(10.2396, 4.7936, 9.96806, 5.34424, 9.55982, 5.7615)
-      ..cubicTo(9.09377, 6.2659, 8.60916, 6.52106, 7.94943, 6.68747)
-      ..cubicTo(6.81513, 6.9736, 5.70606, 6.56555, 4.89365, 5.72834)
-      ..cubicTo(3.92617, 4.73132, 4.03053, 3.48471, 4.03661, 2.19824)
-      ..close();
-    canvas.drawPath(handlePath, outerPaint);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_ProductTileBagIconPainter oldDelegate) {
-    return false;
   }
 }
 
@@ -4667,6 +4738,7 @@ class _ProductDetailScreen extends StatelessWidget {
     required this.isSavingCart,
     required this.cartSaveError,
     required this.onOpenAccount,
+    required this.onOpenSegueIntro,
   });
 
   final MobileProduct product;
@@ -4680,6 +4752,7 @@ class _ProductDetailScreen extends StatelessWidget {
   final bool isSavingCart;
   final String? cartSaveError;
   final VoidCallback onOpenAccount;
+  final VoidCallback onOpenSegueIntro;
 
   @override
   Widget build(BuildContext context) {
@@ -4889,9 +4962,10 @@ class _ProductDetailScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        const _McmUnderlinedText(
+                        _McmUnderlinedText(
                           'SEGUE 상담이 무엇인가요?',
-                          style: TextStyle(
+                          onTap: onOpenSegueIntro,
+                          style: const TextStyle(
                             color: Color(0xFF555555),
                             fontFamily: 'Pretendard',
                             fontSize: 10.992,
@@ -5290,15 +5364,18 @@ class _McmFinePrint extends StatelessWidget {
 }
 
 class _McmUnderlinedText extends StatelessWidget {
-  const _McmUnderlinedText(this.text, {this.style});
+  const _McmUnderlinedText(this.text, {this.style, this.onTap, this.maxLines});
 
   final String text;
   final TextStyle? style;
+  final VoidCallback? onTap;
+  final int? maxLines;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    final Widget child = Text(
       text,
+      maxLines: maxLines,
       style:
           style ??
           const TextStyle(
@@ -5306,6 +5383,14 @@ class _McmUnderlinedText extends StatelessWidget {
             fontSize: 9,
             decoration: TextDecoration.underline,
           ),
+    );
+    if (onTap == null) {
+      return child;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: child,
     );
   }
 }
@@ -5688,6 +5773,7 @@ class _ShoppingBagActionPanel extends StatelessWidget {
     required this.onPrimary,
     this.secondaryLabel,
     this.onSecondary,
+    this.onOpenSegueIntro,
   });
 
   final String totalLabel;
@@ -5696,6 +5782,7 @@ class _ShoppingBagActionPanel extends StatelessWidget {
   final VoidCallback onPrimary;
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
+  final VoidCallback? onOpenSegueIntro;
 
   @override
   Widget build(BuildContext context) {
@@ -5743,10 +5830,11 @@ class _ShoppingBagActionPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
+                _McmUnderlinedText(
                   'SEGUE 상담이 무엇인가요?',
+                  onTap: onOpenSegueIntro,
                   maxLines: 1,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Color(0xFF555555),
                     fontFamily: 'Pretendard',
                     fontSize: 10.992,
@@ -6105,6 +6193,7 @@ class _CartAddedScreen extends StatelessWidget {
     required this.onOpenCart,
     required this.onContinueShopping,
     required this.onOpenAccount,
+    required this.onOpenSegueIntro,
   });
 
   final CartItem? cartItem;
@@ -6113,6 +6202,7 @@ class _CartAddedScreen extends StatelessWidget {
   final VoidCallback onOpenCart;
   final VoidCallback onContinueShopping;
   final VoidCallback onOpenAccount;
+  final VoidCallback onOpenSegueIntro;
 
   @override
   Widget build(BuildContext context) {
@@ -6212,6 +6302,7 @@ class _CartAddedScreen extends StatelessWidget {
               onPrimary: onOpenCart,
               secondaryLabel: '계속 쇼핑하기',
               onSecondary: onContinueShopping,
+              onOpenSegueIntro: onOpenSegueIntro,
             ),
           ],
         ),
@@ -6382,7 +6473,7 @@ class _CartListScreen extends StatelessWidget {
   }
 }
 
-class _ConsultationResultsScreen extends StatelessWidget {
+class _ConsultationResultsScreen extends StatefulWidget {
   const _ConsultationResultsScreen({
     required this.results,
     required this.isLoading,
@@ -6404,15 +6495,35 @@ class _ConsultationResultsScreen extends StatelessWidget {
   final VoidCallback onOpenAccount;
 
   @override
+  State<_ConsultationResultsScreen> createState() =>
+      _ConsultationResultsScreenState();
+}
+
+class _ConsultationResultsScreenState
+    extends State<_ConsultationResultsScreen> {
+  bool _newestFirst = true;
+
+  void _toggleSortOrder() {
+    setState(() => _newestFirst = !_newestFirst);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final List<ConsultationResult> sortedResults =
+        List<ConsultationResult>.of(widget.results)
+          ..sort((ConsultationResult a, ConsultationResult b) {
+            final int comparison = a.consultedAt.compareTo(b.consultedAt);
+            return _newestFirst ? -comparison : comparison;
+          });
+
     return _McmPhoneShell(
       child: SafeArea(
         child: Column(
           children: <Widget>[
             _McmTopBar(
-              onLeadingPressed: onBackToHome,
+              onLeadingPressed: widget.onBackToHome,
               leadingIconWidget: const _McmTopBarMenuIcon(),
-              onProfilePressed: onOpenAccount,
+              onProfilePressed: widget.onOpenAccount,
               profileIconWidget: const _McmTopBarProfileIcon(),
               logoAssetPath: _McmImageAssets.menuMcmLogo,
               logoWidth: 54.046,
@@ -6453,25 +6564,25 @@ class _ConsultationResultsScreen extends StatelessWidget {
             Expanded(
               child: Builder(
                 builder: (BuildContext context) {
-                  if (isLoading) {
+                  if (widget.isLoading) {
                     return const Center(
                       child: AppStateView.loading(title: '상담 결과를 불러오는 중입니다'),
                     );
                   }
 
-                  if (errorMessage != null) {
+                  if (widget.errorMessage != null) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.xl),
                         child: AppStateView.error(
-                          message: errorMessage,
-                          onAction: onRetry,
+                          message: widget.errorMessage,
+                          onAction: widget.onRetry,
                         ),
                       ),
                     );
                   }
 
-                  if (results.isEmpty) {
+                  if (sortedResults.isEmpty) {
                     return const Center(
                       child: _McmEmptyState(message: '상담 결과가 없습니다'),
                     );
@@ -6485,7 +6596,7 @@ class _ConsultationResultsScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: <Widget>[
                             Text(
-                              '총 ${results.length}건의 상담 기록',
+                              '총 ${sortedResults.length}건의 상담 기록',
                               style: const TextStyle(
                                 color: Color(0xFF3D3D3D),
                                 fontFamily: 'Pretendard',
@@ -6496,21 +6607,32 @@ class _ConsultationResultsScreen extends StatelessWidget {
                               ),
                             ),
                             const Spacer(),
-                            const Text(
-                              '최근 상담순',
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                color: Color(0xFF3D3D3D),
-                                fontFamily: 'Pretendard',
-                                fontSize: 10.076,
-                                fontStyle: FontStyle.normal,
-                                fontWeight: FontWeight.w500,
-                                height: 0.99925,
-                                letterSpacing: 0,
+                            InkWell(
+                              onTap: _toggleSortOrder,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: <Widget>[
+                                  Text(
+                                    _newestFirst ? '최근 상담순' : '오래된 상담순',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      color: Color(0xFF3D3D3D),
+                                      fontFamily: 'Pretendard',
+                                      fontSize: 10.076,
+                                      fontStyle: FontStyle.normal,
+                                      fontWeight: FontWeight.w500,
+                                      height: 0.99925,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _ConsultationSortArrowIcon(
+                                    inverted: !_newestFirst,
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            const _ConsultationSortArrowIcon(),
                           ],
                         ),
                       ),
@@ -6518,12 +6640,13 @@ class _ConsultationResultsScreen extends StatelessWidget {
                       Expanded(
                         child: ListView.builder(
                           padding: const EdgeInsets.only(bottom: 24),
-                          itemCount: results.length,
+                          itemCount: sortedResults.length,
                           itemBuilder: (BuildContext context, int index) {
-                            final ConsultationResult result = results[index];
+                            final ConsultationResult result =
+                                sortedResults[index];
                             return _SegueHistoryRow(
                               result: result,
-                              onTap: () => onOnlinePurchase(result),
+                              onTap: () => widget.onOnlinePurchase(result),
                             );
                           },
                         ),
@@ -6556,6 +6679,8 @@ class _OnlinePurchaseScreen extends StatelessWidget {
         onBack: onBack,
       );
     }
+    final ProductSkuSummary? recommendedProduct =
+        currentResult.recommendedProduct;
 
     return _McmPhoneShell(
       child: SafeArea(
@@ -6611,49 +6736,52 @@ class _OnlinePurchaseScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const _McmSectionDivider(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        _ConsultationProductRow(
-                          result: currentResult,
-                          showBadge: true,
-                          recommended: true,
-                        ),
-                        const SizedBox(height: 22),
-                        const Text(
-                          '상담 완료',
-                          style: TextStyle(
-                            color: Color(0xFF000000),
-                            fontFamily: 'Pretendard',
-                            fontSize: 12.824,
-                            fontStyle: FontStyle.normal,
-                            fontWeight: FontWeight.w700,
-                            height: 0.99925,
-                            letterSpacing: 0,
+                  if (recommendedProduct != null) ...<Widget>[
+                    const _McmSectionDivider(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          _ConsultationProductRow(
+                            result: currentResult,
+                            showBadge: true,
+                            recommended: true,
+                            productSummary: recommendedProduct,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        const SizedBox(
-                          width: 314.198,
-                          child: Text(
-                            '추천 제품은 Client Advisor와 함께 매장에서 확인했습니다. 또한 해당 매장에서 바로 구매가 진행되었습니다.',
+                          const SizedBox(height: 22),
+                          const Text(
+                            '상담 완료',
                             style: TextStyle(
-                              color: Color(0xFF222222),
+                              color: Color(0xFF000000),
                               fontFamily: 'Pretendard',
-                              fontSize: 10.992,
+                              fontSize: 12.824,
                               fontStyle: FontStyle.normal,
-                              fontWeight: FontWeight.w500,
-                              height: 14.656 / 10.992,
+                              fontWeight: FontWeight.w700,
+                              height: 0.99925,
                               letterSpacing: 0,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          const SizedBox(
+                            width: 314.198,
+                            child: Text(
+                              '추천 제품은 Client Advisor와 함께 매장에서 확인했습니다. 또한 해당 매장에서 바로 구매가 진행되었습니다.',
+                              style: TextStyle(
+                                color: Color(0xFF222222),
+                                fontFamily: 'Pretendard',
+                                fontSize: 10.992,
+                                fontStyle: FontStyle.normal,
+                                fontWeight: FontWeight.w500,
+                                height: 14.656 / 10.992,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -6791,20 +6919,31 @@ class _ConsultationProductRow extends StatelessWidget {
     required this.result,
     this.showBadge = false,
     this.recommended = false,
+    this.productSummary,
   });
 
   final ConsultationResult result;
   final bool showBadge;
   final bool recommended;
+  final ProductSkuSummary? productSummary;
 
   @override
   Widget build(BuildContext context) {
+    final ProductSkuSummary? summary = productSummary;
+    final int skuId = summary?.skuId ?? result.skuId;
+    final String productName = summary?.productName ?? result.productName;
+    final String imageUrl =
+        summary != null && summary.imageUrl.trim().isNotEmpty
+        ? summary.imageUrl
+        : result.imageUrl;
     final MobileProduct product = MobileProductCatalog.productBySkuId(
-      result.skuId,
-    ).copyWith(imageUrl: result.imageUrl);
-    final MobileSkuOption? sku = MobileProductCatalog.skuById(result.skuId);
-    final String color = _formatResultProductColor(sku?.color ?? 'Black');
-    final String size = displayProductSize(sku?.size ?? 'M');
+      skuId,
+    ).copyWith(name: productName, imageUrl: imageUrl);
+    final MobileSkuOption? sku = MobileProductCatalog.skuById(skuId);
+    final String color = _formatResultProductColor(
+      summary?.color ?? sku?.color ?? 'Black',
+    );
+    final String size = displayProductSize(summary?.size ?? sku?.size ?? 'M');
     final String priceLabel = _formatWon(product.price).replaceFirst('₩ ', '₩');
 
     return Row(
@@ -6866,7 +7005,7 @@ class _ConsultationProductRow extends StatelessWidget {
                   ),
                 ),
               Text(
-                result.productName,
+                productName,
                 style: const TextStyle(
                   color: Color(0xFF000000),
                   fontFamily: 'Pretendard',

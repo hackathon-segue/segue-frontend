@@ -191,7 +191,11 @@ class LastIntentSessionState {
       customer: Customer.fromJson(asJsonMap(customerJson)),
       selectedCartItem: CartItem.fromJson(asJsonMap(cartItemJson)),
       currentStep: LastIntentStep.fromWire(
-        stringValue(json, 'currentStep', defaultValue: LastIntentStep.utterance.name),
+        stringValue(
+          json,
+          'currentStep',
+          defaultValue: LastIntentStep.utterance.name,
+        ),
       ),
       utterance: stringValue(json, 'utterance'),
       structuredIntent: structuredIntentJson is Map
@@ -496,6 +500,7 @@ class LastIntentSessionController extends ChangeNotifier {
       executionStatus: executionStatus,
       executionNote: _state.executionNote,
       executionUpdatedAt: DateTime.now(),
+      recommendedProduct: recommended,
     );
 
     try {

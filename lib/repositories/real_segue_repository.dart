@@ -553,9 +553,7 @@ List<MobileSkuOption> _prioritizeRepresentativeOptions(
     'main_size',
   ]);
 
-  final int representativeIndex = options.indexWhere((
-    MobileSkuOption option,
-  ) {
+  final int representativeIndex = options.indexWhere((MobileSkuOption option) {
     if (representativeSkuId != null && option.skuId == representativeSkuId) {
       return true;
     }
@@ -566,7 +564,8 @@ List<MobileSkuOption> _prioritizeRepresentativeOptions(
             _normalizedSkuText(representativeColor);
     final bool sizeMatches =
         representativeSize.trim().isNotEmpty &&
-        _normalizedSkuText(option.size) == _normalizedSkuText(representativeSize);
+        _normalizedSkuText(option.size) ==
+            _normalizedSkuText(representativeSize);
 
     if (colorMatches && representativeSize.trim().isEmpty) {
       return true;
@@ -914,6 +913,16 @@ void _validateConsultationResult(JsonMap json, String context) {
   );
   _requireNullableString(json, 'executionNote', context);
   _requireDateTimeString(json, 'executionUpdatedAt', context);
+
+  final Object? recommended = json['recommendedProduct'];
+  if (recommended != null) {
+    final JsonMap recommendedJson = _requireMap(
+      json,
+      'recommendedProduct',
+      context,
+    );
+    _requireProductSkuSummary(recommendedJson, '$context.recommendedProduct');
+  }
 }
 
 void _requireDateTimeString(JsonMap json, String key, String context) {
