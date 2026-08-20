@@ -21,45 +21,20 @@ Install dependencies first.
 flutter pub get
 ```
 
-Run Web.
+Run Web, Android, or iOS with `API_BASE_URL` supplied through
+`--dart-define` for the backend you want to target. This runs against
+the **real** `/api/...` endpoints by default (see [Environment
+Values](#environment-values)); no other flag is needed.
 
-```powershell
-flutter run -d chrome --web-port 5173 --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
-```
+### Running against mock data instead
 
-Run Android.
-
-```powershell
-flutter devices
-flutter run -d <android-device-id> --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
-```
-
-Run iOS on macOS.
-
-```bash
-flutter devices
-flutter run -d <ios-device-id> --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=APP_ENV=local
-```
+To develop screens without a backend, add `--dart-define=USE_MOCK_DATA=true`
+to switch `RepositoryScope` to `MockSegueRepository`:
 
 ## Build
 
-Build Web.
-
-```powershell
-flutter build web --release --dart-define=API_BASE_URL=https://api.example.com --dart-define=APP_ENV=production
-```
-
-Build Android.
-
-```powershell
-flutter build apk --release --dart-define=API_BASE_URL=https://api.example.com --dart-define=APP_ENV=production
-```
-
-Build iOS on macOS.
-
-```bash
-flutter build ios --release --dart-define=API_BASE_URL=https://api.example.com --dart-define=APP_ENV=production
-```
+Build Web, Android, or iOS with `APP_ENV` and `API_BASE_URL` supplied
+through `--dart-define` for the target environment.
 
 ## Routes
 
@@ -74,11 +49,12 @@ Runtime configuration is read through Dart compile-time defines.
 | Key | Default | Description |
 | --- | --- | --- |
 | `APP_ENV` | `local` | Current frontend environment name |
-| `API_BASE_URL` | `http://localhost:8080` | Backend API base URL |
+| `API_BASE_URL` | `` (empty) | Backend API base URL. Empty means every request is built as a same-origin relative path (`/api/...`, `/images/...`) — required for the Vercel deploy, whose `vercel.json` rewrites those paths to the real backend. Pass `--dart-define=API_BASE_URL=http://localhost:8080` (or another host) for local runs against a real backend. |
+| `USE_MOCK_DATA` | `false` | `true` switches `RepositoryScope` to `MockSegueRepository` instead of the real `RealSegueRepository` (HTTP calls to `API_BASE_URL`) |
+| `STORE_ID` | `1` | Store id sent with cart/consultation requests |
 
 ## Project Contracts
 
-- Backend local base URL: `http://localhost:8080`
 - Customer mobile app starts the flow with `POST /api/cart`.
 - Staff web continues with customer lookup, consent, cart/inventory, Last Intent, execution, and status updates.
 - Backend does not keep a consultation session. The frontend keeps `structuredIntent` and `/decide` response values locally and sends them to the next request.
@@ -91,6 +67,22 @@ Runtime configuration is read through Dart compile-time defines.
 | --- | --- | --- |
 | 김세계 | `010-1234-5678` | Consent already completed, main happy-path demo |
 | 이수현 | `010-9876-5432` | No consent record, 403 consent-required demo |
+
+## UI Foundation
+
+- Design tokens live in `lib/utils/app_design_tokens.dart`.
+- The shared Material theme lives in `lib/utils/app_theme.dart`.
+- Common loading, empty, error, retry, and success states use `lib/widgets/app_state_view.dart`.
+- Route-level screens should use tokens and theme values instead of ad hoc colors, spacing, or radii.
+
+## Data & State Foundation
+
+- API DTOs live in `lib/models` and keep `productId` and `skuId` separate.
+- Cart save requests use `customerId`, `productId`, `color`, and `size`; the backend resolves `skuId`.
+- Inventory UI models expose only API booleans. Reliability fields such as `confirmed` and `checked_at` stay backend decision-engine inputs.
+- Repository contracts live in `lib/repositories`; `MockSegueRepository` supports screen work before final API integration.
+- `RepositoryScope` switches between mock and real repositories with `--dart-define=USE_MOCK_DATA=true` (real backend is the default).
+- Session state lives in `lib/providers`, so screens consume controllers instead of HTTP details.
 
 ## Folder Structure
 

@@ -1,39 +1,126 @@
 import 'package:flutter/material.dart';
 
+import 'models/models.dart';
+import 'providers/providers.dart';
+import 'repositories/repositories.dart';
+import 'screens/cart_inventory_screen.dart';
+import 'screens/consent_declined_screen.dart';
+import 'screens/consent_screen.dart';
+import 'screens/consultation_history_screen.dart';
+import 'screens/customer_lookup_screen.dart';
 import 'screens/customer_mobile_entry_screen.dart';
 import 'screens/not_found_screen.dart';
-import 'screens/staff_web_entry_screen.dart';
+import 'screens/requests_screen.dart';
+import 'screens/staff_home_screen.dart';
 import 'utils/app_config.dart';
+import 'utils/app_theme.dart';
 
 void main() {
   runApp(const SegueApp());
 }
 
-class SegueApp extends StatelessWidget {
-  const SegueApp({super.key});
+class SegueApp extends StatefulWidget {
+  const SegueApp({this.repository, super.key});
+
+  /// Overrides [AppConfig.useMockData]'s repository choice — tests inject
+  /// `MockSegueRepository()` explicitly here instead of relying on the
+  /// compile-time default (which now defaults to the real HTTP repository,
+  /// see [AppConfig.useMockData]).
+  final SegueRepository? repository;
+
+  @override
+  State<SegueApp> createState() => _SegueAppState();
+}
+
+class _SegueAppState extends State<SegueApp> {
+  // A single repository + staff session controller instance is kept for the
+  // lifetime of the app so the CA's lookup/consent/cart state survives
+  // navigation across the staff/tablet route stack (home → customer lookup
+  // → consent), mirroring how RepositoryScope is already shared.
+  late final SegueRepository _repository;
+  late final StaffWebSessionController _staffSessionController;
+  late final LastIntentSessionManager _lastIntentSessionManager;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository =
+        widget.repository ??
+        (AppConfig.useMockData
+            ? MockSegueRepository(seedDemoConsultationResults: true)
+            : RealSegueRepository(apiClient: HttpSegueApiClient()));
+    _lastIntentSessionManager = LastIntentSessionManager(
+      repository: _repository,
+    );
+    _staffSessionController = StaffWebSessionController(repository: _repository)
+      ..onConsentChanged = _lastIntentSessionManager.resetForCustomer;
+    void resetIfAllCartItemsCompleted() {
+      final StaffWebSessionState state = _staffSessionController.state;
+      final Customer? customer = state.currentCustomer;
+      final List<CartItem> items = state.cartState.data ?? state.cartItems;
+      if (customer == null || items.isEmpty) {
+        return;
+      }
+
+      final bool allItemsCompleted = items.every((CartItem item) {
+        if (item.inventory.currentStoreInStock) {
+          return state.checkedInStockSkuIds.contains(item.skuId);
+        }
+        return _lastIntentSessionManager.isCompleted(customer.id, item.skuId);
+      });
+      if (allItemsCompleted) {
+        _staffSessionController.requireFreshCustomerLookup();
+      }
+    }
+
+    _staffSessionController.onCartCompletionChanged =
+        resetIfAllCartItemsCompleted;
+    _lastIntentSessionManager.onAllSessionsCompleted =
+        resetIfAllCartItemsCompleted;
+  }
+
+  @override
+  void dispose() {
+    _staffSessionController.dispose();
+    _lastIntentSessionManager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppConfig.appName,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF111827)),
-        fontFamily: 'Arial',
-        useMaterial3: true,
+    return RepositoryScope(
+      repository: _repository,
+      child: StaffSessionScope(
+        controller: _staffSessionController,
+        child: LastIntentSessionScope(
+          manager: _lastIntentSessionManager,
+          child: MaterialApp(
+            title: AppConfig.appName,
+            debugShowCheckedModeBanner: false,
+            theme: SegueTheme.light(),
+            routes: <String, WidgetBuilder>{
+              AppRoutes.root: (_) => const CustomerMobileEntryScreen(),
+              AppRoutes.customerMobile: (_) =>
+                  const CustomerMobileEntryScreen(),
+              AppRoutes.staffHome: (_) => const StaffHomeScreen(),
+              AppRoutes.customerLookup: (_) => const CustomerLookupScreen(),
+              AppRoutes.customerConsent: (_) => const ConsentScreen(),
+              AppRoutes.customerConsentDeclined: (_) =>
+                  const ConsentDeclinedScreen(),
+              AppRoutes.cartInventory: (_) => const CartInventoryScreen(),
+              AppRoutes.consultationHistory: (_) =>
+                  const ConsultationHistoryScreen(),
+              AppRoutes.requests: (_) => const RequestsScreen(),
+            },
+            onUnknownRoute: (RouteSettings settings) {
+              return MaterialPageRoute<void>(
+                builder: (_) => NotFoundScreen(routeName: settings.name),
+                settings: settings,
+              );
+            },
+          ),
+        ),
       ),
-      initialRoute: AppRoutes.root,
-      routes: <String, WidgetBuilder>{
-        AppRoutes.root: (_) => const CustomerMobileEntryScreen(),
-        AppRoutes.customerMobile: (_) => const CustomerMobileEntryScreen(),
-        AppRoutes.staffWeb: (_) => const StaffWebEntryScreen(),
-      },
-      onUnknownRoute: (RouteSettings settings) {
-        return MaterialPageRoute<void>(
-          builder: (_) => NotFoundScreen(routeName: settings.name),
-          settings: settings,
-        );
-      },
     );
   }
 }
