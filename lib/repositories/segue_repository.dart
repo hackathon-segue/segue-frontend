@@ -19,7 +19,22 @@ abstract interface class SegueRepository {
 
   Future<CartItem> saveCartItem(CartSaveRequest request);
 
+  /// CA 태블릿용 — CA 가 고객의 장바구니를 조회한다 (`GET /api/cart`).
+  ///
+  /// 남의 데이터를 열람하는 경로라 백엔드에 동의 게이트가 걸려 있고, 동의 기록이 없는
+  /// 고객이면 403 이 온다. 그 403 은 버그가 아니라 동의 화면으로 유도하라는 신호다.
   Future<List<CartItem>> fetchCart({
+    required int customerId,
+    required int storeId,
+  });
+
+  /// 고객 모바일용 — 고객이 자기 쇼핑백을 조회한다 (`GET /api/cart/mine`).
+  ///
+  /// 본인이 본인 데이터를 보는 것이라 동의 게이트가 없다. 동의는 CA 가 고객 데이터를
+  /// 열람할 때 확인하는 절차이기 때문이다. 백엔드가 파라미터 분기 대신 엔드포인트를
+  /// 나눠 둔 것도 같은 이유이므로, 고객 화면에서 [fetchCart] 를 쓰면 동의 전 고객과
+  /// 신규 가입 고객이 자기 쇼핑백에서 403 을 받는다.
+  Future<List<CartItem>> fetchOwnCart({
     required int customerId,
     required int storeId,
   });

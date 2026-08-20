@@ -775,9 +775,11 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     });
 
     try {
+      // 고객 본인의 쇼핑백이므로 동의 게이트가 없는 경로를 쓴다. CA 태블릿용
+      // fetchCart 를 쓰면 동의 전 고객과 신규 가입 고객이 여기서 403 을 받는다.
       final List<CartItem> items = await RepositoryScope.of(
         context,
-      ).fetchCart(customerId: _customerId, storeId: AppConfig.defaultStoreId);
+      ).fetchOwnCart(customerId: _customerId, storeId: AppConfig.defaultStoreId);
       items.sort((CartItem a, CartItem b) => b.savedAt.compareTo(a.savedAt));
       if (!mounted) {
         return;

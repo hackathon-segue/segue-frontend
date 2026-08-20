@@ -7,40 +7,43 @@ import 'package:segue_frontend/screens/last_intent_edit_screen.dart';
 import 'package:segue_frontend/utils/structured_intent_vocabulary.dart';
 
 /// The new condition row editor (조건 선택 → 값 선택 [삭제], + 조건 추가) —
-/// vocabulary correctness (no handleType/laptopMaxInch, colorFamily matches
-/// API.md exactly) and initial-value/save round-tripping.
+/// vocabulary correctness (the full API.md 속성 어휘 table, including the
+/// handleType/laptopMaxInch/컬러 keys the decision engine actually matches on)
+/// and initial-value/save round-tripping.
 void main() {
   // Pure vocabulary checks — no widget interaction needed, and more
   // precise than driving the screen's dropdowns: the screen only ever
   // reflects whatever StructuredIntentVocabulary declares.
   group('StructuredIntentVocabulary matches API.md exactly', () {
-    test('handleType/laptopMaxInch (not in API.md) no longer exist', () {
+    // 페르소나 1·4 의 handleType, 페르소나 3 의 laptopMaxInch 는 백엔드가 실제로
+    // 내려주는 필수 조건 key 다. 빠져 있으면 조건 확인 화면에 영문 key 가 그대로 뜬다.
+    test('handleType/laptopMaxInch exist with Korean labels', () {
       expect(
-        StructuredIntentVocabulary.attributeLabels.containsKey('handleType'),
-        isFalse,
+        StructuredIntentVocabulary.attributeLabels['handleType'],
+        '핸들 디자인',
       );
       expect(
-        StructuredIntentVocabulary.attributeLabels.containsKey(
-          'laptopMaxInch',
-        ),
-        isFalse,
+        StructuredIntentVocabulary.attributeLabels['laptopMaxInch'],
+        '노트북 최대 인치',
       );
       expect(
-        StructuredIntentVocabulary.attributeValues.containsKey('handleType'),
-        isFalse,
+        StructuredIntentVocabulary.attributeValues['handleType'],
+        <String>['다이아몬드컷아웃', '일반'],
       );
       expect(
-        StructuredIntentVocabulary.attributeValues.containsKey(
-          'laptopMaxInch',
-        ),
-        isFalse,
+        StructuredIntentVocabulary.attributeValues['laptopMaxInch'],
+        <String>['13', '16'],
+      );
+      expect(
+        StructuredIntentVocabulary.attributeValueLabel('laptopMaxInch', '16'),
+        '16인치',
       );
     });
 
-    test('colorFamily only offers 블랙/브라운/베이지, not product-color extras', () {
+    test('colorFamily covers the MCM product colors the backend emits', () {
       expect(StructuredIntentVocabulary.attributeValues['colorFamily'], <
         String
-      >['블랙', '브라운', '베이지']);
+      >['블랙', '브라운', '베이지', '꼬냑', '오렌지', '그린']);
     });
 
     test('laptopCompatible values are the literal strings "true"/"false"', () {
@@ -57,7 +60,7 @@ void main() {
       );
     });
 
-    test('exactly the 16 API.md attribute keys exist, nothing extra', () {
+    test('exactly the 19 API.md attribute keys exist, nothing extra', () {
       expect(StructuredIntentVocabulary.attributeLabels.keys.toSet(), <
         String
       >{
@@ -77,8 +80,17 @@ void main() {
         'weightGrade',
         'lockType',
         'internalStorageLevel',
+        'handleType',
         'laptopCompatible',
+        'laptopMaxInch',
       });
+    });
+
+    test('every labelled key also declares its allowed values', () {
+      expect(
+        StructuredIntentVocabulary.attributeValues.keys.toSet(),
+        StructuredIntentVocabulary.attributeLabels.keys.toSet(),
+      );
     });
   });
 
@@ -146,12 +158,14 @@ void main() {
     expect(find.text('각진'), findsOneWidget);
   });
 
-  testWidgets('removed handleType/laptopMaxInch never appear as condition keys', (
+  testWidgets('handleType/laptopMaxInch are offered as condition keys', (
     WidgetTester tester,
   ) async {
     await pump(tester);
-    expect(find.text('핸들 디자인'), findsNothing);
-    expect(find.text('노트북 수납 최대 인치'), findsNothing);
+    // 조건 선택 드롭다운은 선택되지 않은 항목도 위젯 트리에 만들어 두므로,
+    // 라벨이 보이면 그 key 를 CA 가 고를 수 있다는 뜻이다.
+    expect(find.text('핸들 디자인'), findsWidgets);
+    expect(find.text('노트북 최대 인치'), findsWidgets);
   });
 
   testWidgets('deleting a row removes its key from the underlying map on save', (

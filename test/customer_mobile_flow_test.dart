@@ -716,14 +716,15 @@ class _RecordingMobileRepository extends MockSegueRepository {
     return super.saveCartItem(request);
   }
 
+  // 고객 모바일 화면은 동의 게이트가 없는 본인 조회 경로를 쓴다.
   @override
-  Future<List<CartItem>> fetchCart({
+  Future<List<CartItem>> fetchOwnCart({
     required int customerId,
     required int storeId,
   }) {
     lastFetchCustomerId = customerId;
     lastFetchStoreId = storeId;
-    return super.fetchCart(customerId: customerId, storeId: storeId);
+    return super.fetchOwnCart(customerId: customerId, storeId: storeId);
   }
 }
 
@@ -829,8 +830,9 @@ class _FlakyCartRepository extends MockSegueRepository {
   int? lastFetchCustomerId;
   int? lastFetchStoreId;
 
+  // 고객 모바일 화면은 동의 게이트가 없는 본인 조회 경로를 쓴다.
   @override
-  Future<List<CartItem>> fetchCart({
+  Future<List<CartItem>> fetchOwnCart({
     required int customerId,
     required int storeId,
   }) {
@@ -844,7 +846,7 @@ class _FlakyCartRepository extends MockSegueRepository {
         code: 'NETWORK_ERROR',
       );
     }
-    return super.fetchCart(customerId: customerId, storeId: storeId);
+    return super.fetchOwnCart(customerId: customerId, storeId: storeId);
   }
 }
 
