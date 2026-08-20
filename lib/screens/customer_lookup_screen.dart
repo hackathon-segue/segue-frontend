@@ -121,7 +121,7 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
             });
           }
 
-          return LayoutBuilder(
+          final Widget content = LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
               final Widget search = _SearchPanel(
                 formKey: _formKey,
@@ -161,8 +161,93 @@ class _CustomerLookupScreenState extends State<CustomerLookupScreen> {
               );
             },
           );
+
+          // A plain Column here would leave the footer pinned at its own
+          // 347px height with dead white space below it on any viewport
+          // taller than this screen's natural (search+result) content —
+          // the outer SingleChildScrollView gives this Column an unbounded
+          // maxHeight, so Expanded can't be used directly. Reading
+          // `outerConstraints.minHeight` (the shell's real, finite
+          // available height, passed down as this SAME Column's own
+          // minHeight) and rebuilding it as a tightly-sized SizedBox makes
+          // Expanded valid, so the footer image fills all remaining space
+          // down to the shell's bottom edge instead of leaving a gap.
+          return LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints outerConstraints) {
+              return SizedBox(
+                height: outerConstraints.minHeight,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    content,
+                    const SizedBox(height: 40),
+                    const Expanded(child: _CustomerSearchFooterImage()),
+                  ],
+                ),
+              );
+            },
+          );
         },
       ),
+    );
+  }
+}
+
+/// Figma node 89:1001 "고객 조회 화면 - 조회하고 나서" (Footer Image, 89:1040) —
+/// decorative background photo band beneath the search/result content, same
+/// full-bleed pattern as Home's own footer (see `_HomeFooterImage` in
+/// staff_home_screen.dart). Figma has it spanning left-51/top-558/w-1389/
+/// h-347 on the 1440x900 canvas — left-51 sits behind the 265-wide sidebar
+/// (so its visible left edge is flush against the sidebar, further left
+/// than every other content element's own left inset), its right edge is
+/// flush against the card's right edge, and it's bled 5px past the card's
+/// bottom edge — all past the SegueCardShell's own 31px-left/right and
+/// 24px-bottom content padding. `Padding` can't express a negative inset
+/// (RenderPadding asserts `padding.isNonNegative`), so — same as
+/// `_HomeFooterImage` — this reads the box the parent `Expanded` allocates
+/// via LayoutBuilder and uses OverflowBox to paint 31px wider on each side
+/// and 24px taller (added at the bottom via `Alignment.topCenter`) than
+/// that box, unclipped — the outer ClipRRect still clips the result at the
+/// card's rounded corner. The allocated height is floored at 347 (Figma's
+/// own height) so the image never shrinks away on a very short viewport.
+/// This asset already has its white-to-transparent fade baked in, so no
+/// separate gradient overlay is layered on top here.
+class _CustomerSearchFooterImage extends StatelessWidget {
+  const _CustomerSearchFooterImage();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : constraints.minHeight;
+        final double flooredHeight = height < 347 ? 347 : height;
+        // See `_HomeFooterImage`'s matching comment — OverflowBox sizes
+        // itself to the biggest its own incoming constraints allow, so it
+        // needs a concrete (not unbounded) height from its immediate
+        // parent; this Expanded slot already gives one, but pinning it
+        // explicitly here keeps this in sync with that widget.
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: flooredHeight,
+          child: OverflowBox(
+            alignment: Alignment.topCenter,
+            minWidth: 0,
+            maxWidth: double.infinity,
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: SizedBox(
+              width: constraints.maxWidth + 62,
+              height: flooredHeight + 24,
+              child: Image.asset(
+                'assets/images/customer_search_footer.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
