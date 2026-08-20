@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
 import '../utils/execution_status_display.dart';
+import '../utils/product_option_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_info_card.dart';
@@ -114,7 +115,7 @@ class _LastIntentCompletionScreenState
                     SegueLabelValueRow(
                       label: '제품',
                       value:
-                          '${widget.cartItem.productName} ${widget.cartItem.color}',
+                          '${widget.cartItem.productName} ${displayProductColor(widget.cartItem.color)}',
                     ),
                     SegueLabelValueRow(
                       label: '담당 CA',

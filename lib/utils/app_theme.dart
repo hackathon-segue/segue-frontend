@@ -30,6 +30,7 @@ abstract final class SegueTheme {
       ),
       fontFamily: englishFontFamily,
       fontFamilyFallback: _fontFamilyFallback,
+      splashFactory: InkRipple.splashFactory,
       useMaterial3: true,
     );
 
@@ -45,6 +46,7 @@ abstract final class SegueTheme {
         },
       ),
       scaffoldBackgroundColor: AppColors.canvas,
+      splashFactory: InkRipple.splashFactory,
       textTheme: _textTheme(base.textTheme),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

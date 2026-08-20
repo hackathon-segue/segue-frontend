@@ -105,9 +105,7 @@ class _LastIntentResultProductScreenState
               customer: widget.customer,
               cartItem: widget.cartItem,
             ),
-            settings: const RouteSettings(
-              name: AppRoutes.lastIntentCompletion,
-            ),
+            settings: const RouteSettings(name: AppRoutes.lastIntentCompletion),
           ),
         );
       }
@@ -335,9 +333,7 @@ class _ResultScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LastIntentSessionManager manager = LastIntentSessionScope.of(
-      context,
-    );
+    final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
     return SegueCardShell(
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
@@ -513,8 +509,8 @@ class _ResultTypeConfig {
           subtitle: '원제품의 소재와 시그니처 인상을 현재 매장에서 직접 확인할 수 있는 제품입니다.',
           imageUrl: product.imageUrl,
           productName: product.productName,
-          color: product.color,
-          size: product.size,
+          color: displayProductColor(product.color),
+          size: displayProductSize(product.size),
           // Figma (159:2173/159:3053) — confirmed both use "타 매장 보유".
           chipLabel: '타 매장 보유',
           card2Label: '원제품과의 차이',
@@ -528,8 +524,8 @@ class _ResultTypeConfig {
           subtitle: '',
           imageUrl: cartItem.imageUrl,
           productName: cartItem.productName,
-          color: cartItem.color,
-          size: cartItem.size,
+          color: displayProductColor(cartItem.color),
+          size: displayProductSize(cartItem.size),
           chipLabel: '',
           card2Label: '',
           card2Content: const SizedBox.shrink(),

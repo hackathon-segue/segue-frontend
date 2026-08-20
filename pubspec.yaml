@@ -30,6 +30,8 @@ flutter:
     - family: Montserrat
       fonts:
         - asset: assets/fonts/Montserrat-Variable.ttf
+          weight: 100
+        - asset: assets/fonts/Montserrat-Variable.ttf
           weight: 200
         - asset: assets/fonts/Montserrat-Variable.ttf
           weight: 300

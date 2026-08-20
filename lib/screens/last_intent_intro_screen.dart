@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
+import '../utils/product_option_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/segue_card_shell.dart';
 import '../widgets/segue_product_image.dart';
@@ -55,7 +56,11 @@ void navigateToLastIntentIntro(
 /// stack (the screen the CA came from), rather than inventing a new
 /// navigation target.
 class LastIntentIntroScreen extends StatelessWidget {
-  const LastIntentIntroScreen({required this.customer, required this.cartItem, super.key});
+  const LastIntentIntroScreen({
+    required this.customer,
+    required this.cartItem,
+    super.key,
+  });
 
   final Customer customer;
   final CartItem cartItem;
@@ -78,7 +83,8 @@ class LastIntentIntroScreen extends StatelessWidget {
       // Figma (89:1559): a literal "1/5" step badge, same convention as
       // every other screen in this flow.
       stepBadge: '1/5',
-      subtitle: '고객이 앱에서 선택한 제품을 바탕으로 상담을 진행합니다. 아래 제품과 컬러를 확인한 후 다음 단계로 이동하세요.',
+      subtitle:
+          '고객이 앱에서 선택한 제품을 바탕으로 상담을 진행합니다. 아래 제품과 컬러를 확인한 후 다음 단계로 이동하세요.',
       // Figma: subtitle bottom 146+21=167 → "상담 대상 제품" heading top 202 = 35px.
       bodyTopGap: 35,
       body: Column(
@@ -89,7 +95,11 @@ class LastIntentIntroScreen extends StatelessWidget {
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              final Widget image = SegueProductImage(imageUrl: cartItem.imageUrl, width: 296, height: 321);
+              final Widget image = SegueProductImage(
+                imageUrl: cartItem.imageUrl,
+                width: 296,
+                height: 321,
+              );
               final Widget buttons = Wrap(
                 alignment: WrapAlignment.end,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -120,8 +130,10 @@ class LastIntentIntroScreen extends StatelessWidget {
                       // underneath it.
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) =>
-                              LastIntentUtteranceScreen(customer: customer, cartItem: cartItem),
+                          builder: (_) => LastIntentUtteranceScreen(
+                            customer: customer,
+                            cartItem: cartItem,
+                          ),
                           settings: const RouteSettings(
                             name: AppRoutes.lastIntentUtterance,
                           ),
@@ -150,7 +162,9 @@ class LastIntentIntroScreen extends StatelessWidget {
                 return Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(25, 28, 19, 15),
-                  decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: SegueCardColors.border, width: 2),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -168,7 +182,9 @@ class LastIntentIntroScreen extends StatelessWidget {
                 height: 375,
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(25, 28, 19, 15),
-                  decoration: BoxDecoration(border: Border.all(color: SegueCardColors.border, width: 2)),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: SegueCardColors.border, width: 2),
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
@@ -181,7 +197,10 @@ class LastIntentIntroScreen extends StatelessWidget {
                           children: <Widget>[
                             info,
                             const Spacer(),
-                            Align(alignment: Alignment.bottomRight, child: buttons),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: buttons,
+                            ),
                           ],
                         ),
                       ),
@@ -210,10 +229,13 @@ class _ProductDetailsText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String value = '${cartItem.productName} ${cartItem.color}';
+    final String value =
+        '${cartItem.productName} ${displayProductColor(cartItem.color)}';
     final int spaceIndex = value.indexOf(' ');
     final List<InlineSpan> valueSpans = spaceIndex == -1
-        ? <InlineSpan>[TextSpan(text: value, style: SegueCardText.cartProductValue20)]
+        ? <InlineSpan>[
+            TextSpan(text: value, style: SegueCardText.cartProductValue20),
+          ]
         : <InlineSpan>[
             TextSpan(
               text: value.substring(0, spaceIndex),
@@ -227,7 +249,10 @@ class _ProductDetailsText extends StatelessWidget {
     return Text.rich(
       TextSpan(
         children: <InlineSpan>[
-          const TextSpan(text: '쇼핑백 제품  ', style: SegueCardText.cartProductLabel20),
+          const TextSpan(
+            text: '쇼핑백 제품  ',
+            style: SegueCardText.cartProductLabel20,
+          ),
           ...valueSpans,
         ],
       ),

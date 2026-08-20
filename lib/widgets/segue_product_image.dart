@@ -89,71 +89,44 @@ class SegueProductImage extends StatelessWidget {
     return null;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final String? resolvedImageUrl = resolveImageUrl(imageUrl);
+  static ImageProvider<Object>? imageProviderFor(String? url) {
+    final String? resolvedImageUrl = resolveImageUrl(url);
     if (resolvedImageUrl == null) {
-      return _placeholder();
+      return null;
     }
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double displayWidth = _displayDimension(
-          preferred: width,
-          constrained: constraints.maxWidth,
-        );
-        final double displayHeight = _displayDimension(
-          preferred: height,
-          constrained: constraints.maxHeight,
-        );
-        return Image.network(
-          resolvedImageUrl,
-          headers: headersFor(resolvedImageUrl),
-          width: width,
-          height: height,
-          fit: fit,
-          cacheWidth: _cacheDimension(context, displayWidth),
-          cacheHeight: _cacheDimension(context, displayHeight),
-          filterQuality: FilterQuality.medium,
-          gaplessPlayback: true,
-          loadingBuilder:
-              (
-                BuildContext context,
-                Widget child,
-                ImageChunkEvent? loadingProgress,
-              ) {
-                if (loadingProgress == null) {
-                  return child;
-                }
-                return _placeholder();
-              },
-          errorBuilder:
-              (BuildContext context, Object error, StackTrace? stackTrace) =>
-                  _placeholder(),
-        );
-      },
+    return NetworkImage(
+      resolvedImageUrl,
+      headers: headersFor(resolvedImageUrl),
     );
   }
 
-  static double _displayDimension({
-    required double preferred,
-    required double constrained,
-  }) {
-    if (preferred.isFinite && preferred > 0) {
-      return preferred;
+  @override
+  Widget build(BuildContext context) {
+    final ImageProvider<Object>? imageProvider = imageProviderFor(imageUrl);
+    if (imageProvider == null) {
+      return _placeholder();
     }
-    if (constrained.isFinite && constrained > 0) {
-      return constrained;
-    }
-    return 0;
-  }
-
-  static int? _cacheDimension(BuildContext context, double logicalPixels) {
-    if (logicalPixels <= 0) {
-      return null;
-    }
-    final double devicePixelRatio =
-        MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
-    return (logicalPixels * devicePixelRatio).round().clamp(1, 1200).toInt();
+    return Image(
+      image: imageProvider,
+      width: width,
+      height: height,
+      fit: fit,
+      filterQuality: FilterQuality.medium,
+      gaplessPlayback: true,
+      loadingBuilder:
+          (
+            BuildContext context,
+            Widget child,
+            ImageChunkEvent? loadingProgress,
+          ) {
+            if (loadingProgress == null) {
+              return child;
+            }
+            return _placeholder();
+          },
+      errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) =>
+          _placeholder(),
+    );
   }
 
   Widget _placeholder() {

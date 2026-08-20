@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
 import '../utils/segue_card_tokens.dart';

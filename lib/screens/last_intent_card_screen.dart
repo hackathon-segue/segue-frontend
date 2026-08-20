@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_config.dart';
 import '../utils/decision_result_validator.dart';
+import '../utils/product_option_display.dart';
 import '../utils/segue_card_tokens.dart';
 import '../widgets/app_state_view.dart';
 import '../widgets/segue_card_shell.dart';
@@ -195,9 +196,7 @@ class _CardScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LastIntentSessionManager manager = LastIntentSessionScope.of(
-      context,
-    );
+    final LastIntentSessionManager manager = LastIntentSessionScope.of(context);
     return SegueCardShell(
       pageTitle: 'CURRENT SESSION',
       activeMenuItem: TabletMenuItem.currentSession,
@@ -250,8 +249,14 @@ class _ProductSummaryCard extends StatelessWidget {
                 Text(cartItem.category, style: SegueCardText.bodyLabel18Bold),
                 const SizedBox(height: 12),
                 Text(cartItem.productName, style: SegueCardText.productMeta20),
-                Text(cartItem.color, style: SegueCardText.productMeta20),
-                Text(cartItem.size, style: SegueCardText.productMeta20),
+                Text(
+                  displayProductColor(cartItem.color),
+                  style: SegueCardText.productMeta20,
+                ),
+                Text(
+                  displayProductSize(cartItem.size),
+                  style: SegueCardText.productMeta20,
+                ),
                 if (recommended != null) ...<Widget>[
                   const SizedBox(height: 16),
                   SegueLabelValueRow(
