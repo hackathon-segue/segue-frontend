@@ -30,6 +30,7 @@ class LastIntentSessionManager extends ChangeNotifier {
   LastIntentSessionManager({required SegueRepository repository})
     : _repository = repository {
     _restoreActiveConsultations();
+    _lastActiveCount = activeCount;
   }
 
   final SegueRepository _repository;
@@ -52,6 +53,12 @@ class LastIntentSessionManager extends ChangeNotifier {
   /// Every "is this session active" getter below treats a key in here as
   /// gone, same as if it had already been removed.
   final Set<String> _endedKeys = <String>{};
+  int _lastActiveCount = 0;
+
+  /// Fired once when all previously-active consultations have become
+  /// inactive/completed. The staff session uses this to clear the looked-up
+  /// customer context so CURRENT SESSION starts from Customer Search again.
+  VoidCallback? onAllSessionsCompleted;
 
   static const String _storageKey = 'segue.activeConsultations';
 
@@ -75,6 +82,7 @@ class LastIntentSessionManager extends ChangeNotifier {
     );
     _attach(created, key);
     created.start(customer: customer, cartItem: cartItem);
+    _syncActiveCountSideEffects();
     notifyListeners();
     return created;
   }
@@ -87,9 +95,14 @@ class LastIntentSessionManager extends ChangeNotifier {
     // request-accepted badge, driven by isCompleted() below) listen to this
     // manager, not to each individual session — without forwarding,
     // execute() flipping executionResponse never reaches them.
-    controller.addListener(notifyListeners);
+    controller.addListener(_handleSessionChanged);
     controller.addListener(_persistActiveConsultations);
     _sessionsByKey[key] = controller;
+  }
+
+  void _handleSessionChanged() {
+    _syncActiveCountSideEffects();
+    notifyListeners();
   }
 
   bool isStarted(int customerId, int skuId) =>
@@ -98,26 +111,12 @@ class LastIntentSessionManager extends ChangeNotifier {
   /// Number of sessions (across every customer) started but not yet
   /// completed — drives the "CURRENT SESSION" sidebar badge (Figma
   /// 89:1196/159:2173 etc.).
-  int get activeCount =>
-      _sessionsByKey.entries.where((MapEntry<String, LastIntentSessionController> e) {
-        return e.value.state.executionResponse == null &&
-            !_endedKeys.contains(e.key);
-      }).length;
-
-  /// Every started-but-not-completed session's state (across every
-  /// customer) — Home renders one "진행 중인 상담" card per entry (Figma
-  /// 80:776 only ever shows a single example card, but there's no reason
-  /// to hide a second customer's still-in-progress consultation just
-  /// because Figma's mock only shows one). Empty when [activeCount] is 0,
-  /// matching Home's empty-state variant (89:1196).
-  List<LastIntentSessionState> get activeSessions => _sessionsByKey.entries
-      .where(
-        (MapEntry<String, LastIntentSessionController> e) =>
-            e.value.state.executionResponse == null &&
-            !_endedKeys.contains(e.key),
-      )
-      .map((MapEntry<String, LastIntentSessionController> e) => e.value.state)
-      .toList();
+  int get activeCount => _sessionsByKey.entries.where((
+    MapEntry<String, LastIntentSessionController> e,
+  ) {
+    return e.value.state.executionResponse == null &&
+        !_endedKeys.contains(e.key);
+  }).length;
 
   /// The first started-but-not-completed session's state (across every
   /// customer). Null when [activeCount] is 0.
@@ -216,6 +215,7 @@ class LastIntentSessionManager extends ChangeNotifier {
     }
     _endedKeys.add(key);
     _persistActiveConsultations();
+    _syncActiveCountSideEffects();
     notifyListeners();
     final String endedKey = key;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -247,7 +247,17 @@ class LastIntentSessionManager extends ChangeNotifier {
       _sessionsByKey.remove(key)?.dispose();
     }
     _persistActiveConsultations();
+    _syncActiveCountSideEffects();
     notifyListeners();
+  }
+
+  void _syncActiveCountSideEffects() {
+    final int count = activeCount;
+    final bool justCompletedAll = _lastActiveCount > 0 && count == 0;
+    _lastActiveCount = count;
+    if (justCompletedAll) {
+      onAllSessionsCompleted?.call();
+    }
   }
 
   /// Rebuilds every still-in-progress session's controller from whatever

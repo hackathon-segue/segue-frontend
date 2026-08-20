@@ -114,7 +114,7 @@ void main() {
   });
 
   testWidgets(
-    '진행 branch: 상담 완료 tap executes then returns to the cart with the normal 상담 완료 badge',
+    '진행 branch: 상담 완료 tap completes only this item and keeps the customer context',
     (WidgetTester tester) async {
       await reachAdditionalConsultationScreen(tester);
 
@@ -129,16 +129,17 @@ void main() {
       // Never shows the "요청 접수 완료" hand-off screen for this flow.
       expect(find.byType(LastIntentCompletionScreen), findsNothing);
       expect(find.text('요청 접수 완료'), findsNothing);
-      // Lands back on the cart, with this SKU's row marked complete via the
-      // normal (not "중단") badge.
+      // Other cart items are still unfinished, so the looked-up customer must
+      // remain available when this item returns to the cart.
       expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
+      expect(find.textContaining('김세계 님의 쇼핑백'), findsOneWidget);
       expect(find.text('상담 완료'), findsOneWidget);
       expect(find.text('상담 중단'), findsNothing);
     },
   );
 
   testWidgets(
-    '미진행 branch: 해당 제품 상담 중단 tap executes then returns to the cart with the darker 상담 중단 badge',
+    '미진행 branch: 해당 제품 상담 중단 tap completes only this item and keeps the customer context',
     (WidgetTester tester) async {
       await reachAdditionalConsultationScreen(tester);
 
@@ -153,10 +154,8 @@ void main() {
       expect(find.byType(LastIntentCompletionScreen), findsNothing);
       expect(find.text('요청 접수 완료'), findsNothing);
       expect(find.text('쇼핑백 및 재고 확인'), findsOneWidget);
-      // The declined outcome shows the darker "상담 중단" badge, never the
-      // normal "상담 완료" one, for this SKU's row.
+      expect(find.textContaining('김세계 님의 쇼핑백'), findsOneWidget);
       expect(find.text('상담 중단'), findsOneWidget);
-      expect(find.text('상담 완료'), findsNothing);
     },
   );
 }
