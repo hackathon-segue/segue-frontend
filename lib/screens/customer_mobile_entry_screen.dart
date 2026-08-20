@@ -91,6 +91,7 @@ abstract final class _McmImageAssets {
 
   static String categoryHeroFor(String? category) {
     return switch (category ?? '가방') {
+      _ProductCategory.bagNewProducts => categoryNewBags,
       _ProductCategory.newProducts => categoryNewProducts,
       _ProductCategory.womenNewProducts => categoryWomenNewProducts,
       _ProductCategory.menNewProducts => categoryMenNewProducts,
@@ -105,6 +106,7 @@ abstract final class _McmImageAssets {
 }
 
 abstract final class _ProductCategory {
+  static const String bagNewProducts = '가방 신상품';
   static const String newProducts = '신상품 제품';
   static const String womenNewProducts = '여성 신상품';
   static const String menNewProducts = '남성 신상품';
@@ -272,35 +274,45 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onOpenMenu: _openMenu,
         onOpenResults: _openAccount,
       ),
-      _MobileScreen.detail => _ProductDetailScreen(
-        product: _selectedProduct,
-        selectedColor: _selectedColor,
-        selectedSize: _selectedSize,
-        selectedSku: _selectedProduct.skuFor(
-          color: _selectedColor,
-          size: _selectedSize,
-        ),
-        onBack: _returnToProducts,
-        onColorSelected: (String color) {
-          setState(() {
-            final MobileSkuOption? firstOption = _selectedProduct
-                .firstOptionForColor(color);
-            _selectedColor = color;
-            _selectedSize = firstOption?.size;
-          });
+      _MobileScreen.detail => Builder(
+        builder: (BuildContext context) {
+          final MobileSkuOption? selectedSku = _selectedProduct.skuFor(
+            color: _selectedColor,
+            size: _selectedSize,
+          );
+          final bool selectedSkuInCart =
+              selectedSku != null &&
+              _cartItems.any((CartItem item) => item.skuId == selectedSku.skuId);
+
+          return _ProductDetailScreen(
+            product: _selectedProduct,
+            selectedColor: _selectedColor,
+            selectedSize: _selectedSize,
+            selectedSku: selectedSku,
+            selectedSkuInCart: selectedSkuInCart,
+            onBack: _returnToProducts,
+            onColorSelected: (String color) {
+              setState(() {
+                final MobileSkuOption? firstOption = _selectedProduct
+                    .firstOptionForColor(color);
+                _selectedColor = color;
+                _selectedSize = firstOption?.size;
+              });
+            },
+            onSizeSelected: (String size) {
+              if (_selectedProduct.skuFor(color: _selectedColor, size: size) ==
+                  null) {
+                return;
+              }
+              setState(() => _selectedSize = size);
+            },
+            onAddToCart: _saveSelectedCartItem,
+            isSavingCart: _isSavingCart,
+            cartSaveError: _cartSaveError,
+            onOpenAccount: _openAccount,
+            onOpenSegueIntro: _openSegueIntro,
+          );
         },
-        onSizeSelected: (String size) {
-          if (_selectedProduct.skuFor(color: _selectedColor, size: size) ==
-              null) {
-            return;
-          }
-          setState(() => _selectedSize = size);
-        },
-        onAddToCart: _saveSelectedCartItem,
-        isSavingCart: _isSavingCart,
-        cartSaveError: _cartSaveError,
-        onOpenAccount: _openAccount,
-        onOpenSegueIntro: _openSegueIntro,
       ),
       _MobileScreen.cartAdded => _CartAddedSlideIn(
         child: _CartAddedScreen(
@@ -320,6 +332,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         isLoggedIn: _isLoggedIn,
         onRetry: () => _loadCartItems(force: true),
         onBackToProducts: _returnToProducts,
+        onOpenMenu: _openMenu,
         onOpenAccount: _openAccount,
         onOpenLogin: _openLogin,
       ),
@@ -331,6 +344,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
         onOnlinePurchase: _openOnlinePurchase,
         onStoreVisit: _openStoreVisit,
         onBackToHome: _openStart,
+        onOpenMenu: _openMenu,
         onOpenAccount: _openAccount,
       ),
       _MobileScreen.onlinePurchase => _OnlinePurchaseScreen(
@@ -355,7 +369,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       products.addAll(
         _mobileProducts.where(
           (MobileProduct product) =>
-              _matchesProductCategory(product, _ProductCategory.newProducts),
+              _matchesProductCategory(product, _ProductCategory.bagNewProducts),
         ),
       );
     }
@@ -375,6 +389,9 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
     final bool lacksNewCollectionMetadata = _lacksNewProductMetadata(product);
 
     return switch (category) {
+      _ProductCategory.bagNewProducts =>
+        hasNewCollectionMetadata ||
+            (lacksNewCollectionMetadata && product.category != '지갑'),
       _ProductCategory.newProducts =>
         hasNewCollectionMetadata ||
             (lacksNewCollectionMetadata && product.category != '지갑'),
@@ -484,7 +501,11 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
   }
 
   void _closeAccount() {
-    setState(() => _screen = _accountReturnScreen);
+    setState(() {
+      _screen = _accountReturnScreen == _MobileScreen.menu
+          ? _menuReturnScreen
+          : _accountReturnScreen;
+    });
   }
 
   void _openProfileEdit() {
@@ -2438,7 +2459,8 @@ class _MenuScreen extends StatelessWidget {
                   if (expandedSection == '가방') ...<Widget>[
                     _MenuSubItem(
                       label: '신상품',
-                      onTap: () => onOpenProducts(_ProductCategory.newProducts),
+                      onTap: () =>
+                          onOpenProducts(_ProductCategory.bagNewProducts),
                     ),
                     _MenuSubItem(label: '모두보기', onTap: onOpenAllProducts),
                     _MenuSubItem(
@@ -4063,7 +4085,7 @@ class _ProductListScreenState extends State<_ProductListScreen> {
             _ProductCategory.autumnWinter2026,
           ]
         : const <String?>[
-            _ProductCategory.newProducts,
+            _ProductCategory.bagNewProducts,
             null,
             '토트백 & 쇼퍼백',
             '숄더백 & 크로스백',
@@ -4246,6 +4268,7 @@ class _CategoryTrail extends StatelessWidget {
           final bool selected = selectedCategory == category;
           final String label = switch (category) {
             null => '모두보기',
+            _ProductCategory.bagNewProducts => '신상품',
             _ProductCategory.newProducts => '신상품',
             _ => category,
           };
@@ -4810,6 +4833,7 @@ class _ProductDetailScreen extends StatelessWidget {
     required this.selectedColor,
     required this.selectedSize,
     required this.selectedSku,
+    required this.selectedSkuInCart,
     required this.onBack,
     required this.onColorSelected,
     required this.onSizeSelected,
@@ -4824,6 +4848,7 @@ class _ProductDetailScreen extends StatelessWidget {
   final String? selectedColor;
   final String? selectedSize;
   final MobileSkuOption? selectedSku;
+  final bool selectedSkuInCart;
   final VoidCallback onBack;
   final ValueChanged<String> onColorSelected;
   final ValueChanged<String> onSizeSelected;
@@ -4902,6 +4927,7 @@ class _ProductDetailScreen extends StatelessWidget {
                                 ),
                               ),
                               _ProductDetailBagButton(
+                                selected: selectedSkuInCart,
                                 enabled: selectedSku != null && !isSavingCart,
                                 onPressed: onAddToCart,
                               ),
@@ -5071,25 +5097,14 @@ class _ProductDetailScreen extends StatelessWidget {
   }
 }
 
-class _ProductDetailBagIcon extends StatelessWidget {
-  const _ProductDetailBagIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 13.74,
-      height: 12.207,
-      child: CustomPaint(painter: _ProductDetailBagIconPainter()),
-    );
-  }
-}
-
 class _ProductDetailBagButton extends StatelessWidget {
   const _ProductDetailBagButton({
+    required this.selected,
     required this.enabled,
     required this.onPressed,
   });
 
+  final bool selected;
   final bool enabled;
   final VoidCallback onPressed;
 
@@ -5105,104 +5120,19 @@ class _ProductDetailBagButton extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: Opacity(
             opacity: enabled ? 1 : 0.45,
-            child: const _ProductDetailBagIcon(),
+            child: Image.asset(
+              selected
+                  ? _McmImageAssets.productTileBagAddedIcon
+                  : _McmImageAssets.productTileBagIcon,
+              width: 13.74,
+              height: 12.207,
+              fit: BoxFit.fill,
+              filterQuality: FilterQuality.high,
+            ),
           ),
         ),
       ),
     );
-  }
-}
-
-class _ProductDetailBagIconPainter extends CustomPainter {
-  const _ProductDetailBagIconPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas
-      ..save()
-      ..scale(size.width / 15, size.height / 13);
-
-    final Paint outerPaint = Paint()
-      ..color = const Color(0xFF222222)
-      ..style = PaintingStyle.fill;
-    final Paint outerStrokePaint = Paint()
-      ..color = const Color(0xFF222222)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.732824;
-    final Path outerPath = Path()
-      ..moveTo(1.41207, 0.380501)
-      ..cubicTo(1.63041, 0.35398, 1.95799, 0.372423, 2.18768, 0.372825)
-      ..lineTo(3.49501, 0.373929)
-      ..lineTo(7.66941, 0.373815)
-      ..lineTo(11.309, 0.373143)
-      ..lineTo(12.475, 0.372429)
-      ..cubicTo(13.0835, 0.372308, 14.0266, 0.295554, 14.0808, 1.18095)
-      ..cubicTo(14.1212, 1.83778, 14.1022, 2.50968, 14.1022, 3.16904)
-      ..lineTo(14.1025, 6.68327)
-      ..lineTo(14.1025, 9.91348)
-      ..cubicTo(14.1027, 10.5087, 14.1193, 11.1129, 14.0836, 11.7063)
-      ..cubicTo(14.0441, 12.3618, 13.6655, 12.5251, 13.1079, 12.564)
-      ..cubicTo(12.1891, 12.5749, 11.2542, 12.5666, 10.3342, 12.5666)
-      ..lineTo(5.24093, 12.5663)
-      ..lineTo(2.55661, 12.5663)
-      ..cubicTo(2.11623, 12.5664, 1.66068, 12.5851, 1.22307, 12.5585)
-      ..cubicTo(0.686544, 12.526, 0.401113, 12.1444, 0.381569, 11.6152)
-      ..cubicTo(0.358016, 10.9773, 0.368845, 10.3465, 0.368814, 9.71126)
-      ..lineTo(0.36841, 6.11232)
-      ..lineTo(0.368177, 2.95996)
-      ..cubicTo(0.368161, 2.43533, 0.359181, 1.88264, 0.379736, 1.35911)
-      ..cubicTo(0.388886, 1.12587, 0.461658, 0.859268, 0.613897, 0.683249)
-      ..cubicTo(0.853371, 0.406369, 1.08674, 0.404159, 1.41207, 0.380501)
-      ..close();
-    canvas
-      ..drawPath(outerPath, outerPaint)
-      ..drawPath(outerPath, outerStrokePaint);
-
-    final Paint fillPaint = Paint()
-      ..color = const Color(0xFFF7F7F7)
-      ..style = PaintingStyle.fill;
-    final Path fillPath = Path()
-      ..moveTo(1.44664, 1.31514)
-      ..cubicTo(2.29847, 1.29889, 3.18381, 1.31058, 4.03791, 1.31066)
-      ..lineTo(8.65315, 1.3103)
-      ..lineTo(11.5324, 1.31023)
-      ..cubicTo(12.0333, 1.31025, 12.6868, 1.29196, 13.1749, 1.32484)
-      ..cubicTo(13.2074, 3.06557, 13.1795, 4.90193, 13.1793, 6.6492)
-      ..lineTo(13.1785, 9.9045)
-      ..cubicTo(13.1785, 10.0904, 13.1972, 11.5685, 13.1549, 11.6231)
-      ..lineTo(13.0928, 11.6268)
-      ..lineTo(6.11024, 11.6276)
-      ..cubicTo(4.5112, 11.6276, 2.88182, 11.6441, 1.28484, 11.6232)
-      ..lineTo(1.28279, 3.7571)
-      ..lineTo(1.28314, 2.03095)
-      ..cubicTo(1.28327, 1.93, 1.27709, 1.4159, 1.29522, 1.34479)
-      ..cubicTo(1.34154, 1.30842, 1.37867, 1.31893, 1.44664, 1.31514)
-      ..close();
-    canvas.drawPath(fillPath, fillPaint);
-
-    final Path handlePath = Path()
-      ..moveTo(4.03637, 2.24414)
-      ..lineTo(5.31615, 2.24837)
-      ..cubicTo(5.31016, 3.14606, 5.20286, 4.34106, 5.85149, 4.97794)
-      ..cubicTo(6.22984, 5.34942, 6.65306, 5.58899, 7.18132, 5.59099)
-      ..cubicTo(7.76833, 5.59323, 8.21433, 5.40818, 8.63371, 4.98059)
-      ..cubicTo(9.15447, 4.44963, 9.17218, 3.81889, 9.17285, 3.10968)
-      ..lineTo(9.17591, 2.24519)
-      ..lineTo(10.4363, 2.2467)
-      ..cubicTo(10.4382, 2.65979, 10.4527, 3.20233, 10.4294, 3.60596)
-      ..cubicTo(10.4195, 3.79386, 10.4072, 4.14242, 10.3691, 4.31551)
-      ..cubicTo(10.2393, 4.90448, 9.96782, 5.46891, 9.55957, 5.89662)
-      ..cubicTo(9.09352, 6.41365, 8.60891, 6.6752, 7.94918, 6.84578)
-      ..cubicTo(6.81489, 7.13907, 5.70582, 6.7208, 4.8934, 5.86263)
-      ..cubicTo(3.92593, 4.84065, 4.03028, 3.56282, 4.03637, 2.24414)
-      ..close();
-    canvas.drawPath(handlePath, outerPaint);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_ProductDetailBagIconPainter oldDelegate) {
-    return false;
   }
 }
 
@@ -6465,6 +6395,7 @@ class _CartListScreen extends StatelessWidget {
     required this.isLoggedIn,
     required this.onRetry,
     required this.onBackToProducts,
+    required this.onOpenMenu,
     required this.onOpenAccount,
     required this.onOpenLogin,
   });
@@ -6475,6 +6406,7 @@ class _CartListScreen extends StatelessWidget {
   final bool isLoggedIn;
   final VoidCallback onRetry;
   final VoidCallback onBackToProducts;
+  final VoidCallback onOpenMenu;
   final VoidCallback onOpenAccount;
   final VoidCallback onOpenLogin;
 
@@ -6489,7 +6421,7 @@ class _CartListScreen extends StatelessWidget {
         child: Column(
           children: <Widget>[
             _McmTopBar(
-              onLeadingPressed: onBackToProducts,
+              onLeadingPressed: onOpenMenu,
               leadingIconWidget: const _McmTopBarMenuIcon(),
               onProfilePressed: onOpenAccount,
               profileIconWidget: const _McmTopBarProfileIcon(),
@@ -6593,6 +6525,7 @@ class _ConsultationResultsScreen extends StatefulWidget {
     required this.onOnlinePurchase,
     required this.onStoreVisit,
     required this.onBackToHome,
+    required this.onOpenMenu,
     required this.onOpenAccount,
   });
 
@@ -6603,6 +6536,7 @@ class _ConsultationResultsScreen extends StatefulWidget {
   final ValueChanged<ConsultationResult> onOnlinePurchase;
   final ValueChanged<ConsultationResult> onStoreVisit;
   final VoidCallback onBackToHome;
+  final VoidCallback onOpenMenu;
   final VoidCallback onOpenAccount;
 
   @override
@@ -6632,7 +6566,7 @@ class _ConsultationResultsScreenState
         child: Column(
           children: <Widget>[
             _McmTopBar(
-              onLeadingPressed: widget.onBackToHome,
+              onLeadingPressed: widget.onOpenMenu,
               leadingIconWidget: const _McmTopBarMenuIcon(),
               onProfilePressed: widget.onOpenAccount,
               profileIconWidget: const _McmTopBarProfileIcon(),
