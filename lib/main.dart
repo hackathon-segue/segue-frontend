@@ -16,6 +16,10 @@ import 'utils/app_config.dart';
 import 'utils/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  PaintingBinding.instance.imageCache
+    ..maximumSize = 300
+    ..maximumSizeBytes = 256 << 20;
   runApp(const SegueApp());
 }
 

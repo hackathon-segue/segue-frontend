@@ -280,7 +280,7 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
           color: _selectedColor,
           size: _selectedSize,
         ),
-        onBack: _openMenu,
+        onBack: _returnToProducts,
         onColorSelected: (String color) {
           setState(() {
             final MobileSkuOption? firstOption = _selectedProduct
@@ -708,16 +708,15 @@ class _CustomerMobileEntryScreenState extends State<CustomerMobileEntryScreen> {
       if (resolvedUrl == null || !resolvedUrls.add(resolvedUrl)) {
         continue;
       }
+      final ImageProvider<Object>? imageProvider =
+          SegueProductImage.imageProviderFor(product.imageUrl);
+      if (imageProvider == null) {
+        continue;
+      }
       unawaited(
-        precacheImage(
-          NetworkImage(
-            resolvedUrl,
-            headers: SegueProductImage.headersFor(resolvedUrl),
-          ),
-          context,
-        ).catchError((Object _) {}),
+        precacheImage(imageProvider, context).catchError((Object _) {}),
       );
-      if (resolvedUrls.length >= 12) {
+      if (resolvedUrls.length >= 48) {
         return;
       }
     }
@@ -2653,8 +2652,8 @@ class _SegueIntroTitleText extends StatelessWidget {
     fontFamily: 'Montserrat',
     fontSize: 18.321,
     fontStyle: FontStyle.normal,
-    fontWeight: FontWeight.w100,
-    fontVariations: <FontVariation>[FontVariation('wght', 100)],
+    fontWeight: FontWeight.w500,
+    fontVariations: <FontVariation>[FontVariation('wght', 450)],
     height: 1.21809,
     letterSpacing: 0,
   );
@@ -2698,8 +2697,8 @@ class _SegueIntroParagraphText extends StatelessWidget {
     fontFamily: 'Montserrat',
     fontSize: 12.824,
     fontStyle: FontStyle.normal,
-    fontWeight: FontWeight.w100,
-    fontVariations: <FontVariation>[FontVariation('wght', 100)],
+    fontWeight: FontWeight.w500,
+    fontVariations: <FontVariation>[FontVariation('wght', 450)],
     height: _lineHeight,
     letterSpacing: 0,
   );
@@ -4005,8 +4004,8 @@ class _ProductListScreen extends StatefulWidget {
 class _ProductListScreenState extends State<_ProductListScreen> {
   bool _cartOrderFirst = false;
 
-  void _toggleSortOrder() {
-    setState(() => _cartOrderFirst = !_cartOrderFirst);
+  void _selectSortOrder(String sortLabel) {
+    setState(() => _cartOrderFirst = sortLabel == '장바구니 담은 순');
   }
 
   List<MobileProduct> _sortedProducts() {
@@ -4057,14 +4056,13 @@ class _ProductListScreenState extends State<_ProductListScreen> {
     final List<String?> categories =
         _isNewProductCategory(widget.selectedCategory)
         ? const <String?>[
-            _ProductCategory.newProducts,
             _ProductCategory.womenNewProducts,
             _ProductCategory.menNewProducts,
             _ProductCategory.autumnWinter2026,
           ]
         : const <String?>[
-            null,
             _ProductCategory.newProducts,
+            null,
             '토트백 & 쇼퍼백',
             '숄더백 & 크로스백',
             '백팩',
@@ -4113,7 +4111,7 @@ class _ProductListScreenState extends State<_ProductListScreen> {
                     assetPath: heroAssetPath,
                     title: title,
                     sortLabel: _cartOrderFirst ? '장바구니 담은 순' : '기본순',
-                    onSortPressed: _toggleSortOrder,
+                    onSortSelected: _selectSortOrder,
                   ),
                   const _ProductSortRow(),
                   if (sortedProducts.isEmpty)
@@ -4244,7 +4242,11 @@ class _CategoryTrail extends StatelessWidget {
         itemBuilder: (BuildContext context, int index) {
           final String? category = categories[index];
           final bool selected = selectedCategory == category;
-          final String label = category ?? '가방';
+          final String label = switch (category) {
+            null => '모두보기',
+            _ProductCategory.newProducts => '신상품',
+            _ => category,
+          };
           return Center(
             child: InkWell(
               onTap: () => onCategorySelected(category),
@@ -4286,13 +4288,13 @@ class _ProductCampaignHero extends StatelessWidget {
     required this.assetPath,
     required this.title,
     required this.sortLabel,
-    required this.onSortPressed,
+    required this.onSortSelected,
   });
 
   final String assetPath;
   final String title;
   final String sortLabel;
-  final VoidCallback onSortPressed;
+  final ValueChanged<String> onSortSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -4334,28 +4336,20 @@ class _ProductCampaignHero extends StatelessWidget {
                   ),
                 ),
               ),
-              InkWell(
-                onTap: onSortPressed,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      sortLabel,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: Color(0xFF000000),
-                        fontFamily: 'Pretendard',
-                        fontSize: 10.076,
-                        fontStyle: FontStyle.normal,
-                        fontWeight: FontWeight.w500,
-                        height: 0.99925,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    const _ProductSortArrowIcon(),
-                  ],
+              _SortMenuButton(
+                selectedLabel: sortLabel,
+                options: const <String>['기본순', '장바구니 담은 순'],
+                onSelected: onSortSelected,
+                menuWidth: 116,
+                textStyle: const TextStyle(
+                  color: Color(0xFF000000),
+                  fontFamily: 'Pretendard',
+                  fontSize: 10.076,
+                  fontStyle: FontStyle.normal,
+                  fontWeight: FontWeight.w500,
+                  height: 0.99925,
                 ),
+                arrow: const _ProductSortArrowIcon(),
               ),
             ],
           ),
@@ -4418,22 +4412,17 @@ class _ProductSortArrowIconPainter extends CustomPainter {
 }
 
 class _ConsultationSortArrowIcon extends StatelessWidget {
-  const _ConsultationSortArrowIcon({this.inverted = false});
-
-  final bool inverted;
+  const _ConsultationSortArrowIcon();
 
   static const double width = 8.244;
   static const double height = 4.58;
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: inverted ? math.pi : 0,
-      child: const SizedBox(
-        width: width,
-        height: height,
-        child: CustomPaint(painter: _ConsultationSortArrowIconPainter()),
-      ),
+    return const SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _ConsultationSortArrowIconPainter()),
     );
   }
 }
@@ -4463,6 +4452,92 @@ class _ConsultationSortArrowIconPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ConsultationSortArrowIconPainter oldDelegate) {
     return false;
+  }
+}
+
+class _SortMenuButton extends StatefulWidget {
+  const _SortMenuButton({
+    required this.selectedLabel,
+    required this.options,
+    required this.onSelected,
+    required this.menuWidth,
+    required this.textStyle,
+    required this.arrow,
+  });
+
+  final String selectedLabel;
+  final List<String> options;
+  final ValueChanged<String> onSelected;
+  final double menuWidth;
+  final TextStyle textStyle;
+  final Widget arrow;
+
+  @override
+  State<_SortMenuButton> createState() => _SortMenuButtonState();
+}
+
+class _SortMenuButtonState extends State<_SortMenuButton> {
+  bool _isOpen = false;
+
+  void _setOpen(bool value) {
+    if (!mounted || _isOpen == value) {
+      return;
+    }
+    setState(() => _isOpen = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      tooltip: '',
+      color: Colors.white,
+      elevation: 2,
+      offset: const Offset(0, 20),
+      constraints: BoxConstraints.tightFor(width: widget.menuWidth),
+      shape: const RoundedRectangleBorder(
+        side: BorderSide(color: Color(0xFFDBDCE0), width: 0.6),
+      ),
+      onOpened: () => _setOpen(true),
+      onCanceled: () => _setOpen(false),
+      onSelected: (String value) {
+        _setOpen(false);
+        widget.onSelected(value);
+      },
+      itemBuilder: (BuildContext context) {
+        return <PopupMenuEntry<String>>[
+          for (final String option in widget.options)
+            PopupMenuItem<String>(
+              value: option,
+              height: 28,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                option,
+                style: widget.textStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ];
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Text(
+            widget.selectedLabel,
+            textAlign: TextAlign.right,
+            style: widget.textStyle,
+          ),
+          const SizedBox(width: 5),
+          AnimatedRotation(
+            turns: _isOpen ? 0.5 : 0,
+            duration: const Duration(milliseconds: 120),
+            child: widget.arrow,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -4647,22 +4722,22 @@ class _ProductTileColorChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 13.5,
-      height: 13.5,
+      width: 11.8,
+      height: 11.8,
       child: Center(
         child: Transform.rotate(
           angle: math.pi / 4,
           child: DecoratedBox(
             decoration: const BoxDecoration(color: Color(0xFF222222)),
             child: Padding(
-              padding: const EdgeInsets.all(1.1),
+              padding: const EdgeInsets.all(0.95),
               child: DecoratedBox(
                 decoration: const BoxDecoration(color: Color(0xFFFFFFFF)),
                 child: Padding(
-                  padding: const EdgeInsets.all(1.3),
+                  padding: const EdgeInsets.all(1.05),
                   child: DecoratedBox(
                     decoration: BoxDecoration(color: color),
-                    child: const SizedBox(width: 7.305, height: 7.305),
+                    child: const SizedBox(width: 6.2, height: 6.2),
                   ),
                 ),
               ),
@@ -4790,7 +4865,7 @@ class _ProductDetailScreen extends StatelessWidget {
           children: <Widget>[
             _McmTopBar(
               onLeadingPressed: onBack,
-              leadingIconWidget: const _McmTopBarMenuIcon(),
+              leadingIconWidget: const _MenuCloseIcon(),
               onProfilePressed: onOpenAccount,
               profileIconWidget: const _McmTopBarProfileIcon(),
               logoAssetPath: _McmImageAssets.menuMcmLogo,
@@ -4807,11 +4882,11 @@ class _ProductDetailScreen extends StatelessWidget {
                     color: const Color(0xFFF7F7F7),
                     child: Column(
                       children: <Widget>[
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(16.5, 12, 16.5, 0),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16.5, 12, 16.5, 0),
                           child: Row(
                             children: <Widget>[
-                              Expanded(
+                              const Expanded(
                                 child: Text(
                                   '신규 컬렉션',
                                   style: TextStyle(
@@ -4824,7 +4899,10 @@ class _ProductDetailScreen extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              _ProductDetailBagIcon(),
+                              _ProductDetailBagButton(
+                                enabled: selectedSku != null && !isSavingCart,
+                                onPressed: onAddToCart,
+                              ),
                             ],
                           ),
                         ),
@@ -5000,6 +5078,35 @@ class _ProductDetailBagIcon extends StatelessWidget {
       width: 13.74,
       height: 12.207,
       child: CustomPaint(painter: _ProductDetailBagIconPainter()),
+    );
+  }
+}
+
+class _ProductDetailBagButton extends StatelessWidget {
+  const _ProductDetailBagButton({
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onPressed : null,
+      child: SizedBox(
+        width: 26,
+        height: 26,
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child: const _ProductDetailBagIcon(),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -6461,7 +6568,7 @@ class _CartListScreen extends StatelessWidget {
                       _CartCheckoutPanel(
                         itemCount: cartItems.length,
                         totalPrice: totalPrice,
-                        onCheckout: onBackToProducts,
+                        onCheckout: () {},
                       ),
                     ],
                   );
@@ -6505,8 +6612,8 @@ class _ConsultationResultsScreenState
     extends State<_ConsultationResultsScreen> {
   bool _newestFirst = true;
 
-  void _toggleSortOrder() {
-    setState(() => _newestFirst = !_newestFirst);
+  void _selectSortOrder(String sortLabel) {
+    setState(() => _newestFirst = sortLabel == '최근 상담순');
   }
 
   @override
@@ -6609,31 +6716,23 @@ class _ConsultationResultsScreenState
                               ),
                             ),
                             const Spacer(),
-                            InkWell(
-                              onTap: _toggleSortOrder,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: <Widget>[
-                                  Text(
-                                    _newestFirst ? '최근 상담순' : '오래된 상담순',
-                                    textAlign: TextAlign.right,
-                                    style: const TextStyle(
-                                      color: Color(0xFF3D3D3D),
-                                      fontFamily: 'Pretendard',
-                                      fontSize: 10.076,
-                                      fontStyle: FontStyle.normal,
-                                      fontWeight: FontWeight.w500,
-                                      height: 0.99925,
-                                      letterSpacing: 0,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  _ConsultationSortArrowIcon(
-                                    inverted: !_newestFirst,
-                                  ),
-                                ],
+                            _SortMenuButton(
+                              selectedLabel: _newestFirst
+                                  ? '최근 상담순'
+                                  : '오래된 상담순',
+                              options: const <String>['최근 상담순', '오래된 상담순'],
+                              onSelected: _selectSortOrder,
+                              menuWidth: 102,
+                              textStyle: const TextStyle(
+                                color: Color(0xFF3D3D3D),
+                                fontFamily: 'Pretendard',
+                                fontSize: 10.076,
+                                fontStyle: FontStyle.normal,
+                                fontWeight: FontWeight.w500,
+                                height: 0.99925,
+                                letterSpacing: 0,
                               ),
+                              arrow: const _ConsultationSortArrowIcon(),
                             ),
                           ],
                         ),
