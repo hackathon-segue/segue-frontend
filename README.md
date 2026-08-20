@@ -36,6 +36,35 @@ to switch `RepositoryScope` to `MockSegueRepository`:
 Build Web, Android, or iOS with `APP_ENV` and `API_BASE_URL` supplied
 through `--dart-define` for the target environment.
 
+```powershell
+flutter build web --release --dart-define=APP_ENV=production --dart-define=API_BASE_URL=https://your-backend.example.com
+```
+
+## Vercel Deployment
+
+This repository includes `vercel.json` and Vercel build scripts so GitHub
+imports can build Flutter Web without manually committing `build/web`.
+
+In Vercel Project Settings, set these Environment Variables:
+
+| Key | Required | Example |
+| --- | --- | --- |
+| `API_BASE_URL` | Yes | `https://your-backend.example.com` |
+| `APP_ENV` | No | `production` |
+| `USE_MOCK_DATA` | No | `false` |
+| `STORE_ID` | No | `1` |
+| `CUSTOMER_ID` | No | `1` |
+| `API_TIMEOUT_SECONDS` | No | `10` |
+| `FLUTTER_CHANNEL` | No | `stable` |
+
+Vercel uses these project files:
+
+- `scripts/vercel_install_flutter.sh`: clones Flutter stable and runs `flutter pub get`
+- `scripts/vercel_build_flutter_web.sh`: runs `flutter build web --release`
+- `vercel.json`: serves `build/web` and rewrites all routes to `index.html`
+
+The backend must allow the deployed Vercel domain in CORS.
+
 ## Routes
 
 - `/` redirects to the customer mobile entry screen for now.
