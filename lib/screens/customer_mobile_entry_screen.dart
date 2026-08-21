@@ -6716,8 +6716,9 @@ class _OnlinePurchaseScreen extends StatelessWidget {
         onBack: onBack,
       );
     }
-    final ProductSkuSummary? recommendedProduct =
-        currentResult.recommendedProduct;
+    final ProductSkuSummary? resultProduct = _distinctRecommendedProduct(
+      currentResult,
+    );
 
     return _McmPhoneShell(
       child: SafeArea(
@@ -6773,7 +6774,7 @@ class _OnlinePurchaseScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (recommendedProduct != null) ...<Widget>[
+                  if (resultProduct != null) ...<Widget>[
                     const _McmSectionDivider(),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
@@ -6784,7 +6785,7 @@ class _OnlinePurchaseScreen extends StatelessWidget {
                             result: currentResult,
                             showBadge: true,
                             recommended: true,
-                            productSummary: recommendedProduct,
+                            productSummary: resultProduct,
                           ),
                           const SizedBox(height: 22),
                           const Text(
@@ -6982,6 +6983,12 @@ class _ConsultationProductRow extends StatelessWidget {
     );
     final String size = displayProductSize(summary?.size ?? sku?.size ?? 'M');
     final String priceLabel = _formatWon(product.price).replaceFirst('₩ ', '₩');
+    final Color productColor = summary == null
+        ? (sku == null ? Color(product.visualValue) : Color(sku.swatchValue))
+        : _productTileSwatchColor(
+            summary.color,
+            sku?.swatchValue ?? product.visualValue,
+          );
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6991,7 +6998,7 @@ class _ConsultationProductRow extends StatelessWidget {
           height: 127.328,
           child: MobileProductVisual(
             product: product,
-            colorOverride: sku == null ? null : Color(sku.swatchValue),
+            colorOverride: productColor,
             compact: true,
             imageFit: BoxFit.cover,
             showFrame: false,
@@ -7098,6 +7105,14 @@ class _ConsultationProductRow extends StatelessWidget {
       ],
     );
   }
+}
+
+ProductSkuSummary? _distinctRecommendedProduct(ConsultationResult result) {
+  final ProductSkuSummary? recommendedProduct = result.recommendedProduct;
+  if (recommendedProduct == null || recommendedProduct.skuId == result.skuId) {
+    return null;
+  }
+  return recommendedProduct;
 }
 
 class _InfoCard extends StatelessWidget {
